@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__.*__(send_message|send_email|send_reply|reply|forward|start_campaign|add_guest_post_to_cart|add_link_insertion_to_cart|checkout.*|purchase_.*|buy_.*|call-actor|khadinakbar--.*)|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/approval_gate.py\" pre"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__.*__(send_message|send_email|send_reply|reply|forward|start_campaign)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/approval_gate.py\" post"
+          }
+        ]
+      }
+    ]
+  }
+}

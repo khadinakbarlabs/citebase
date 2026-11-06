@@ -1,0 +1,56 @@
+{
+  "name": "vibegrowth",
+  "version": "0.2.0",
+  "displayName": "VibeGrowth",
+  "description": "VibeGrowth, the open-source AI growth agent that gets your brand cited by AI and found everywhere. It audits your presence on live data (Google, ChatGPT, Perplexity, Gemini, backlinks, competitors), then plans pages, PR, guest posts and outreach. One sign-in with Apify; every data call shows its price first and runs under a hard spending cap.",
+  "author": {
+    "name": "Khadin Akbar"
+  },
+  "license": "MIT",
+  "userConfig": {
+    "max_run_usd": {
+      "type": "number",
+      "title": "Max cost per data run (USD)",
+      "description": "Runs above this need your explicit approval each time.",
+      "default": 2,
+      "min": 0.1,
+      "max": 100
+    },
+    "daily_send_cap": {
+      "type": "number",
+      "title": "Daily outreach send cap",
+      "description": "Maximum outreach emails the agent may send per day after your approval.",
+      "default": 20,
+      "min": 1,
+      "max": 100
+    }
+  },
+  "keywords": [
+    "vibegrowth",
+    "vibe-growth",
+    "get-cited-by-ai",
+    "ai-citations",
+    "growth-agent",
+    "seo",
+    "ai-seo",
+    "geo",
+    "aeo",
+    "technical-seo",
+    "on-page-seo",
+    "off-page-seo",
+    "backlinks",
+    "link-building",
+    "digital-pr",
+    "press-release",
+    "guest-posts",
+    "competitor-research",
+    "outreach",
+    "cold-email",
+    "apify",
+    "pay-per-result",
+    "open-source",
+    "claude-code"
+  ],
+  "homepage": "https://github.com/khadinakbarlabs/vibegrowth",
+  "repository": "https://github.com/khadinakbarlabs/vibegrowth"
+}
