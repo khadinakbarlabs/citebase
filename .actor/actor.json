@@ -1,0 +1,19 @@
+{
+  "actorSpecification": 1,
+  "name": "citebase-mcp-server",
+  "title": "Citebase: get cited by AI (MCP server)",
+  "version": "0.3",
+  "buildTag": "latest",
+  "description": "Connector that lets claude.ai, ChatGPT and other AI assistants run Citebase: playbooks, site check, cost quotes, AI-recommendation results, to-do lists and outreach email checks.",
+  "usesStandbyMode": true,
+  "webServerSchema": "./web_server_openapi.json",
+  "webServerMcpPath": "/mcp",
+  "input": "./input_schema.json",
+  "dockerfile": "./Dockerfile",
+  "readme": "./ACTOR_README.md",
+  "minMemoryMbytes": 512,
+  "maxMemoryMbytes": 2048,
+  "meta": {
+    "templateId": "python-mcp-server"
+  }
+}

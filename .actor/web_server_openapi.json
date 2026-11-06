@@ -1,0 +1,28 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Citebase MCP server",
+    "description": "Model Context Protocol server (Streamable HTTP, stateless). Connect an MCP client to /mcp.",
+    "version": "0.3.0"
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Readiness probe and landing line",
+        "responses": {
+          "200": {"description": "Server is running", "content": {"text/plain": {"schema": {"type": "string"}}}}
+        }
+      }
+    },
+    "/mcp": {
+      "post": {
+        "summary": "MCP JSON-RPC endpoint (Streamable HTTP)",
+        "description": "Send MCP requests such as tools/list and tools/call. Authenticate with an Apify token.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {
+          "200": {"description": "JSON-RPC response", "content": {"application/json": {"schema": {"type": "object"}}}}
+        }
+      }
+    }
+  }
+}

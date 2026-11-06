@@ -1,0 +1,9 @@
+.git
+.github
+tests
+__pycache__
+*.pyc
+.DS_Store
+seo-workspace
+.env
+.citebase

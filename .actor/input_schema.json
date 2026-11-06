@@ -1,0 +1,7 @@
+{
+  "title": "Citebase MCP server",
+  "description": "This Actor is a Standby MCP server. It needs no input: connect your AI assistant to its Standby URL ending in /mcp.",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {}
+}

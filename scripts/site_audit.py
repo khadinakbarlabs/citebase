@@ -484,7 +484,9 @@ def site_signals(origin: str) -> tuple[dict, urllib.robotparser.RobotFileParser]
     return sig, rp
 
 
-def crawl(start: str, max_pages: int, delay: float) -> dict:
+def crawl(start: str, max_pages: int, delay: float, time_budget: float | None = None) -> dict:
+    """Crawls up to max_pages; stops starting new pages once time_budget seconds have passed (if given)."""
+    began = time.monotonic()
     first, chain = follow(start)
     if first.get("status") == 0:
         raise SystemExit(f"Cannot reach {start}: {first.get('error')}")
@@ -497,6 +499,8 @@ def crawl(start: str, max_pages: int, delay: float) -> dict:
     start_url = norm(chain[-1])
     queue, queued = deque([(start_url, 0)]), {start_url}
     while queue and len(pages) < max_pages:
+        if time_budget is not None and time.monotonic() - began > time_budget:
+            break
         url, depth = queue.popleft()
         if url in seen:
             continue

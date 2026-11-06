@@ -1,0 +1,202 @@
+"""Tests for the connector's tool logic (connector/tools.py). Needs no MCP library."""
+import json
+import os
+import sys
+import unittest
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "connector"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import tools  # noqa: E402
+from test_site_audit import ServerCase  # noqa: E402
+
+
+class PlaybookTests(unittest.TestCase):
+    def test_index_lists_every_skill_and_reference(self):
+        names = {p["name"] for p in tools.get_playbook()["playbooks"]}
+        for expected in ("start", "citation-loop", "outreach", "seo-audit", "checklist-onpage", "outreach-playbook",
+                         "tools-and-apis", "measurement"):
+            self.assertIn(expected, names)
+
+    def test_skill_text_has_web_note_and_no_frontmatter(self):
+        text = tools.get_playbook("start")["text"]
+        self.assertTrue(text.startswith("WEB MODE"))
+        self.assertNotIn("\nname: start", text)
+        self.assertIn("audit_site", text)
+
+    def test_reference_text_is_returned_without_web_note(self):
+        self.assertFalse(tools.get_playbook("measurement")["text"].startswith("WEB MODE"))
+
+    def test_unknown_names_and_path_tricks_are_refused(self):
+        for bad in ("nope", "../README", "../../etc/passwd", "skills/start/SKILL", ""):
+            if bad == "":
+                continue
+            with self.assertRaises(ValueError, msg=bad) as ctx:
+                tools.get_playbook(bad)
+            self.assertIn("get_playbook", str(ctx.exception))
+
+
+class QuoteTests(unittest.TestCase):
+    def test_serp_quote_and_cap(self):
+        q = tools.quote_cost([{"job": "serp_page", "units": 15}])
+        self.assertAlmostEqual(q["total_usd"], 0.0271, places=4)
+        self.assertEqual(q["suggested_cap_usd"], 0.04)
+        self.assertIn("maxTotalChargeUsd = 0.04", q["how_to_run"])
+
+    def test_request_fee_is_counted_once_per_request(self):
+        q = tools.quote_cost([{"job": "keyword_ideas", "units": 100, "requests": 1}])
+        self.assertAlmostEqual(q["total_usd"], 1.2001, places=3)
+        two = tools.quote_cost([{"job": "keyword_ideas", "units": 100, "requests": 2}])
+        self.assertGreater(two["total_usd"], q["total_usd"] + 0.19)
+
+    def test_zero_units_cost_only_the_start_fee(self):
+        self.assertLess(tools.quote_cost([{"job": "keyword_volume", "units": 0}])["total_usd"], 0.001)
+
+    def test_cap_is_at_least_thirty_percent_above_total(self):
+        q = tools.quote_cost([{"job": "ai_brand_check", "units": 180}, {"job": "ai_overview", "units": 20}])
+        self.assertGreaterEqual(q["suggested_cap_usd"], q["total_usd"] * 1.3)
+        self.assertAlmostEqual(q["total_usd"], 14.7001, places=3)
+
+    def test_bad_input_gets_a_helpful_error(self):
+        for bad in ([], [{"job": "unknown", "units": 1}], [{"job": "serp_page", "units": -1}],
+                    [{"job": "serp_page", "units": "lots"}]):
+            with self.assertRaises(ValueError):
+                tools.quote_cost(bad)
+
+    def test_every_price_matches_the_plugin_reference_table(self):
+        ref = open(os.path.join(ROOT, "references", "tools-and-apis.md")).read()
+        for job, spec in tools.PRICES["jobs"].items():
+            self.assertIn(spec["actor"], ref, job)
+
+
+class MeasureTests(unittest.TestCase):
+    def data(self, after_hits, total=24):
+        panel = [{"prompt_id": f"p{n:03d}", "prompt": f"best tool {n}", "type": "consideration"} for n in range(1, total + 1)]
+        panel += [{"prompt_id": f"p{total + n:03d}", "prompt": f"control {n}", "type": "control"} for n in range(1, 5)]
+        runs = []
+        for snap, hits in (("baseline", {"p001", "p002"}), ("after", after_hits)):
+            for p in panel:
+                for engine in ("chatgpt", "perplexity"):
+                    for rep in (1, 2, 3):
+                        hit = p["prompt_id"] in hits
+                        runs.append({"snapshot": snap, "prompt_id": p["prompt_id"], "platform": engine, "repeat": rep,
+                                     "mentioned": hit, "cited": hit, "recommended": hit,
+                                     "date": "2026-11-01" if snap == "baseline" else "2026-12-01"})
+        return panel, runs
+
+    def test_improvement_is_reported(self):
+        panel, runs = self.data({f"p{n:03d}" for n in range(1, 13)})
+        exp = [{"action": "Joined two listicles", "mechanism": "listicle",
+                "target_prompt_ids": ",".join(f"p{n:03d}" for n in range(3, 13))}]
+        rep = tools.measure(panel, runs, "baseline", "after", exp)
+        self.assertEqual(rep["change"]["all"]["verdict"], "improved")
+        self.assertEqual(rep["experiments"][0]["result"]["verdict"], "supported")
+        self.assertIn("Recommendation Share", rep["markdown"])
+        self.assertEqual(rep["due"], [])
+
+    def test_bad_inputs_have_clear_errors(self):
+        panel, runs = self.data({"p001"})
+        with self.assertRaises(ValueError):
+            tools.measure(panel, [dict(runs[0], prompt_id="p999")] + runs[1:])
+        with self.assertRaises(ValueError):
+            tools.measure(panel, [{k: v for k, v in runs[0].items() if k != "snapshot"}])
+        with self.assertRaises(ValueError):
+            tools.measure(panel, runs + [runs[0]])
+        with self.assertRaises(ValueError):
+            tools.measure([{"prompt_id": "x", "prompt": "y", "type": "bogus"}], runs)
+        with self.assertRaises(ValueError):
+            tools.measure(panel, [])
+
+
+class NextStepsTests(unittest.TestCase):
+    audit = {"problems": [
+        {"level": "warn", "check": "Meta description present", "detail": "3 missing"},
+        {"level": "fail", "check": "Search + AI crawler access (robots.txt)", "detail": "Blocked: GPTBot"},
+        {"level": "fail", "check": "Some brand new check", "detail": "odd"}]}
+
+    def test_failures_come_first_in_plain_words(self):
+        steps = tools.next_steps(self.audit)["steps"]
+        self.assertEqual(steps[0]["urgency"], "do first")
+        self.assertIn("Let search engines and AI tools read your site", [s["step"] for s in steps])
+        self.assertTrue(all(s["who"] and s["effort"] for s in steps))
+
+    def test_unknown_checks_still_produce_a_step(self):
+        steps = tools.next_steps(self.audit)["steps"]
+        self.assertTrue(any("brand new check" in s["step"] for s in steps))
+
+    def test_always_ends_with_a_recheck_reminder(self):
+        self.assertEqual(tools.next_steps(None)["steps"][-1]["step"], "Check again in 30 days")
+
+    def test_low_recommendation_share_adds_a_step(self):
+        report = {"summary": {"all": {"recommendation_share": 0.05, "control_false_positive": None}}, "due": []}
+        steps = tools.next_steps(None, report)["steps"]
+        self.assertTrue(any("pages AI already trusts" in s["step"] for s in steps))
+
+    def test_max_steps_is_respected(self):
+        audit = {"problems": [{"level": "warn", "check": f"x{i}", "detail": ""} for i in range(20)]}
+        self.assertLessEqual(len(tools.next_steps(audit, max_steps=3)["steps"]), 4)
+
+
+class OutreachCheckTests(unittest.TestCase):
+    good = ("Hi Sam, I read your piece on small-business payroll and liked the point about hidden fees. We published "
+            "a free 2026 comparison of payroll costs across 40 providers, with the raw numbers, that your readers "
+            "might find useful as a source. Happy to send the data or answer questions. If this isn't relevant, "
+            "just tell me and I won't write again. Thanks, Alex")
+
+    def test_good_email_is_ready(self):
+        r = tools.check_outreach_draft("sam@example.com", "Payroll cost data for your piece", self.good)
+        self.assertTrue(r["ready"], r)
+        self.assertEqual(len(r["fingerprint"]), 12)
+
+    def test_problems_block_readiness(self):
+        cases = [("sam@example.com", "Hi", "Hello [Name], quick note. " * 5, "bracket"),
+                 ("not-an-email", "Hi", self.good, "plain address"),
+                 ("sam@example.com", "Hi", "", "empty")]
+        for to, subj, body, word in cases:
+            r = tools.check_outreach_draft(to, subj, body)
+            self.assertFalse(r["ready"], word)
+            self.assertTrue(any(word in p for p in r["problems"]), (word, r["problems"]))
+
+    def test_suppressed_and_daily_limit(self):
+        r = tools.check_outreach_draft("sam@mail.example.com", "Hi there", self.good, suppressed=["example.com"])
+        self.assertFalse(r["ready"])
+        r = tools.check_outreach_draft("sam@example.com", "Hi there", self.good, sent_today=20, daily_cap=20)
+        self.assertFalse(r["ready"])
+
+    def test_warnings_do_not_block(self):
+        r = tools.check_outreach_draft("sam@example.com", "ACT NOW!!", "Guaranteed results. Click here https://a.com https://b.com https://c.com")
+        self.assertTrue(r["ready"])
+        self.assertGreaterEqual(len(r["warnings"]), 3)
+
+    def test_fingerprint_ignores_spacing_but_not_wording(self):
+        a = tools.check_outreach_draft("sam@example.com", "Hi there", self.good)["fingerprint"]
+        b = tools.check_outreach_draft("SAM@example.com", " Hi   there ", self.good.replace(" ", "  "))["fingerprint"]
+        c = tools.check_outreach_draft("sam@example.com", "Hi there", self.good + " P.S. buy")["fingerprint"]
+        self.assertEqual(a, b)
+        self.assertNotEqual(a, c)
+
+
+class AuditToolTests(ServerCase):
+    def test_audit_returns_plain_summary(self):
+        out = tools.run_audit(self.base, 5)
+        self.assertEqual(out["pages_checked"], 3)
+        self.assertIsInstance(out["health_score"], int)
+        self.assertTrue(out["problems"])
+        self.assertIn("no JavaScript", out["limits"])
+        json.dumps(out)  # must be JSON-serialisable for MCP
+
+    def test_bad_urls_and_private_addresses_are_refused(self):
+        with self.assertRaises(ValueError):
+            tools.run_audit("   ")
+        import site_audit
+        site_audit.ALLOW_PRIVATE = False
+        with self.assertRaises(ValueError) as ctx:
+            tools.run_audit(self.base, 3)
+        self.assertIn("Cannot reach", str(ctx.exception))
+
+    def test_page_limit_is_clamped(self):
+        self.assertEqual(tools.run_audit(self.base, 999)["pages_checked"], 3)
+
+
+if __name__ == "__main__":
+    unittest.main()

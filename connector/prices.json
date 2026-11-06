@@ -1,0 +1,25 @@
+{
+  "read_on": "2026-11-06",
+  "source": "Public pricing of the khadinakbar/* Actors on Apify. Prices change: re-check with fetch-actor-details before quoting.",
+  "start_fee_usd": 0.00005,
+  "jobs": {
+    "site_audit":        {"actor": "khadinakbar/complete-seo-audit", "unit": "audit", "per_unit": 0.10, "per_request": 0.0},
+    "serp_page":         {"actor": "khadinakbar/scrape-google-serp", "unit": "SERP page", "per_unit": 0.0018, "per_request": 0.0},
+    "keyword_ideas":     {"actor": "khadinakbar/dataforseo-keyword-research", "unit": "keyword row", "per_unit": 0.01, "per_request": 0.20},
+    "keyword_volume":    {"actor": "khadinakbar/dataforseo-keyword-research", "unit": "keyword row", "per_unit": 0.01, "per_request": 1.00},
+    "backlinks":         {"actor": "khadinakbar/website-backlink-checker", "unit": "backlink or domain row", "per_unit": 0.01, "per_request": 0.05},
+    "backlink_prospects":{"actor": "khadinakbar/backlink-opportunity-finder", "unit": "prospect", "per_unit": 0.006, "per_request": 0.0},
+    "ai_brand_check":    {"actor": "khadinakbar/ai-search-brand-monitor", "unit": "prompt x engine x run", "per_unit": 0.08, "per_request": 0.0},
+    "ai_page_citation":  {"actor": "khadinakbar/ai-search-visibility-tracker", "unit": "keyword x query x engine", "per_unit": 0.09, "per_request": 0.0},
+    "ai_citation_scan":  {"actor": "khadinakbar/ai-citations-tracker", "unit": "Perplexity prompt", "per_unit": 0.12, "per_request": 0.0},
+    "ai_overview":       {"actor": "khadinakbar/google-ai-overviews-scraper", "unit": "query", "per_unit": 0.015, "per_request": 0.0},
+    "ai_mode":           {"actor": "khadinakbar/google-ai-mode-scraper", "unit": "query", "per_unit": 0.025, "per_request": 0.0},
+    "website_contact":   {"actor": "khadinakbar/bulk-website-contact-extractor", "unit": "domain", "per_unit": 0.005, "per_request": 0.0},
+    "email_verify":      {"actor": "khadinakbar/email-address-validator", "unit": "email", "per_unit": 0.0009, "per_request": 0.0},
+    "news_article":      {"actor": "khadinakbar/google-news-scraper", "unit": "article", "per_unit": 0.003, "per_request": 0.0},
+    "reddit_result":     {"actor": "khadinakbar/reddit-posts-comments-scraper", "unit": "result", "per_unit": 0.003, "per_request": 0.0},
+    "youtube_result":    {"actor": "khadinakbar/youtube-search-scraper", "unit": "result", "per_unit": 0.003, "per_request": 0.0},
+    "review_site":       {"actor": "khadinakbar/software-reviews-all-in-one-scraper", "unit": "review", "per_unit": 0.007, "per_request": 0.0},
+    "trustpilot_review": {"actor": "khadinakbar/trustpilot-reviews-scraper", "unit": "review", "per_unit": 0.0025, "per_request": 0.0}
+  }
+}
