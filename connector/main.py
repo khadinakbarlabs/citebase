@@ -10,17 +10,30 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import uvicorn  # noqa: E402
 from apify import Actor  # noqa: E402
 
+import tools  # noqa: E402
 from server import build_app  # noqa: E402
 
-BATCH_MESSAGE = ("Citebase is an MCP server. Start it in Standby mode and connect your AI assistant to "
-                 "<standby URL>/mcp with your Apify token. Nothing to do in a normal run.")
+
+async def run_once() -> None:
+    """Normal run: execute one Citebase tool and return its result (this is what mcp.apify.com calls)."""
+    data = await Actor.get_input() or {}
+    tool = str(data.get("tool") or "get_playbook")
+    args = data.get("arguments") if isinstance(data.get("arguments"), dict) else {}
+    try:
+        result = await asyncio.to_thread(tools.dispatch, tool, args)
+    except ValueError as err:  # bad input: say what to fix, and end the run honestly as failed
+        await Actor.push_data({"tool": tool, "ok": False, "error": str(err)})
+        await Actor.fail(status_message=str(err)[:200])
+        return
+    await Actor.push_data({"tool": tool, "ok": True, "result": result})
+    await Actor.set_value("OUTPUT", result)
+    await Actor.set_status_message(f"{tool}: done")
 
 
 async def main() -> None:
     async with Actor:
         if os.environ.get("APIFY_META_ORIGIN") != "STANDBY":
-            Actor.log.info(BATCH_MESSAGE)
-            await Actor.set_value("OUTPUT", {"message": BATCH_MESSAGE})
+            await run_once()
             return
         port = int(os.environ.get("ACTOR_STANDBY_PORT") or os.environ.get("ACTOR_WEB_SERVER_PORT") or 8080)
         Actor.log.info(f"Citebase MCP server listening on port {port}")

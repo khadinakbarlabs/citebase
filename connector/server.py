@@ -17,11 +17,12 @@ from mcp.server.mcpserver import MCPServer  # noqa: E402
 from mcp.server.mcpserver.exceptions import ToolError  # noqa: E402
 from mcp.server.transport_security import TransportSecuritySettings  # noqa: E402
 from mcp.types import ToolAnnotations  # noqa: E402
-from starlette.responses import PlainTextResponse  # noqa: E402
+from starlette.responses import JSONResponse, PlainTextResponse  # noqa: E402
 
 import tools  # noqa: E402
 
 VERSION = "0.3.0"
+MAX_BODY = 2 * 1024 * 1024
 INSTRUCTIONS = (
     "Citebase helps a brand get recommended and cited by AI assistants such as ChatGPT, Claude, Gemini and Perplexity. "
     "Start by calling get_playbook with name 'start', then follow it. Talk to the user in short, plain words. "
@@ -116,6 +117,29 @@ def build_server() -> MCPServer:
     def check_outreach_draft(to: list[str] | str, subject: str, body: str, suppressed: list[str] | None = None,
                              sent_today: int = 0, daily_cap: int = 20) -> dict[str, Any]:
         return tools.check_outreach_draft(to, subject, body, suppressed, sent_today, daily_cap)
+
+    @mcp.custom_route("/run", methods=["POST"])
+    async def run(request):
+        """Plain JSON endpoint: POST {"tool": "...", "arguments": {...}}. This is what assistants reach through
+        mcp.apify.com, which turns the web-server description into one generic HTTP tool."""
+        if int(request.headers.get("content-length") or 0) > MAX_BODY:
+            return JSONResponse({"ok": False, "error": "Request is too large (limit 2 MB). Send less data."}, 413)
+        try:
+            data = await request.json()
+        except ValueError:
+            return JSONResponse({"ok": False, "error": 'Send JSON like {"tool": "get_playbook", "arguments": {}}.'}, 400)
+        if not isinstance(data, dict):
+            return JSONResponse({"ok": False, "error": 'Send a JSON object like {"tool": "get_playbook"}.'}, 400)
+        tool = str(data.get("tool") or "")
+        try:
+            if tool == "audit_site":
+                async with AUDIT_SLOTS:
+                    result = await asyncio.to_thread(tools.dispatch, tool, data.get("arguments"))
+            else:
+                result = await asyncio.to_thread(tools.dispatch, tool, data.get("arguments"))
+        except ValueError as err:
+            return JSONResponse({"ok": False, "error": str(err)}, 400)
+        return JSONResponse({"ok": True, "tool": tool, "result": result})
 
     @mcp.custom_route("/", methods=["GET"])
     async def readiness(_request):  # Apify's readiness probe and a human-readable landing line

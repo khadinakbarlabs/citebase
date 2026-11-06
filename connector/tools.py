@@ -293,3 +293,39 @@ def check_outreach_draft(to: list[str] | str, subject: str, body: str, suppresse
             "word_count": words, "fingerprint": st.draft_hash(probe)[:12],
             "next": "Show the user the final text and send it only after they say yes. Send exactly this text; "
                     "any change needs a new check and a new yes."}
+
+
+# ---------------------------------------------------------------- one-shot dispatch (Actor run mode)
+DISPATCH = {
+    "get_playbook": lambda a: get_playbook(a.get("name")),
+    "audit_site": lambda a: run_audit(a.get("url", ""), a.get("max_pages", 15)),
+    "quote_cost": lambda a: quote_cost(a.get("items") or []),
+    "measure_recommendation_share": lambda a: measure(a.get("panel") or [], a.get("runs") or [], a.get("baseline", ""),
+                                                      a.get("current", ""), a.get("experiments")),
+    "next_steps": lambda a: next_steps(a.get("audit"), a.get("report"), a.get("max_steps", 5)),
+    "check_outreach_draft": lambda a: check_outreach_draft(a.get("to", []), a.get("subject", ""), a.get("body", ""),
+                                                           a.get("suppressed"), a.get("sent_today", 0),
+                                                           a.get("daily_cap", 20)),
+}
+ALLOWED_ARGS = {
+    "get_playbook": {"name"}, "audit_site": {"url", "max_pages"}, "quote_cost": {"items"},
+    "measure_recommendation_share": {"panel", "runs", "baseline", "current", "experiments"},
+    "next_steps": {"audit", "report", "max_steps"},
+    "check_outreach_draft": {"to", "subject", "body", "suppressed", "sent_today", "daily_cap"},
+}
+
+
+def dispatch(tool: str, arguments: dict | None) -> dict:
+    """Runs one tool by name. Raises ValueError with a plain-language fix for bad input."""
+    if tool not in DISPATCH:
+        raise ValueError(f"Unknown tool '{tool}'. Choose one of: {', '.join(sorted(DISPATCH))}. "
+                         "Example: tool 'get_playbook' with arguments {}.")
+    args = arguments if isinstance(arguments, dict) else {}
+    extra = sorted(set(args) - ALLOWED_ARGS[tool])
+    if extra:
+        raise ValueError(f"'{tool}' does not take {', '.join(extra)}. It takes: {', '.join(sorted(ALLOWED_ARGS[tool]))}.")
+    try:
+        return DISPATCH[tool](args)
+    except (TypeError, AttributeError, KeyError) as err:
+        raise ValueError(f"The inputs for '{tool}' are the wrong shape ({type(err).__name__}). "
+                         f"It takes: {', '.join(sorted(ALLOWED_ARGS[tool]))}.") from err
