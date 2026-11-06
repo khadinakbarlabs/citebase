@@ -6,7 +6,7 @@ argument-hint: "<site URL> [max pages]"
 
 # Full SEO audit
 
-Input: `$ARGUMENTS` (URL, optional page limit; default 50, max 500). Workspace: `seo-workspace/<domain>/` (see `growth-agent`). Load `context.md` if present.
+Input: `$ARGUMENTS` (URL, optional page limit; default 50, max 500). Workspace: `seo-workspace/<domain>/` (see `start`). Load `context.md` if present.
 
 ## Step 1 — Crawl (deterministic, always)
 ```bash
@@ -33,7 +33,7 @@ Run the local checklist at the end of `../../references/checklist-technical.md` 
 2. **Findings by area** (Technical · On-page · Content · Off-page/backlinks · Competitors · AI search · Local): each finding = issue, evidence (URL, value, data source), impact, fix, evidence grade, how to verify.
 3. **Competitor snapshot** table (DR/authority, referring domains, organic keywords/traffic estimate, content types that win).
 4. **AI-visibility snapshot**: mention/citation rate by engine, top cited domains, wrong facts.
-5. **30/60/90-day plan** prioritised per `growth-agent` §2, with cost estimates for paid items (links, PR).
+5. **30/60/90-day plan** prioritised per `start` §2, with cost estimates for paid items (links, PR).
 6. **What I couldn't check** and which access would close the gap (GSC, GA4, Bing WMT exports; Apify sign-in).
 Then generate tailored checklists via the `seo-checklists` skill.
 

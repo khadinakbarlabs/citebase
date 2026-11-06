@@ -1,8 +1,8 @@
 {
-  "name": "vibegrowth",
+  "name": "vibecited",
   "version": "0.2.0",
-  "displayName": "VibeGrowth",
-  "description": "VibeGrowth, the open-source AI growth agent that gets your brand cited by AI and found everywhere. It audits your presence on live data (Google, ChatGPT, Perplexity, Gemini, backlinks, competitors), then plans pages, PR, guest posts and outreach. One sign-in with Apify; every data call shows its price first and runs under a hard spending cap.",
+  "displayName": "VibeCited",
+  "description": "VibeCited: get cited by AI. The open-source agent that gets your brand recommended, cited and featured by ChatGPT, Claude, Gemini and Perplexity. It measures where AI stands on your brand today, finds the gaps on live data, and plans the pages, press, partnerships and outreach that close them. One sign-in with Apify; every data call shows its price first and runs under a hard spending cap.",
   "author": {
     "name": "Khadin Akbar"
   },
@@ -26,11 +26,12 @@
     }
   },
   "keywords": [
-    "vibegrowth",
-    "vibe-growth",
+    "vibecited",
     "get-cited-by-ai",
     "ai-citations",
-    "growth-agent",
+    "ai-recommendations",
+    "generative-engine-optimization",
+    "answer-engine-optimization",
     "seo",
     "ai-seo",
     "geo",
@@ -51,6 +52,6 @@
     "open-source",
     "claude-code"
   ],
-  "homepage": "https://github.com/khadinakbarlabs/vibegrowth",
-  "repository": "https://github.com/khadinakbarlabs/vibegrowth"
+  "homepage": "https://github.com/khadinakbarlabs/vibecited",
+  "repository": "https://github.com/khadinakbarlabs/vibecited"
 }

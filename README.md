@@ -1,21 +1,23 @@
-# VibeGrowth
+# VibeCited
 
-**The open-source AI growth agent that gets your brand cited by AI — and found everywhere else.**
+### Get cited by AI.
 
-ChatGPT, Perplexity, Gemini and Google AI recommend the brands they find mentioned across the web: in search results, press, guest posts, podcasts and creator content. VibeGrowth audits where your brand stands on live data, finds the gaps, and writes the plan, the pitches and the outreach emails to close them — inside the AI assistant you already use.
+**The open-source agent that gets your brand recommended, cited and featured by ChatGPT, Claude, Gemini and Perplexity.**
+
+When someone asks an AI "what's the best X for Y?", it answers from what it finds said about brands across the web: search results, press, review sites, creator content, podcasts, community threads. VibeCited measures where AI stands on your brand today, finds the gaps on live data, and plans the pages, press, partnerships and outreach emails that close them. It works inside the AI assistant you already use.
 
 One sign-in with Apify. Every data call shows its price first, runs under a hard spending cap, and you pay only per result. No subscriptions, no five API keys.
 
 ```
-/vibegrowth:growth-agent https://yourbrand.com get cited by ChatGPT
+/vibecited:start https://yourbrand.com
 ```
 
 ## Why this one
 
-| | Typical SEO plugins | SEO / GEO SaaS suites | VibeGrowth |
+| | Typical SEO plugins | SEO / GEO SaaS suites | VibeCited |
 |---|---|---|---|
 | Setup | 3–5 API keys | Account + $100–500/mo | One "Sign in with Apify"; free mode needs nothing |
-| Goal | Rankings | Dashboards | **Getting cited and recommended by AI**, plus Google rankings |
+| Goal | Rankings | Dashboards | **Getting cited and recommended by AI**; Google rankings support it |
 | Data | Whatever keys you pay for | Their index | Live: SERPs, keywords, backlinks, rendered audits, AI answers |
 | AI search | Checklists | Paid add-on | Prompt panel across ChatGPT, Perplexity, Gemini, Claude, AI Overviews and AI Mode |
 | Cost control | Unknown until the bill | Fixed plan | Quote before every call, hard cap per run, ledger per site |
@@ -24,9 +26,9 @@ One sign-in with Apify. Every data call shows its price first, runs under a hard
 
 ## What it does today
 
-| Skill (`/vibegrowth:<name>`) | Outcome |
+| Skill (`/vibecited:<name>`) | Outcome |
 |---|---|
-| `growth-agent` | Start here: picks the right workflow, prioritises, 30/60/90-day plan |
+| `start` | Start here: baseline your AI visibility, then picks the right workflow, prioritises, 30/60/90-day plan |
 | `seo-audit` | Health score + findings across technical, on-page, content, backlinks, competitors, local, AI search |
 | `seo-checklists` | On-page and off-page checklists pre-filled pass/fail for *your* site |
 | `competitor-research` | Real SERP competitors, keyword + backlink gaps, weak pages you can outrank, page plan |
@@ -62,16 +64,16 @@ The agent quotes each run before starting; runs without a cap or above your per-
 ## Install
 
 ```bash
-claude plugin marketplace add khadinakbarlabs/vibegrowth
-claude plugin install vibegrowth@vibegrowth
+claude plugin marketplace add khadinakbarlabs/vibecited
+claude plugin install vibecited@vibecited
 ```
-Local checkout: `claude plugin marketplace add ./vibegrowth` or `claude --plugin-dir ./vibegrowth`.
+Local checkout: `claude plugin marketplace add ./vibecited` or `claude --plugin-dir ./vibecited`.
 
-**Connect data (once):** run `/mcp`, choose `plugin:vibegrowth:apify`, click **Authenticate** and sign in with Apify. No key to copy.
+**Connect data (once):** run `/mcp`, choose `plugin:vibecited:apify`, click **Authenticate** and sign in with Apify. No key to copy.
 **claude.ai / Claude Desktop / ChatGPT:** add a custom connector with the URL from `.mcp.json` and sign in with Apify.
 **Email sending (optional):** connect Gmail, or a ReachInbox / Instantly / Smartlead MCP. Without one you get copy-paste drafts.
 
-Settings (`/plugin configure vibegrowth@vibegrowth`): `max_run_usd` (default 2) and `daily_send_cap` (default 20).
+Settings (`/plugin configure vibecited@vibecited`): `max_run_usd` (default 2) and `daily_send_cap` (default 20).
 
 ## Your workspace
 Everything is saved in your project under `seo-workspace/<domain>/`: `context.md`, `audit.json`, `report.md`, checklists, `competitors.md`, `keyword-opportunities.csv`, `prompt-panel.csv`, `ai-visibility.md`, `prospects.csv`, `drafts/`, `outreach-log.csv`, `offpage-log.csv`, `pr/`, `ledger.json` (every paid run with quote, cap and actual cost).

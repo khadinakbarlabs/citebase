@@ -1,16 +1,16 @@
 {
-  "name": "vibegrowth",
+  "name": "vibecited",
   "owner": {
     "name": "Khadin Akbar"
   },
   "metadata": {
-    "description": "VibeGrowth: the open-source AI growth agent that gets your brand cited by AI and found everywhere \u2014 Google, AI answers, press, podcasts and creators",
+    "description": "VibeCited: get cited by AI. The open-source agent that gets your brand recommended, cited and featured by ChatGPT, Claude, Gemini and Perplexity.",
     "version": "0.2.0"
   },
   "plugins": [
     {
-      "name": "vibegrowth",
-      "description": "VibeGrowth: audit your presence on live data, then get cited by AI \u2014 page plans, PR, guest posts and outreach with approval gates",
+      "name": "vibecited",
+      "description": "Get cited by AI: measure your AI visibility on live data, find the gaps, and plan the pages, PR and outreach that close them, with price quotes and approval gates",
       "source": "./"
     }
   ]
