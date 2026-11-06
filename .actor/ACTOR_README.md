@@ -1,6 +1,6 @@
 ## What is Citebase?
 
-Citebase is an open-source connector that helps a brand get **recommended and cited by AI assistants** such as ChatGPT, Claude, Gemini and Perplexity. You connect it to your own AI assistant and ask for help in plain words. It returns step-by-step guidelines, a website health check, price quotes for paid data jobs, "how often does AI recommend me" results, a short to-do list and a check for outreach emails. All six tools are free; the paid data comes from separate Actors listed below, always with a price quote and a spending cap first.
+Citebase is an open-source connector that helps a brand get **recommended and cited by AI assistants** such as ChatGPT, Claude, Gemini and Perplexity. You connect it to your own AI assistant and ask for help in plain words. It returns step-by-step guidelines, a website health check, price quotes for paid data jobs, "how often does AI recommend me" results, a short to-do list, a check for outreach emails, saved history, a shareable report and a plan for automatic re-checks. All eleven tools are free; the paid data comes from separate Actors listed below, always with a price quote and a spending cap first.
 
 Built for founders, marketers and small agencies who want to show up when people ask an AI "what is the best X for Y?" and do not want to learn SEO jargon first.
 
@@ -34,12 +34,17 @@ Built for founders, marketers and small agencies who want to show up when people
 
 | Tool | What it returns | Price |
 |---|---|---|
-| `get_playbook` | Citebase's guidelines: the list of names, or one playbook's text (9 workflows and 7 checklists) | Free |
+| `get_playbook` | Citebase's guidelines: the list of names, or one playbook's text (10 workflows and 9 guides and checklists) | Free |
 | `audit_site` | 0-100 health score, scores per area, the top problems with example pages | Free |
 | `quote_cost` | Cost of each paid job, the total and the spending cap to use | Free |
 | `measure_recommendation_share` | How often AI recommends the brand, with ranges, a noise check and a verdict per change | Free |
 | `next_steps` | Ranked to-do list: what, why, who, how long | Free |
 | `check_outreach_draft` | Ready yes/no, problems to fix, warnings, a fingerprint of the exact text | Free |
+| `save_results` | Saves AI-answer rounds and site checks under a project name in your own Apify account | Free |
+| `get_history` | Recommendation Share and site score over time, plus logged changes | Free |
+| `make_report` | A one-page report with a trend chart and a link you can share | Free |
+| `import_ai_results` | Converts AI Brand Monitor results into saved rows, flags close calls for review | Free |
+| `schedule_checks` | Cron text, ready-to-paste inputs and monthly cost for automatic re-checks | Free |
 
 ## What one result contains
 
@@ -82,7 +87,7 @@ Plain JSON call, `POST /run` (what an assistant sends through `mcp.apify.com`):
 {"tool": "audit_site", "arguments": {"url": "https://example.com", "max_pages": 10}}
 ```
 
-You can also run this Actor normally with the same two fields as input: `tool` (one of the six names) and `arguments` (a JSON object). A bad input ends the run as failed and the dataset item says what to fix.
+You can also run this Actor normally with the same two fields as input: `tool` (one of the eleven names, or `scheduled_check`: the site check plus report refresh, meant for an Apify Schedule) and `arguments` (a JSON object). A bad input ends the run as failed and the dataset item says what to fix.
 
 ## Actors Citebase uses for paid data
 
@@ -113,7 +118,7 @@ Each paid run also pays a tiny start fee of $0.00005. Prices were read from each
 
 ## Pricing and cost example
 
-- **Citebase itself:** the six tools are free to call. The connector has no start fee and no minimum.
+- **Citebase itself:** the eleven tools are free to call. The connector has no start fee and no minimum.
 - **Platform usage:** running this Actor uses a small amount of Apify platform compute. It is paid by the account that starts the run, which is yours when you connect with your own sign-in. A 15-page site check takes under a minute.
 - **Paid data Actors:** each is priced per result on your account, as in the table. `quote_cost` totals them before anything runs.
 
@@ -137,7 +142,7 @@ Prompt to try: *"Use Citebase to check example.com, tell me the three most impor
 ## Limits, reliability and troubleshooting
 
 - Site check: up to 30 pages, public sites only, server HTML only (no JavaScript), about a minute at most.
-- Stateless: nothing is saved between calls, so keep your own data (panel, answers, results) between sessions.
+- Nothing is saved unless you give a project name. Saved projects live in a named key-value store in your own Apify account; up to 100 projects and 60 rounds each.
 - Requests are limited to 2 MB.
 
 | Symptom | Likely cause | Fix |
@@ -154,9 +159,9 @@ Prices were read from public Actor pricing on 2026-11-06. On 2026-11-07 a 46-cas
 
 ## Frequently asked questions
 
-**Is it really free?** Yes, the six tools are free. You pay Apify's small running cost and the paid Actors you choose to run.
+**Is it really free?** Yes, the eleven tools are free. You pay Apify's small running cost and the paid Actors you choose to run.
 
-**Does it store my data?** No. Each call stands alone and nothing is kept.
+**Does it store my data?** Only if you ask it to. With a project name, `save_results` keeps your rounds and site checks in a store named `citebase-projects` in the Apify account that runs the Actor (yours, when you connect with your own sign-in). The author cannot see it. Without a project name every call stands alone and nothing is kept. Reports are shared by link only: delete the record to stop sharing.
 
 **Can it send emails for me?** No. It checks a draft and returns a fingerprint of the exact text. You or your mail connector send it.
 

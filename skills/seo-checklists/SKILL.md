@@ -15,7 +15,7 @@ Sources of truth (read the relevant ones fully before writing):
 ## Steps
 1. Load `seo-workspace/<domain>/audit.json` and `context.md`. If there is no audit, run the crawl from `seo-audit` Step 1 first (fast, free) so items can be pre-filled.
 2. For every reference item that applies to this site type (SaaS, local service, e-commerce, publisher, agency), emit one row:
-   `- [ ] <action> — status: pass|fail|warn|todo — evidence: <URL/value or "needs GSC"> — owner: user|agent|vendor — effort: S|M|L`
+   `- [ ] <action> — status: pass|fail|warn|todo — evidence: <URL/value or "needs GSC"> — owner: user|agent|specialist — effort: S|M|L`
    Mark `[x]` for verified passes. Skip items that don't apply (e.g. local items for a national SaaS) and say why in one line.
 3. Order each checklist by priority (blockers → money-page relevance → quick wins → longer plays), not by reference order.
 4. Make off-page items concrete for this site: name the actual competitor gap domains, the actual listicles/review sites cited by AI for their category, the PR angle that fits their real news, and the monthly link budget from `context.md`.

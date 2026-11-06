@@ -1,6 +1,6 @@
 """Logic behind the Citebase connector tools. Plain functions (no MCP imports) so they are easy to test.
 
-Everything here is stateless: nothing is stored between calls, so the connector holds no customer data.
+The tools in this file are stateless. Saved projects live in storage.py, history.py and report.py, and only when the user gives a project name.
 Users (or the AI on their behalf) pass in what a tool needs and get a result back.
 """
 from __future__ import annotations
@@ -29,8 +29,10 @@ CAP_MULTIPLIER = 1.3
 WEB_NOTE = (
     "WEB MODE. You are using Citebase through a connector, not the Claude Code plugin, so you cannot run local "
     "scripts or save files. Replace these steps: site_audit.py -> call the audit_site tool. citation_loop.py -> call "
-    "measure_recommendation_share with the panel, runs and experiments as JSON, and give the user their data to keep "
-    "between sessions. outreach_ledger.py approve -> ask the user in chat to confirm the exact final text, and run "
+    "measure_recommendation_share with the panel, runs and experiments as JSON. To keep progress between sessions "
+    "ask for a short project name and use save_results, get_history, make_report, import_ai_results and "
+    "schedule_checks (data goes to the user's own Apify account); without a project name nothing is kept. "
+    "outreach_ledger.py approve -> ask the user in chat to confirm the exact final text, and run "
     "check_outreach_draft first. Paid data runs -> call-actor on the Apify connector with "
     "callOptions.maxTotalChargeUsd set to the suggested_cap_usd from quote_cost. There is no automatic guard in this "
     "mode, so follow the spending and approval rules yourself. Ignore steps about the seo-workspace folder and keep "
@@ -145,17 +147,21 @@ def quote_cost(items: list[dict]) -> dict:
 
 
 # ---------------------------------------------------------------- measurement
-def measure(panel: list[dict], runs: list[dict], baseline: str = "", current: str = "",
-            experiments: list[dict] | None = None) -> dict:
-    experiments = experiments or []
-    if not (0 < len(panel) <= MAX_PANEL) or not (0 < len(runs) <= MAX_RUNS) or len(experiments) > MAX_EXPERIMENTS:
-        raise ValueError(f"Send 1-{MAX_PANEL} panel prompts, 1-{MAX_RUNS} runs and at most {MAX_EXPERIMENTS} experiments.")
+def normalise_panel(panel: list[dict]) -> dict[str, dict]:
+    if not (0 < len(panel) <= MAX_PANEL):
+        raise ValueError(f"Send 1-{MAX_PANEL} panel prompts.")
     panel_rows: dict[str, dict] = {}
     for row in panel:
         pid, ptype = str(row.get("prompt_id", "")).strip(), str(row.get("type", "")).strip()
         if not pid or not row.get("prompt") or ptype not in cl.TYPES:
             raise ValueError(f"Each panel prompt needs prompt_id, prompt and type ({', '.join(cl.TYPES)}).")
         panel_rows[pid] = {"prompt_id": pid, "prompt": str(row["prompt"]), "type": ptype, "topic": row.get("topic", "")}
+    return panel_rows
+
+
+def normalise_runs(runs: list[dict], panel_rows: dict[str, dict]) -> list[dict]:
+    if not (0 < len(runs) <= MAX_RUNS):
+        raise ValueError(f"Send 1-{MAX_RUNS} runs.")
     run_rows, seen = [], set()
     for i, raw in enumerate(runs, 1):
         snapshot = str(raw.get("snapshot", "")).strip()
@@ -170,12 +176,24 @@ def measure(panel: list[dict], runs: list[dict], baseline: str = "", current: st
             raise ValueError(f"Run {i} repeats {key}. Each prompt/engine/repeat appears once per snapshot.")
         seen.add(key)
         run_rows.append(row)
+    return run_rows
+
+
+def normalise_experiments(experiments: list[dict] | None) -> list[dict]:
+    experiments = experiments or []
+    if len(experiments) > MAX_EXPERIMENTS:
+        raise ValueError(f"Send at most {MAX_EXPERIMENTS} experiments.")
+    return [{**{c: "" for c in cl.EXP_COLS}, **{k: v for k, v in e.items() if k in cl.EXP_COLS},
+             "exp_id": e.get("exp_id") or f"e{n:03d}", "status": e.get("status") or "shipped",
+             "recheck_after": e.get("recheck_after") or "9999-12-31"} for n, e in enumerate(experiments, 1)]
+
+
+def measure_rows(panel_rows: dict[str, dict], run_rows: list[dict], exp_rows: list[dict], baseline: str = "",
+                 current: str = "") -> dict:
+    """Recommendation Share report from already-normalised rows (used by both fresh input and saved projects)."""
     with tempfile.TemporaryDirectory() as tmp:
         cl.write_csv(os.path.join(tmp, "panel.csv"), cl.PANEL_COLS, list(panel_rows.values()))
         cl.write_csv(os.path.join(tmp, "runs.csv"), cl.RUN_COLS, run_rows)
-        exp_rows = [{**{c: "" for c in cl.EXP_COLS}, **{k: v for k, v in e.items() if k in cl.EXP_COLS},
-                     "exp_id": e.get("exp_id") or f"e{n:03d}", "status": e.get("status") or "shipped",
-                     "recheck_after": e.get("recheck_after") or "9999-12-31"} for n, e in enumerate(experiments, 1)]
         cl.write_csv(os.path.join(tmp, "experiments.csv"), cl.EXP_COLS, exp_rows)
         try:
             report = cl.build_report(SimpleNamespace(dir=tmp, baseline=baseline, current=current, json=True))
@@ -183,6 +201,58 @@ def measure(panel: list[dict], runs: list[dict], baseline: str = "", current: st
             raise ValueError(str(err)) from err
     report["markdown"] = cl.render(report)
     return report
+
+
+def measure(panel: list[dict], runs: list[dict], baseline: str = "", current: str = "",
+            experiments: list[dict] | None = None) -> dict:
+    panel_rows = normalise_panel(panel)
+    return measure_rows(panel_rows, normalise_runs(runs, panel_rows), normalise_experiments(experiments),
+                        baseline, current)
+
+
+# ---------------------------------------------------------------- scheduling help
+FREQUENCIES = {"daily": ("0 8 * * *", "every day at 08:00"), "weekly": ("0 8 * * 1", "every Monday at 08:00"),
+               "monthly": ("0 8 1 * *", "on the 1st of each month at 08:00")}
+
+
+def schedule_plan(project: str, url: str, frequency: str = "weekly", max_pages: int = 15,
+                  panel: list[dict] | None = None, brand: dict | None = None, platforms: list[str] | None = None) -> dict:
+    """Plain steps and ready-to-paste inputs for Apify Schedules (a run cannot create schedules for you)."""
+    if frequency not in FREQUENCIES:
+        raise ValueError(f"frequency must be one of: {', '.join(FREQUENCIES)}. Example: 'weekly'.")
+    cron, when = FREQUENCIES[frequency]
+    checks_per_month = {"daily": 30, "weekly": 4.33, "monthly": 1}[frequency]
+    site_input = {"tool": "scheduled_check", "arguments": {"project": project, "url": _clean_url(url),
+                                                           "max_pages": max(1, min(int(max_pages), MAX_AUDIT_PAGES))}}
+    plan = {"frequency": frequency, "cron": cron, "when": when,
+            "free_site_check": {"actor": "khadinakbar/citebase", "input": site_input,
+                                "cost": "Free to call; the small Apify running cost (under a cent) is billed to you.",
+                                "what_it_does": "Checks the site, saves the score to your project history and refreshes "
+                                                "the report page."},
+            "steps": ["Open the Apify Console and go to Schedules, then Create new schedule.",
+                      f"Name it, set the cron to `{cron}` ({when}) and your time zone.",
+                      "Add an Actor run for each Actor below: pick the Actor, paste its input, set the max cost "
+                      "(Run options), and save.",
+                      "Turn the schedule on. Results appear in your Apify account."]}
+    prompts = [p["prompt"] for p in (panel or []) if p.get("prompt")]
+    if prompts and brand and brand.get("name"):
+        engines = platforms or ["perplexity", "chatgpt", "gemini"]
+        checks = len(prompts) * len(engines)
+        per_run = round(checks * PRICES["jobs"]["ai_brand_check"]["per_unit"] + PRICES["start_fee_usd"], 4)
+        plan["ai_checks"] = {
+            "actor": "khadinakbar/ai-search-brand-monitor",
+            "input": {"brandName": brand["name"], "brandDomain": brand.get("domain") or "",
+                      "competitors": brand.get("competitors") or [], "platforms": engines, "customQueries": prompts,
+                      "querySelectionMode": "custom_only", "maxQueriesPerPlatform": len(prompts)},
+            "checks_per_run": checks, "cost_per_run_usd": per_run, "suggested_max_cost_usd": math.ceil(per_run * 1.3 * 100) / 100,
+            "estimated_cost_per_month_usd": round(per_run * checks_per_month, 2),
+            "after_it_runs": "In chat, say: 'import the latest scheduled AI results for this project'. Citebase "
+                             "converts them and adds them to your history."}
+    else:
+        plan["ai_checks"] = None
+        plan["note"] = ("AI-answer checks need the project's question list and brand details. Save results once with "
+                        "save_results (including the brand) and ask again.")
+    return plan
 
 
 # ---------------------------------------------------------------- recommendations

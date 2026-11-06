@@ -8,7 +8,20 @@
       "title": "Tool",
       "type": "string",
       "description": "Which Citebase tool to run, for example 'get_playbook'. Start with get_playbook and arguments {} to list the guidelines, then read 'start'. Required. NOT an Apify Actor name.",
-      "enum": ["get_playbook", "audit_site", "quote_cost", "measure_recommendation_share", "next_steps", "check_outreach_draft"],
+      "enum": [
+        "get_playbook",
+        "audit_site",
+        "quote_cost",
+        "measure_recommendation_share",
+        "next_steps",
+        "check_outreach_draft",
+        "save_results",
+        "get_history",
+        "make_report",
+        "import_ai_results",
+        "schedule_checks",
+        "scheduled_check"
+      ],
       "default": "get_playbook",
       "prefill": "get_playbook"
     },
@@ -16,10 +29,12 @@
       "title": "Tool arguments (JSON)",
       "type": "object",
       "editor": "json",
-      "description": "Inputs for the chosen tool as a JSON object. get_playbook {name?} e.g. {\"name\":\"start\"}. audit_site {url, max_pages?} e.g. {\"url\":\"https://example.com\"}. quote_cost {items:[{job,units,requests?}]} e.g. {\"items\":[{\"job\":\"serp_page\",\"units\":15}]}. measure_recommendation_share {panel,runs,baseline?,current?,experiments?}. next_steps {audit?,report?,max_steps?}. check_outreach_draft {to,subject,body,suppressed?,sent_today?,daily_cap?}. Free tools; no credentials here. Defaults to {}.",
+      "description": "Inputs for the chosen tool as a JSON object. get_playbook {name?} e.g. {\"name\":\"start\"}. audit_site {url, max_pages?} e.g. {\"url\":\"https://example.com\"}. quote_cost {items:[{job,units,requests?}]}. measure_recommendation_share {panel,runs,...} or {project}. next_steps {audit?,report?,max_steps?}. check_outreach_draft {to,subject,body,...}. save_results {project, runs?, panel?, brand?, audit?}. get_history {project}. make_report {project}. import_ai_results {project, items, snapshot, save?}. schedule_checks {project, url, frequency?}. scheduled_check {project, url, max_pages?}: the site check + report refresh to run from an Apify Schedule. No credentials here. Defaults to {}.",
       "default": {},
       "prefill": {}
     }
   },
-  "required": ["tool"]
+  "required": [
+    "tool"
+  ]
 }

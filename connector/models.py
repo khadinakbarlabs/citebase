@@ -49,6 +49,7 @@ class AuditResult(BaseModel):
     problems: list[AuditProblem] = Field(description="Up to 25 problems, worst first.")
     passed: list[str] = Field(description="Names of the checks that passed.")
     limits: str = Field(description="What this check can and cannot see. Repeat this to the user when it matters.")
+    saved: Optional[dict[str, Any]] = Field(None, description="Set only when a project name was given: {project, saved_on, trend}. trend is {previous_date, previous_score, change} when an earlier check exists, else null. Null when nothing was saved.")
 
 
 class QuoteLine(BaseModel):
@@ -79,6 +80,7 @@ class MeasureResult(BaseModel):
     experiments: list[dict[str, Any]] = Field(description="One entry per logged change: exp_id, mechanism, action, result (target_delta, other_delta, did, low, high, verdict 'supported'/'inconclusive'/'worse') and confounded.")
     due: list[str] = Field(description="Changes old enough to re-measure now.")
     markdown: str = Field(description="Ready-to-show report in Markdown.")
+    project: Optional[str] = Field(None, description="Project name the numbers came from. Set only when a saved project was used, else null.")
 
 
 class Step(BaseModel):
@@ -105,7 +107,61 @@ class OutreachResult(BaseModel):
     next: str = Field(description="What to do next: show the user the text and wait for a yes.")
 
 
+class SaveResult(BaseModel):
+    project: str = Field(description="Project name as saved (lower-case, dashes).")
+    snapshots_saved: dict[str, int] = Field(description="Rows now stored per round, for example {'baseline': 54}.")
+    panel_prompts: int = Field(description="Number of test questions in the project's frozen list.")
+    snapshots_in_project: list[str] = Field(description="All rounds saved in the project, in name order.")
+    brand: dict[str, Any] = Field(description="Brand details saved with the project (name, domain, competitors). Empty if none.")
+    stored_in: str = Field(description="Where the data lives. Tell the user it is in their own Apify account.")
+    audit_saved: Optional[dict[str, Any]] = Field(None, description="Set only when an audit was saved: {project, saved_on, trend}. trend is {previous_date, previous_score, change} when an earlier check exists, else null. Null when no audit was sent.")
+
+
+class HistoryResult(BaseModel):
+    project: str = Field(description="Project name.")
+    brand: dict[str, Any] = Field(description="Brand details saved with the project. Empty if none.")
+    panel_prompts: int = Field(description="Number of test questions in the project.")
+    snapshots: list[dict[str, Any]] = Field(description="One entry per saved round, oldest first: snapshot, saved_on, prompts, recommendation_share, rs_low, rs_high, mentioned_rate, cited_rate. Rates are 0-1.")
+    audits: list[dict[str, Any]] = Field(description="One entry per saved site check, oldest first: date, health_score, subscores.")
+    experiments: list[dict[str, Any]] = Field(description="Logged changes: exp_id, date, action, mechanism, target_prompt_ids.")
+    markdown: str = Field(description="Ready-to-show history tables in Markdown.")
+
+
+class ReportLinkResult(BaseModel):
+    project: str = Field(description="Project name.")
+    share_url: Optional[str] = Field(None, description="Link to the one-page report. Anyone with the link can open it. Null if the store cannot make a link; then the report is still saved under stored_key.")
+    stored_key: str = Field(description="Record name of the report inside the key-value store 'citebase-projects'.")
+    bytes: int = Field(description="Size of the report page.")
+    snapshots: int = Field(description="Rounds of AI-answer results included.")
+    site_checks: int = Field(description="Site checks included.")
+    note: str = Field(description="How sharing works and how to stop it. Tell the user.")
+
+
+class ImportResult(BaseModel):
+    runs: list[dict[str, Any]] = Field(description="Converted rows, ready for save_results.")
+    unmatched_queries: list[str] = Field(description="Questions in the results that are not in the project's list. They were skipped.")
+    needs_review: list[dict[str, Any]] = Field(description="Rows where 'recommended' is a close call, with the sentence around the mention. Read them with the user and fix with save_results replace=true if needed.")
+    summary: dict[str, int] = Field(description="Counts: rows, recommended, mentioned, cited, unmatched.")
+    saved: Optional[dict[str, Any]] = Field(None, description="Result of saving, only when save was true, else null.")
+
+
+class SchedulePlanResult(BaseModel):
+    frequency: str = Field(description="'daily', 'weekly' or 'monthly'.")
+    cron: str = Field(description="Cron text to paste into the Apify schedule.")
+    when: str = Field(description="The same schedule in plain words.")
+    free_site_check: dict[str, Any] = Field(description="Actor, ready-to-paste input and cost of the free scheduled site check and report refresh.")
+    ai_checks: Optional[dict[str, Any]] = Field(None, description="Actor, input, cost per run, suggested max cost and monthly estimate for scheduled AI-answer checks. Null when the project has no questions or brand yet.")
+    steps: list[str] = Field(description="Plain steps for creating the schedule in Apify Console.")
+    note: Optional[str] = Field(None, description="Why ai_checks is null, when it is. Null otherwise.")
+
+
 # ------------------------------------------------------------------ inputs
+class BrandInfo(BaseModel):
+    name: str = Field(description="Brand name as people write it, for example 'Acme'.")
+    domain: Optional[str] = Field(None, description="Main website domain, for example 'acme.com'. Defaults to none.")
+    competitors: Optional[list[str]] = Field(None, max_length=20, description="Competitor brand names, for example ['Rival', 'Other Co']. Up to 20. Defaults to none.")
+
+
 class QuoteItem(BaseModel):
     job: JobName = Field(description="Which paid job to price, for example 'serp_page' (Google results page) or 'ai_brand_check' (one AI answer check). NOT an Apify Actor name.")
     units: float = Field(ge=0, le=1_000_000, description="How many units of that job, for example 15 for 15 results pages. Between 0 and 1,000,000. NOT dollars.")

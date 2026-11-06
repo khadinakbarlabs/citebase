@@ -1,7 +1,8 @@
 """Citebase MCP server: exposes the plugin's playbooks and tools to web assistants (claude.ai, ChatGPT, ...).
 
-Stateless by design: nothing is stored between calls, so the server holds no customer data.
-Every tool has a plain-language description, described inputs and a typed output schema.
+Nothing is stored unless the user passes a project name to save_results or make_report. Then the data goes into a
+named store in the caller's own Apify account (single-tenant), never into the author's. Every tool has a
+plain-language description, described inputs and a typed output schema.
 """
 from __future__ import annotations
 
@@ -24,21 +25,25 @@ from mcp.types import ToolAnnotations  # noqa: E402
 from pydantic import Field  # noqa: E402
 from starlette.responses import JSONResponse, PlainTextResponse  # noqa: E402
 
+import history as hist  # noqa: E402
 import models as m  # noqa: E402
+import runner  # noqa: E402
 import tools  # noqa: E402
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 MAX_BODY = 2 * 1024 * 1024
 log = logging.getLogger("citebase")
 INSTRUCTIONS = (
     "Citebase helps a brand get recommended and cited by AI assistants such as ChatGPT, Claude, Gemini and Perplexity. "
     "Start by calling get_playbook with name 'start', then follow it. Talk to the user in short, plain words. "
     "Never spend money or send email without the user's clear yes. Paid data comes from the separate Apify connector; "
-    "use quote_cost first and pass its suggested cap to call-actor as callOptions.maxTotalChargeUsd."
+    "use quote_cost first and pass its suggested cap to call-actor as callOptions.maxTotalChargeUsd. To keep progress "
+    "between sessions, ask the user for a project name and use save_results, get_history and make_report."
 )
 READ_ONLY = ToolAnnotations(readOnlyHint=True, idempotentHint=True, openWorldHint=False)
 READ_WEB = ToolAnnotations(readOnlyHint=True, idempotentHint=True, openWorldHint=True)
-AUDIT_SLOTS = asyncio.Semaphore(2)  # protects memory when several people audit at once
+SAVE = ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=False)
+SAVE_REPORT = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True)  # makes a link anyone can open
 
 TOOL_TEXT = {
     "get_playbook": (
@@ -62,13 +67,41 @@ TOOL_TEXT = {
         "Measure AI recommendations",
         "Turn AI-answer test results into Recommendation Share: how often ChatGPT, Perplexity, Gemini and others "
         "actively recommend the brand, with ranges, noise from control questions and a verdict on each logged change. "
-        "Use after collecting answers for a fixed prompt panel. Not for collecting answers. Returns numbers, warnings "
-        "and a markdown report. Stores nothing, so give the user their data to keep. Free."),
+        "Use after collecting answers for a fixed prompt panel, or with a project name to measure everything saved so "
+        "far. Not for collecting answers, and it never saves: use save_results for that. Returns numbers, warnings and "
+        "a markdown report. Free."),
     "next_steps": (
         "What to do next",
         "Turn audit and measurement results into a short plain-language to-do list: what to do, why, who does it, how "
         "long it takes. Use after audit_site or measure_recommendation_share, or when asked 'what should I do next?'. "
         "Not a substitute for reading the results first. Returns ranked steps plus a 30-day re-check reminder. Free."),
+    "save_results": (
+        "Save progress",
+        "Save AI-answer results and/or a site check under a project name in the user's own Apify account, so progress "
+        "can be compared next month. Use after collecting a round of answers or running audit_site, once the user "
+        "agrees to a project name. Not for measuring: use measure_recommendation_share. The question list is frozen "
+        "after the first save; a round name that exists needs append or replace. Returns what was stored. Free."),
+    "get_history": (
+        "Show history",
+        "Show a saved project's history: Recommendation Share per round with ranges, site health score over time and "
+        "logged changes. Use when the user asks 'how am I doing?' or returns to a project. Not for new measurements. "
+        "Reads only. Returns tables and numbers. Free."),
+    "make_report": (
+        "Make a shareable report",
+        "Build a one-page report from a saved project (trend chart, rounds, what worked, top problems, next steps) "
+        "and save it in the user's Apify account with a link. Use when the user wants something to show a boss, client "
+        "or teammate. Anyone with the link can open it; say so. Not for new measurements. Returns share_url. Free."),
+    "import_ai_results": (
+        "Import AI check results",
+        "Convert results from an AI Brand Monitor run into Citebase rows for a saved project, so nobody has to retype "
+        "them. Use after a paid or scheduled AI-answer check. Not for running the check itself. Rows where "
+        "'recommended' is a close call are listed in needs_review. Saves only when save is true. Returns rows, skipped "
+        "questions and the review list. Free."),
+    "schedule_checks": (
+        "Plan automatic checks",
+        "Give the exact steps and ready-to-paste inputs to run a project's site check and AI-answer checks on a "
+        "schedule (daily, weekly or monthly) in Apify Schedules, with the monthly cost. Use when the user wants "
+        "tracking to happen by itself. Not a scheduler: the user creates the schedule. Returns cron, inputs, costs. Free."),
     "check_outreach_draft": (
         "Check an outreach email",
         "Check one outreach email before sending: valid recipients, do-not-contact list, daily limit, leftover "
@@ -155,8 +188,7 @@ def build_server() -> MCPServer:
             max_pages: Annotated[int, Field(ge=1, le=30, description=(
                 "How many pages to read, for example 15. Between 1 and 30. More pages take longer. "
                 "Defaults to 15."))] = 15) -> m.AuditResult:
-        async with AUDIT_SLOTS:
-            return m.AuditResult(**await asyncio.to_thread(tools.run_audit, url, max_pages))
+        return m.AuditResult(**await runner.audit(url, max_pages))
 
     @tool("quote_cost", READ_ONLY)
     @friendly
@@ -167,15 +199,15 @@ def build_server() -> MCPServer:
 
     @tool("measure_recommendation_share", READ_ONLY)
     @friendly
-    def measure_recommendation_share(
-            panel: Annotated[list[m.PanelPrompt], Field(min_length=1, max_length=200, description=(
+    async def measure_recommendation_share(
+            panel: Annotated[Optional[list[m.PanelPrompt]], Field(max_length=200, description=(
                 "The fixed list of test questions, for example [{\"prompt_id\": \"p001\", \"prompt\": \"best crm for "
-                "small teams\", \"type\": \"consideration\"}]. Include at least 5 control questions. 1 to 200 items. "
-                "Do not change it between rounds."))],
-            runs: Annotated[list[m.RunRow], Field(min_length=1, max_length=5000, description=(
+                "small teams\", \"type\": \"consideration\"}]. Include at least 5 control questions. Up to 200 items. "
+                "Do not change it between rounds. Leave empty when using project."))] = None,
+            runs: Annotated[Optional[list[m.RunRow]], Field(max_length=5000, description=(
                 "The AI answers collected so far, one row per prompt, engine and repeat, for example [{\"snapshot\": "
                 "\"baseline\", \"prompt_id\": \"p001\", \"platform\": \"chatgpt\", \"repeat\": 1, \"recommended\": true}]. "
-                "1 to 5,000 rows. NOT the raw answer text."))],
+                "Up to 5,000 rows. NOT the raw answer text. Leave empty when using project."))] = None,
             baseline: Annotated[str, Field(description=(
                 "Snapshot to compare against, for example 'baseline'. Defaults to the oldest snapshot. "
                 "Leave empty for the default."))] = "",
@@ -185,8 +217,82 @@ def build_server() -> MCPServer:
             experiments: Annotated[Optional[list[m.Experiment]], Field(max_length=100, description=(
                 "Changes you made, to judge whether they helped, for example [{\"action\": \"Joined two best-of "
                 "lists\", \"mechanism\": \"listicle\", \"target_prompt_ids\": \"p003,p007\"}]. Up to 100. "
-                "Defaults to none."))] = None) -> m.MeasureResult:
-        return m.MeasureResult(**tools.measure(dump(panel), dump(runs), baseline, current, dump(experiments)))
+                "Defaults to none. Leave empty when using project."))] = None,
+            project: Annotated[Optional[str], Field(description=(
+                "Name of a saved project to measure, for example 'acme-site'. Measures everything saved under it and "
+                "ignores panel/runs/experiments (which must be empty). Defaults to none. NOT a brand name you invent: "
+                "it must match a project from save_results."))] = None) -> m.MeasureResult:
+        return m.MeasureResult(**await runner.measure(project, dump(panel), dump(runs), baseline, current, dump(experiments)))
+
+    @tool("save_results", SAVE)
+    @friendly
+    async def save_results(
+            project: Annotated[str, Field(description=(
+                "Project name, 3 to 40 letters, numbers or dashes, for example 'acme-site'. One project per brand or "
+                "site. Reuse the same name every time. NOT a URL."))],
+            runs: Annotated[Optional[list[m.RunRow]], Field(max_length=5000, description=(
+                "AI answers from one or more rounds, same rows as measure_recommendation_share, for example "
+                "[{\"snapshot\": \"baseline\", \"prompt_id\": \"p001\", \"platform\": \"chatgpt\", \"repeat\": 1, "
+                "\"recommended\": true}]. Up to 5,000 rows. Defaults to none."))] = None,
+            panel: Annotated[Optional[list[m.PanelPrompt]], Field(max_length=200, description=(
+                "The test question list. Required the first time you save runs for a project; after that it is frozen "
+                "and must be identical or left empty. Up to 200 items. Defaults to none."))] = None,
+            experiments: Annotated[Optional[list[m.Experiment]], Field(max_length=100, description=(
+                "Changes you made, to judge later whether they helped. Up to 100. Defaults to none."))] = None,
+            brand: Annotated[Optional[m.BrandInfo], Field(description=(
+                "Brand details to keep with the project, for example {\"name\": \"Acme\", \"domain\": \"acme.com\"}. "
+                "Used for schedules and reports. Defaults to none."))] = None,
+            audit: Annotated[Optional[dict[str, Any]], Field(description=(
+                "The full result of audit_site, passed as is, to store a dated site check. Defaults to none. "
+                "NOT a summary you wrote."))] = None,
+            replace: Annotated[bool, Field(description=(
+                "True to overwrite a round that already exists. Defaults to false. Only with the user's yes."))] = False,
+            append: Annotated[bool, Field(description=(
+                "True to add more repeats to a round that already exists. Defaults to false."))] = False
+    ) -> m.SaveResult:
+        brand_dict = brand.model_dump(exclude_none=True) if brand else None
+        return m.SaveResult(**await runner.save(project, dump(runs), dump(panel), dump(experiments), brand_dict, audit,
+                                                replace, append))
+
+    @tool("get_history", READ_ONLY)
+    @friendly
+    async def get_history(project: Annotated[str, Field(description=(
+            "Name of a saved project, for example 'acme-site'. NOT a URL."))]) -> m.HistoryResult:
+        return m.HistoryResult(**await hist.history(project))
+
+    @tool("make_report", SAVE_REPORT)
+    @friendly
+    async def make_report(project: Annotated[str, Field(description=(
+            "Name of a saved project, for example 'acme-site'. NOT a URL."))]) -> m.ReportLinkResult:
+        return m.ReportLinkResult(**await runner.report.make_report(project))
+
+    @tool("import_ai_results", SAVE)
+    @friendly
+    async def import_ai_results(
+            project: Annotated[str, Field(description="Name of a saved project with a question list, for example 'acme-site'.")],
+            items: Annotated[list[dict[str, Any]], Field(min_length=1, max_length=5000, description=(
+                "The dataset items of an AI Brand Monitor run, passed as is, for example the list from get-dataset-items. 1 to 5,000 items. NOT a summary."))],
+            snapshot: Annotated[str, Field(description=(
+                "Round name for these results, for example '2026-12' or 'baseline'. Letters, numbers, dashes."))],
+            save: Annotated[bool, Field(description=(
+                "True to store the converted rows in the project. Defaults to false: only convert, so you can review "
+                "first."))] = False,
+            append: Annotated[bool, Field(description="True to add to an existing round. Defaults to false.")] = False,
+            replace: Annotated[bool, Field(description="True to overwrite an existing round, only with the user's yes. Defaults to false.")] = False
+    ) -> m.ImportResult:
+        return m.ImportResult(**await runner.import_results(project, items, snapshot, save, append, replace))
+
+    @tool("schedule_checks", READ_ONLY)
+    @friendly
+    async def schedule_checks(
+            project: Annotated[str, Field(description="Name of the project to schedule, for example 'acme-site'.")],
+            url: Annotated[str, Field(description="The site to check on schedule, for example 'https://example.com'.")],
+            frequency: Annotated[str, Field(description="'daily', 'weekly' or 'monthly'. Defaults to 'weekly'.")] = "weekly",
+            max_pages: Annotated[int, Field(ge=1, le=30, description="Pages per site check, 1 to 30. Defaults to 15.")] = 15,
+            platforms: Annotated[Optional[list[str]], Field(max_length=10, description=(
+                "AI engines to check, for example ['perplexity', 'chatgpt', 'gemini']. Defaults to those three."))] = None
+    ) -> m.SchedulePlanResult:
+        return m.SchedulePlanResult(**await runner.schedule(project, url, frequency, max_pages, None, None, platforms))
 
     @tool("next_steps", READ_ONLY)
     @friendly
@@ -227,10 +333,17 @@ def build_server() -> MCPServer:
     async def run(request):
         """Plain JSON endpoint: POST {"tool": "...", "arguments": {...}}. This is what assistants reach through
         mcp.apify.com, which turns the web-server description into one generic HTTP tool."""
-        if int(request.headers.get("content-length") or 0) > MAX_BODY:
-            return JSONResponse({"ok": False, "error": "Request is too large (limit 2 MB). Send less data."}, 413)
+        too_big = JSONResponse({"ok": False, "error": "Request is too large (limit 2 MB). Send less data."}, 413)
+        declared = request.headers.get("content-length") or "0"
+        if not declared.isdigit() or int(declared) > MAX_BODY:
+            return too_big
+        body = bytearray()
+        async for chunk in request.stream():  # also stops chunked uploads that never declare a size
+            body += chunk
+            if len(body) > MAX_BODY:
+                return too_big
         try:
-            data = await request.json()
+            data = json.loads(bytes(body))
         except ValueError:
             return JSONResponse({"ok": False, "error": 'Send JSON like {"tool": "get_playbook", "arguments": {}}.'}, 400)
         if not isinstance(data, dict):
@@ -238,11 +351,7 @@ def build_server() -> MCPServer:
         tool_name = str(data.get("tool") or "")
         started = time.monotonic()
         try:
-            if tool_name == "audit_site":
-                async with AUDIT_SLOTS:
-                    result = await asyncio.to_thread(tools.dispatch, tool_name, data.get("arguments"))
-            else:
-                result = await asyncio.to_thread(tools.dispatch, tool_name, data.get("arguments"))
+            result = await runner.run_tool(tool_name, data.get("arguments"))
         except ValueError as err:
             log.info(json.dumps({"event": "run_call", "tool": tool_name, "ok": False,
                                  "ms": int((time.monotonic() - started) * 1000)}))

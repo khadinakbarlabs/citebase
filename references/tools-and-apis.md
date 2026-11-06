@@ -73,4 +73,4 @@ Request fees dominate small keyword and backlink runs: batch seeds and targets i
 - The user's own exports (Google Search Console, GA4, Bing Webmaster Tools, Ahrefs/Semrush CSVs) dropped into `seo-workspace/<domain>/` — preferred ground truth for rankings and clicks.
 
 ## Sending email (approval-gated, user's own accounts)
-Gmail connector (drafts → approved send), or ReachInbox / Instantly / Smartlead MCPs if the user has them. No sender connected → copy-paste drafts. See `outreach-playbook.md` for the approval, suppression and cap mechanics.
+Whatever email connector the user already has (drafts → approved send). No sender connected → copy-paste drafts. See `outreach-playbook.md` for the approval, suppression and cap mechanics.

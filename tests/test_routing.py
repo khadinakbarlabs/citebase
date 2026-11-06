@@ -17,6 +17,7 @@ CASES = [
     ("Do some link prospecting for our new tool", "link prospecting", "link-building"),
     ("Write a press release for our launch", "press release", "press-release"),
     ("Plan some digital PR around our data", "digital pr", "press-release"),
+    ("Find influencers to feature our product", "find influencers", "creator-outreach"),
     ("Send these pitches to the list", "send these pitches", "outreach"),
     ("Handle the follow-ups for last week's emails", "follow-ups", "outreach"),
     ("Give me an on-page checklist for the homepage", "on-page checklist", "seo-checklists"),

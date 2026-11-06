@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Citebase: get cited by AI. The open-source agent that gets your brand recommended, cited and featured by ChatGPT, Claude, Gemini and Perplexity.",
-    "version": "0.3.0"
+    "version": "0.4.0"
   },
   "plugins": [
     {

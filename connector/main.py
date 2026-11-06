@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import uvicorn  # noqa: E402
 from apify import Actor  # noqa: E402
 
-import tools  # noqa: E402
+import runner  # noqa: E402
 from server import build_app, setup_logging  # noqa: E402
 
 
@@ -20,7 +20,7 @@ async def run_once() -> None:
     tool = str(data.get("tool") or "get_playbook")
     args = data.get("arguments") if isinstance(data.get("arguments"), dict) else {}
     try:
-        result = await asyncio.to_thread(tools.dispatch, tool, args)
+        result = await runner.run_tool(tool, args)
     except ValueError as err:  # bad input: say what to fix, and end the run honestly as failed
         await Actor.push_data({"tool": tool, "ok": False, "result": None, "error": str(err)})
         await Actor.fail(status_message=str(err)[:200])

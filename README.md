@@ -36,7 +36,8 @@ One sign-in with Apify. Every data call shows its price first, runs under a spen
 | `citation-loop` | Frozen prompt panel → repeat runs → Recommendation Share → logged experiments → re-measure |
 | `link-building` | Backlink audit, gap vs competitors, vetted prospects (listicles, resource pages, broken links, mentions) |
 | `press-release` | News angle → wire-ready release, journalists who covered the topic recently, data-led pitches |
-| `outreach` | Contacts → verified emails → personalised drafts → your approval → send from Gmail/ReachInbox → follow-ups |
+| `creator-outreach` | Influencers, YouTubers, podcasts, newsletters: find, vet with a score, honest disclosure, tracking |
+| `outreach` | Contacts → verified emails → personalised drafts → your approval → send from your own email connector → follow-ups |
 
 Specialist agents run in parallel with restricted tools: `technical-auditor`, `backlink-analyst`, `competitor-analyst`, `geo-analyst`, `outreach-writer` (drafts only, cannot send).
 
@@ -48,7 +49,7 @@ Creator, podcast and platform presence, the third leg of getting cited:
 
 ## What it costs
 
-Free without an account: the local crawler (30+ checks), all checklists, writing (page briefs, releases, emails), analysis of your own exports (Search Console, GA4, Ahrefs/Semrush CSVs).
+Free without an account: the local crawler (30+ checks), all checklists, writing (page briefs, releases, emails), analysis of your own exports (Search Console, GA4, or exports from any SEO tool you already use).
 
 Live data runs on your Apify account at each Actor's published price (read 2026-11-06; the agent re-checks before quoting):
 
@@ -73,7 +74,7 @@ Local checkout: `claude plugin marketplace add ./citebase` or `claude --plugin-d
 
 **Connect data (once):** run `/mcp`, choose `plugin:citebase:apify`, click **Authenticate** and sign in with Apify. No key to copy.
 **claude.ai / Claude Desktop / ChatGPT / Cursor:** use the web connector described below. Hooks do not run there, so the spending and send guardrails below rely on the playbooks' instructions and each product's own confirmation prompts.
-**Email sending (optional):** connect Gmail, or a ReachInbox / Instantly / Smartlead MCP. Without one you get copy-paste drafts.
+**Email sending (optional):** connect any email connector you already use. Citebase does not recommend or sell one. Without one you get copy-paste drafts.
 
 Settings (`/plugin configure citebase@citebase`):
 
@@ -99,8 +100,13 @@ For assistants without plugins (ChatGPT, claude.ai, Cursor, any MCP client) this
 | `measure_recommendation_share` | Recommendation Share with ranges, controls and experiment verdicts |
 | `next_steps` | A plain-language, ranked to-do list |
 | `check_outreach_draft` | Whether an email is ready to send, with fixes |
+| `save_results` | Saves rounds and site checks under a project name in your own Apify account |
+| `get_history` | Progress over time: Recommendation Share, site score, logged changes |
+| `make_report` | One-page shareable report with a trend chart |
+| `import_ai_results` | Converts AI Brand Monitor output into saved rows |
+| `schedule_checks` | Steps and inputs for automatic re-checks in Apify Schedules |
 
-All six are free and stateless (nothing is stored). Each has described inputs, a typed output schema and tool annotations. Paid data comes from the author's public Apify Actors, listed with prices in `.actor/ACTOR_README.md`; the connector only quotes them and never runs them. Run your own copy with `apify push` from the repo root (`.actor/` holds the Actor settings, `connector/` the server). Tests: `python3 -m unittest discover tests` (install `mcp`, `pydantic`, `uvicorn` and `httpx` to include the server tests).
+All eleven are free. Nothing is stored unless you give a project name; then it goes into a named store in your own Apify account. Each has described inputs, a typed output schema and tool annotations. Paid data comes from the author's public Apify Actors, listed with prices in `.actor/ACTOR_README.md`; the connector only quotes them and never runs them. Run your own copy with `apify push` from the repo root (`.actor/` holds the Actor settings, `connector/` the server). Tests: `python3 -m unittest discover tests` (install `mcp`, `pydantic`, `uvicorn` and `httpx` to include the server tests).
 
 ## Your workspace
 Everything is saved in your project under `seo-workspace/<domain>/`: `context.md`, `audit.json`, `report.md`, checklists, `competitors.md`, `keyword-opportunities.csv`, `ai-visibility.md`, `citation/` (panel, runs, experiments), `prospects.csv`, `drafts/`, `outreach-log.csv`, `offpage-log.csv`, `suppression.txt`, `pr/`, `ledger.json` (every paid run with quote, cap and actual cost). Add `seo-workspace/` to your `.gitignore` if your project is public: it holds contact lists and audit data.

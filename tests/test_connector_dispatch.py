@@ -6,6 +6,7 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "connector"))
+import runner  # noqa: E402
 import tools  # noqa: E402
 
 
@@ -48,7 +49,7 @@ class InputSchemaTests(unittest.TestCase):
             self.schema = json.load(fh)
 
     def test_enum_matches_dispatch(self):
-        self.assertEqual(set(self.schema["properties"]["tool"]["enum"]), set(tools.DISPATCH))
+        self.assertEqual(set(self.schema["properties"]["tool"]["enum"]), set(runner.TOOL_NAMES))
 
     def test_required_and_defaults(self):
         self.assertEqual(self.schema["required"], ["tool"])

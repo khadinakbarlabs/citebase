@@ -12,8 +12,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ACTOR = os.path.join(ROOT, ".actor")
 sys.path.insert(0, os.path.join(ROOT, "connector"))
 HAVE_MCP = importlib.util.find_spec("mcp") is not None
-TOOLS = {"get_playbook", "audit_site", "quote_cost", "measure_recommendation_share", "next_steps",
-         "check_outreach_draft"}
+READ_TOOLS = {"get_playbook", "audit_site", "quote_cost", "measure_recommendation_share", "next_steps",
+              "check_outreach_draft", "get_history", "schedule_checks"}
+WRITE_TOOLS = {"save_results", "make_report", "import_ai_results"}  # store things in the caller's own account
+TOOLS = READ_TOOLS | WRITE_TOOLS
+ONE_SHOT_ONLY = {"scheduled_check"}  # for Apify Schedules; not an MCP tool
 
 
 def load(*parts):
@@ -71,7 +74,7 @@ class ActorFilesTests(unittest.TestCase):
     def test_input_schema_enum_and_required(self):
         schema = load(".actor", "input_schema.json")
         self.assertEqual(schema["required"], ["tool"])
-        self.assertEqual(set(schema["properties"]["tool"]["enum"]), TOOLS)
+        self.assertEqual(set(schema["properties"]["tool"]["enum"]), TOOLS | ONE_SHOT_ONLY)
 
     def test_openapi_lists_run_with_examples(self):
         spec = load(".actor", "web_server_openapi.json")
@@ -102,7 +105,7 @@ class ReadmeTests(unittest.TestCase):
             self.assertIn(word, head)
 
     def test_every_tool_is_documented(self):
-        for name in TOOLS:
+        for name in TOOLS | ONE_SHOT_ONLY:
             self.assertIn(f"`{name}`", self.text)
 
     def test_no_secrets_or_hype(self):
@@ -202,7 +205,7 @@ class ServedSchemaTests(unittest.IsolatedAsyncioTestCase):
     def dump(self, tool):
         return tool.model_dump(by_alias=True, exclude_none=True)
 
-    async def test_exactly_the_six_tools(self):
+    async def test_exactly_the_published_tools(self):
         self.assertEqual(set(self.tools), TOOLS)
         self.assertLessEqual(len(self.tools), 15)
 
@@ -246,7 +249,9 @@ class ServedSchemaTests(unittest.IsolatedAsyncioTestCase):
     async def test_annotations_and_titles(self):
         for name, tool in self.tools.items():
             d = self.dump(tool)
-            self.assertTrue(d["annotations"]["readOnlyHint"], name)
+            self.assertEqual(d["annotations"]["readOnlyHint"], name in READ_TOOLS, name)
+            if name in WRITE_TOOLS:
+                self.assertIn("destructiveHint", d["annotations"], name)
             self.assertIn("openWorldHint", d["annotations"], name)
             self.assertTrue(d.get("title"), name)
 

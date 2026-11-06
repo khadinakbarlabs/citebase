@@ -10,6 +10,7 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "connector"))
+os.environ["CITEBASE_ALLOW_MEMORY"] = "1"  # the test server keeps projects in memory
 HAVE = all(importlib.util.find_spec(m) for m in ("mcp", "uvicorn", "httpx"))
 HEADERS = {"Accept": "application/json, text/event-stream", "Content-Type": "application/json",
            "MCP-Protocol-Version": "2025-06-18"}
@@ -53,13 +54,14 @@ class ServerTests(unittest.TestCase):
         res = httpx.get(f"http://127.0.0.1:{self.port}/", headers={"x-apify-container-server-readiness-probe": "1"})
         self.assertEqual(res.status_code, 200)
 
-    def test_lists_the_six_tools_with_hints(self):
+    def test_lists_the_tools_with_hints(self):
         tools = self.rpc("tools/list")["result"]["tools"]
+        writes = {"save_results", "make_report", "import_ai_results"}
         self.assertEqual({t["name"] for t in tools}, {"get_playbook", "audit_site", "quote_cost",
                                                        "measure_recommendation_share", "next_steps",
-                                                       "check_outreach_draft"})
+                                                       "check_outreach_draft", "get_history", "schedule_checks"} | writes)
         for t in tools:
-            self.assertTrue(t["annotations"]["readOnlyHint"], t["name"])
+            self.assertEqual(t["annotations"]["readOnlyHint"], t["name"] not in writes, t["name"])
             self.assertGreater(len(t["description"]), 100, t["name"])
             self.assertTrue(t["description"].rstrip().endswith("."), t["name"])
 
@@ -100,9 +102,60 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(self.post_run(body=[1, 2]).status_code, 400)
         self.assertEqual(self.post_run({"tool": "get_playbook", "arguments": {"wrong": 1}}).status_code, 400)
 
+    PANEL = [{"prompt_id": f"p{i}", "prompt": f"question {i}", "type": t}
+             for i, t in enumerate(["awareness", "awareness", "consideration", "consideration", "control", "control"], 1)]
+
+    def test_save_history_report_over_mcp(self):
+        runs = [{"snapshot": "baseline", "prompt_id": p["prompt_id"], "platform": "chatgpt", "repeat": r,
+                 "recommended": p["prompt_id"] == "p1"} for p in self.PANEL for r in (1, 2, 3)]
+        saved = self.call("save_results", {"project": "http-test", "panel": self.PANEL, "runs": runs,
+                                           "brand": {"name": "Acme", "domain": "acme.com"}})
+        self.assertFalse(saved.get("isError"), saved)
+        self.assertEqual(saved["structuredContent"]["snapshots_saved"], {"baseline": 18})
+        hist = self.call("get_history", {"project": "http-test"})["structuredContent"]
+        self.assertEqual(hist["snapshots"][0]["snapshot"], "baseline")
+        rep = self.call("make_report", {"project": "http-test"})["structuredContent"]
+        self.assertEqual(rep["project"], "http-test")
+        measured = self.call("measure_recommendation_share", {"project": "http-test"})["structuredContent"]
+        self.assertEqual(measured["project"], "http-test")
+
+    def test_missing_project_is_a_tool_error_with_help(self):
+        result = self.call("get_history", {"project": "does-not-exist"})
+        self.assertTrue(result["isError"])
+        self.assertIn("save_results", result["content"][0]["text"])
+
+    def test_run_endpoint_saves_and_reads_back(self):
+        runs = [{"snapshot": "baseline", "prompt_id": p["prompt_id"], "platform": "chatgpt", "repeat": 1,
+                 "recommended": False} for p in self.PANEL]
+        res = self.post_run({"tool": "save_results", "arguments": {"project": "run-test", "panel": self.PANEL, "runs": runs}})
+        self.assertEqual(res.status_code, 200, res.text)
+        res = self.post_run({"tool": "get_history", "arguments": {"project": "run-test"}})
+        self.assertEqual(res.json()["result"]["panel_prompts"], 6)
+
+    def test_scheduled_check_is_not_an_mcp_tool_but_runs_through_run(self):
+        names = {t["name"] for t in self.rpc("tools/list")["result"]["tools"]}
+        self.assertNotIn("scheduled_check", names)
+        res = self.post_run({"tool": "scheduled_check", "arguments": {"project": "sched-test", "url": "http://127.0.0.1:9/"}})
+        self.assertEqual(res.status_code, 400)  # private address is refused, as for audit_site
+
     def test_run_endpoint_refuses_huge_bodies(self):
         res = self.post_run({"tool": "next_steps", "arguments": {"audit": {"pad": "x" * (2 * 1024 * 1024 + 10)}}})
         self.assertEqual(res.status_code, 413)
+
+    def test_run_endpoint_stops_chunked_oversize(self):
+        import httpx
+        big = (b'{"tool":"get_playbook","arguments":{"pad":"' + b"x" * (2 * 1024 * 1024 + 10) + b'"}}' for _ in range(1))
+        res = httpx.post(f"http://127.0.0.1:{self.port}/run", content=big, timeout=30)  # chunked, no length
+        self.assertEqual(res.status_code, 413)
+
+    def test_run_endpoint_refuses_string_booleans(self):
+        runs = [{"snapshot": "baseline", "prompt_id": p["prompt_id"], "platform": "chatgpt", "repeat": 1,
+                 "recommended": False} for p in self.PANEL]
+        res = self.post_run({"tool": "save_results", "arguments": {"project": "flag-test", "panel": self.PANEL, "runs": runs}})
+        self.assertEqual(res.status_code, 200, res.text)
+        res = self.post_run({"tool": "save_results", "arguments": {"project": "flag-test", "runs": runs, "replace": "false"}})
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("real boolean", res.json()["error"])
 
     def test_run_endpoint_refuses_private_audit(self):
         res = self.post_run({"tool": "audit_site", "arguments": {"url": "http://127.0.0.1:9/"}})

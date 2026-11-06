@@ -23,15 +23,20 @@ Columns: `domain,url,type,source,dr,traffic,relevance,contact,email,verified,sta
 6. **Broken-link building**: run `khadinakbar/broken-link-checker` ($0.001/link) on the best resource pages; each dead outbound link relevant to a client page = a replacement pitch.
 De-duplicate by domain; drop domains already linking to the client.
 
+## 2b. Score and rank (so the user works on the best 20, not the first 200)
+Score each prospect 0 to 2 on: topical relevance, real traffic in the target country, page likelihood to link (it already lists similar resources), ease (contact found, clear ask), and what the link would add that the profile lacks. Contact at 6 or more out of 10, best first. Show the user the top 20 in plain words: who, why them, what to ask for.
+
 ## 3. Vet every candidate (no exceptions)
 Pass all: real organic traffic with no recent cliff, traffic in the target country, topical relevance to the page you'd link, the page indexed (`site:` check) and not crowded with outbound links, not a link farm / sell-to-anyone site, sensible price if paid. Record the reason in `relevance`. A smaller relevant site beats a big irrelevant one.
 
 ## 4. Act
 - **Outreach links** (`type` = listicle / resource / broken-link / unlinked-mention / competitor-gap / guest-post): set `status=to_contact` and hand to the `outreach` skill (templates in `../../references/outreach-playbook.md`). Contacts come from `khadinakbar/bulk-website-contact-extractor` and are verified with `khadinakbar/email-address-validator` there.
 - **Claimable listings** (directories, review sites, partner pages): list the exact URL and the fields to submit; the user (or a browser session they supervise) completes them.
-- **Paid placements**: if the user buys guest posts or link insertions from a vendor, vet each site with §3 first, keep exact-match anchors ≤10% of the profile, link the most relevant page (not always the homepage), use `rel="sponsored"` where the publisher allows, and get explicit approval of item, price and total before any order.
+- **Paid placements**: Citebase does not sell, resell or recommend vendors for links or placements. If the user decides to buy one on their own, help vet the site with §3, keep exact-match anchors ≤10% of the profile, link the most relevant page, use `rel="sponsored"` where the publisher allows, and never place an order yourself.
 - For guest posts, draft the article to the publisher's guidelines: genuinely useful, original, one contextual link, brand mention, no AI slop.
 - Log every placement in `seo-workspace/<domain>/offpage-log.csv`: `date,type,vendor,target_url,live_url,anchor,cost_usd,status`.
+
+Pace by site stage: a new site (under 20 pages) earns 3 to 5 links a month from owned and relationship sources first (partners, suppliers, directories, unlinked mentions); an established site adds competitor-gap and listicle asks; only then consider paid placements. Report each month in plain words: links won, from whom, to which page, and what to ask for next.
 
 ## 5. Verify and maintain
 Fetch each live URL: confirm the link exists, its `rel`, anchor and target; check the page is indexed after ~2 weeks; re-check monthly and log lost links. Pace: steady monthly cadence sized to the site (a 10-page new site ≈5 links in month 1), never bursts to one page.

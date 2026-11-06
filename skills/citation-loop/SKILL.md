@@ -13,6 +13,9 @@ All files live in `seo-workspace/<domain>/citation/`. The helper does the maths 
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/citation_loop.py" <command> seo-workspace/<domain>/citation ...
 ```
 
+## Web connector mode
+No local files here, so history lives in the user's own Apify account. Ask for a short project name (for example `acme-site`). Freeze the panel by saving it with the first round: `save_results` with `panel`, `runs` and `brand` (name, domain, competitors). Later rounds: `save_results` with the new `runs` (same panel). After an AI Brand Monitor run, `import_ai_results` converts the output for you (then read the `needs_review` rows with the user). `measure_recommendation_share` with `project` reads everything saved; `get_history` shows each round; `make_report` makes a page to share; `schedule_checks` gives the exact steps to run it automatically.
+
 ## 1. Build and freeze the panel (once)
 1. `init`. Then draft 20–40 prompts in the customers' own words, not the brand's marketing language: ~40% consideration ("best X for Y", "X vs Y", "alternatives to X"), ~20% awareness, ~20% brand ("is [brand] legit", "[brand] pricing"). Non-brand prompts must **not** contain the brand name.
 2. Add at least 5 **control** prompts: real questions in unrelated or competitor-only niches where the brand should not be recommended. They measure noise and false positives.
@@ -36,6 +39,9 @@ with the prompts it is meant to move. Ship changes in a few batches, not ten at 
 3. Control drift: if the controls moved, the engines moved, not you.
 4. Each experiment: `supported`, `inconclusive` or `worse`, and whether it was confounded by other changes.
 Then update the plan: repeat mechanisms that were supported, drop or retest the inconclusive ones, and send prompts still at 0% back to `ai-search-visibility` for the cited-domain table.
+
+## 5. Schedule it
+Re-measuring by hand is easy to forget. In Claude Code, set a `/schedule` routine for the re-measure date. On the web connector, call `schedule_checks` for the project: it returns the cron time, the ready-to-paste Apify input, the cost per run and the monthly cost. Creating the schedule is the user's step; tell them it is one screen in Apify Console (Schedules) and that scheduled AI checks cost real money, so confirm the monthly figure first.
 
 ## Rules
 - Do not edit the panel, the rubric or the engines between snapshots.

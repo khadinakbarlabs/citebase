@@ -1,6 +1,6 @@
 {
   "name": "citebase",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "displayName": "Citebase",
   "description": "Citebase: get cited by AI. The open-source agent that gets your brand recommended, cited and featured by ChatGPT, Claude, Gemini and Perplexity. It measures where AI stands on your brand today, finds the gaps on live data, and plans the pages, press, partnerships and outreach that close them. One sign-in with Apify; every data call shows its price first and runs under a spending cap and a daily ceiling, and a measurement loop re-checks whether your changes moved AI recommendations.",
   "author": {

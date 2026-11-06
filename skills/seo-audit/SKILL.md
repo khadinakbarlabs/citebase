@@ -37,6 +37,12 @@ Run the local checklist at the end of `../../references/checklist-technical.md` 
 6. **What I couldn't check** and which access would close the gap (GSC, GA4, Bing WMT exports; Apify sign-in).
 Then generate tailored checklists via the `seo-checklists` skill.
 
+## Step 6 — Say it simply and keep it
+- Start the answer with a three-line summary a non-expert can act on: the score in words ("needs work"), the top three fixes with who does each and how long, and what to check again in 30 days. Follow `../../references/plain-language.md`.
+- Group fixes into **Do first** (blockers), **Do soon** (clear wins) and **Later** (nice to have). At most five actions in the first message; the rest go in `report.md`.
+- On the web connector, offer to save the check with `save_results` (including the `audit` result) under a project name so the score can be compared next month, and `make_report` for a page to share. In Claude Code, `report.md` and `audit.json` are the record.
+- Always end with the re-check date.
+
 ## Rules
 - Never claim a ranking factor the references grade C as fact; label disputed items (meta descriptions, schema for AI, llms.txt, multiple H1s, nofollow value) as disputed.
 - Don't recommend schema/llms.txt as AI-visibility fixes. Don't recommend disavow without a manual action.
