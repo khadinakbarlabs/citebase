@@ -32,6 +32,11 @@ class ActorFilesTests(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(ACTOR, self.actor["storages"]["dataset"])))
         self.assertTrue(os.path.isfile(os.path.join(ACTOR, self.actor["storages"]["keyValueStore"])))
 
+    def test_listing_text_lengths_fit_apify_limits(self):
+        self.assertLessEqual(len(self.actor["description"]), 300)  # Apify rejects longer descriptions
+        self.assertGreaterEqual(len(self.actor["description"]), 150)
+        self.assertLessEqual(len(self.actor["title"]), 60)
+
     def test_actor_json_follows_platform_rules(self):
         self.assertRegex(self.actor["version"], r"^\d+\.\d+$")  # MAJOR.MINOR, not semver
         self.assertNotIn("dataset", self.actor.get("output", ""))  # output is a file path at top level
@@ -85,7 +90,10 @@ class ReadmeTests(unittest.TestCase):
 
     def test_store_readme_shape(self):
         self.assertFalse(re.search(r"(?m)^# ", self.text), "no H1: the Store shows the title")
-        for heading in ("What is", "When to use", "Tools", "Example", "Price", "Limits", "Legal"):
+        for heading in ("What is", "Choose Citebase when", "do not use", "How a session works", "Tools",
+                        "What one result contains", "Quick start", "Actors Citebase uses", "Pricing and cost example",
+                        "Use with an AI agent", "Limits", "Evidence and freshness", "Frequently asked", "Related",
+                        "Legal"):
             self.assertRegex(self.text, rf"(?mi)^## .*{heading}", heading)
 
     def test_first_quarter_covers_what_when_output_price(self):
@@ -100,6 +108,89 @@ class ReadmeTests(unittest.TestCase):
     def test_no_secrets_or_hype(self):
         for bad in ("#1", "best in the world", "api key:", "token:"):
             self.assertNotIn(bad, self.text.lower())
+
+
+ON_PLATFORM = ("apify.com", "mcp.apify.com", "docs.apify.com", "console.apify.com", "api.apify.com")
+EXAMPLE_HOSTS = ("example.com", "example.org", "json-schema.org")  # IANA example domains used as sample input, not promotion
+
+
+def fmt(x):
+    s = f"{x:.5f}".rstrip("0")
+    whole, _, frac = s.partition(".")
+    return f"${whole}.{frac.ljust(2, '0')}"
+
+
+class ComplianceTests(unittest.TestCase):
+    """Apify Store integrity rules: no off-platform links, no third-party Actors, honest pricing wording, brand notices."""
+
+    def setUp(self):
+        self.readme = open(os.path.join(ACTOR, "ACTOR_README.md")).read()
+        self.prices = load("connector", "prices.json")
+
+    def urls_in(self, text):
+        return re.findall(r"https?://[^\s)\"'`\]>\\]+", text)
+
+    def host(self, url):
+        return re.sub(r"^https?://", "", url).split("/")[0].split(":")[0].lower()
+
+    def test_no_off_platform_links_in_store_readme(self):
+        for url in self.urls_in(self.readme):
+            self.assertTrue(self.host(url).endswith(ON_PLATFORM) or self.host(url) in EXAMPLE_HOSTS, url)
+        for bad in ("github.com", "marketplace add", "claude plugin", "npm install", "pip install", "paypal", "stripe.com"):
+            self.assertNotIn(bad, self.readme.lower())
+
+    def test_no_off_platform_links_in_other_public_metadata(self):
+        for name in ("actor.json", "input_schema.json", "dataset_schema.json", "output_schema.json",
+                     "key_value_store_schema.json", "web_server_openapi.json"):
+            for url in self.urls_in(open(os.path.join(ACTOR, name)).read()):
+                self.assertTrue(self.host(url).endswith(ON_PLATFORM) or self.host(url) in EXAMPLE_HOSTS, f"{name}: {url}")
+
+    def test_every_used_actor_is_listed_with_link_and_price(self):
+        numbers = {round(float(n), 6) for n in re.findall(r"\$([0-9]+\.[0-9]+)", self.readme)}
+        for job, spec in self.prices["jobs"].items():
+            slug = spec["actor"].split("/")[1]
+            self.assertIn(f"https://apify.com/khadinakbar/{slug})", self.readme, f"{job}: link to {slug}")
+            self.assertIn(round(spec["per_unit"], 6), numbers, f"{job}: unit price")
+            if spec["per_request"] > 0:
+                self.assertIn(round(spec["per_request"], 6), numbers, f"{job}: per-run fee")
+        self.assertIn(fmt(self.prices["start_fee_usd"]), self.readme)
+
+    def test_only_own_actors_are_linked(self):
+        for slug_owner in re.findall(r"https://apify\.com/([a-z0-9_.-]+)/[a-z0-9_.-]+\)", self.readme):
+            self.assertEqual(slug_owner, "khadinakbar")
+
+    def test_connector_never_calls_other_actors(self):
+        for name in os.listdir(os.path.join(ROOT, "connector")):
+            if name.endswith(".py"):
+                code = open(os.path.join(ROOT, "connector", name)).read()
+                for banned in ("Actor.call", ".call_actor(", "metamorph", "Actor.start", "ApifyClient"):
+                    self.assertNotIn(banned, code, f"{name}: {banned}")
+
+    def test_pricing_wording_names_the_payer(self):
+        low = self.readme.lower()
+        self.assertIn("platform usage", low)
+        self.assertRegex(low, r"paid by the (apify )?account that (starts|runs)")
+        self.assertIn("no start fee", low)
+        self.assertNotRegex(low, r"unlimited|free forever|margin|commission")
+
+    def test_brand_notices_match_store_compliance_record(self):
+        rec = load(".actor", "STORE_COMPLIANCE.json")
+        self.assertEqual(rec["schemaVersion"], 1)
+        self.assertFalse(rec["publicContentReviewed"], "a human must confirm the review; never pre-marked")
+        self.assertGreaterEqual(len(rec["brands"]), 6)
+        for brand in rec["brands"]:
+            self.assertIn(brand["disclosure"], self.readme, brand["name"])
+            self.assertIn("not affiliated with", brand["disclosure"])
+
+    def test_no_secrets_in_any_input_name(self):
+        schema = load(".actor", "input_schema.json")
+        for key in schema["properties"]:
+            self.assertNotRegex(key, r"(?i)token|password|secret|key|cookie")
+
+    def test_run_outcomes_are_honest(self):
+        text = open(os.path.join(ROOT, "connector", "main.py")).read()
+        self.assertIn("Actor.fail", text)  # bad input ends FAILED, never a fake success
+        self.assertNotIn("Actor.exit(", text)
 
 
 @unittest.skipUnless(HAVE_MCP, "mcp is not installed")

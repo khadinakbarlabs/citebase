@@ -78,6 +78,17 @@ TOOL_TEXT = {
 }
 
 
+def setup_logging() -> None:
+    """Sends the one-line call records to stdout (Apify shows it in the run log). Safe to call more than once."""
+    if not any(getattr(h, "_citebase", False) for h in log.handlers):
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        handler._citebase = True  # type: ignore[attr-defined]
+        log.addHandler(handler)
+    log.setLevel(logging.INFO)
+    log.propagate = False
+
+
 def friendly(fn):
     """Shows the user-facing message of expected problems to the AI, and logs one safe line per call.
 

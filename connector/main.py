@@ -11,7 +11,7 @@ import uvicorn  # noqa: E402
 from apify import Actor  # noqa: E402
 
 import tools  # noqa: E402
-from server import build_app  # noqa: E402
+from server import build_app, setup_logging  # noqa: E402
 
 
 async def run_once() -> None:
@@ -31,6 +31,7 @@ async def run_once() -> None:
 
 
 async def main() -> None:
+    setup_logging()  # one safe line per call (tool, size, outcome, time); never the content
     async with Actor:
         if os.environ.get("APIFY_META_ORIGIN") != "STANDBY":
             await run_once()

@@ -115,6 +115,24 @@ class ServerTests(unittest.TestCase):
         enum = spec["paths"]["/run"]["post"]["requestBody"]["content"]["application/json"]["schema"]["properties"]["tool"]["enum"]
         self.assertEqual(len(enum), 6)
 
+    def test_calls_are_logged_without_any_content(self):
+        import contextlib
+        import io
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            import server
+            server.log.handlers = [h for h in server.log.handlers if not getattr(h, "_citebase", False)]
+            server.setup_logging()
+            self.call("check_outreach_draft", {"to": ["secret.person@example.com"], "subject": "Confidential subject",
+                                               "body": "Confidential body text for the log test."})
+            self.call("get_playbook", {"name": "nope"})
+        out = buf.getvalue()
+        self.assertIn('"event": "tool_call"', out)
+        self.assertIn('"tool": "check_outreach_draft"', out)
+        self.assertIn('"ok": false', out)  # the failed get_playbook call is recorded as failed
+        for secret in ("secret.person", "Confidential", "log test"):
+            self.assertNotIn(secret, out)
+
     def test_private_address_audit_is_refused(self):
         result = self.call("audit_site", {"url": "http://127.0.0.1:9/"})
         self.assertTrue(result["isError"])

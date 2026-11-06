@@ -4,7 +4,7 @@
   "title": "Citebase: get cited by AI (MCP server)",
   "version": "0.3",
   "buildTag": "latest",
-  "description": "Open-source SEO and AI-visibility connector for claude.ai, ChatGPT and other AI assistants: guidelines, site check, cost quotes, AI-recommendation results, to-do lists and outreach email checks.",
+  "description": "Open-source MCP connector for AI SEO: audit a website, quote paid data jobs, measure how often ChatGPT, Claude, Gemini and Perplexity recommend your brand, get a plain to-do list and check outreach emails. Six free tools; paid data runs on your Apify account with a quote first.",
   "usesStandbyMode": true,
   "webServerSchema": "./web_server_openapi.json",
   "webServerMcpPath": "/mcp",

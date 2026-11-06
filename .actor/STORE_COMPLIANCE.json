@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": null,
+  "reviewer": null,
+  "publicContentReviewed": false,
+  "note": "Drafted by the build agent. The owner must read the public README and metadata, then set reviewer, reviewedAt and publicContentReviewed before any publication. Not a legal opinion.",
+  "brands": [
+    {
+      "name": "ChatGPT (OpenAI)",
+      "use": "AI assistant that users connect Citebase to, and one of the assistants whose answers can be checked",
+      "disclosure": "ChatGPT is a trademark of OpenAI. This independent Actor is not affiliated with, associated with, or endorsed by OpenAI."
+    },
+    {
+      "name": "Claude (Anthropic)",
+      "use": "AI assistant that users connect Citebase to, and one of the assistants whose answers can be checked",
+      "disclosure": "Claude is a trademark of Anthropic. This independent Actor is not affiliated with, associated with, or endorsed by Anthropic."
+    },
+    {
+      "name": "Google, Gemini and YouTube",
+      "use": "Search, AI Overviews, AI Mode, News and YouTube are data sources for the paid Actors; Gemini is one of the assistants whose answers can be checked",
+      "disclosure": "Google, Gemini and YouTube are trademarks of Google LLC. This independent Actor is not affiliated with, associated with, or endorsed by Google."
+    },
+    {
+      "name": "Perplexity",
+      "use": "One of the assistants whose answers and sources can be checked",
+      "disclosure": "Perplexity is a trademark of Perplexity AI. This independent Actor is not affiliated with, associated with, or endorsed by Perplexity AI."
+    },
+    {
+      "name": "Reddit",
+      "use": "Public discussions used as research input by a paid Actor",
+      "disclosure": "Reddit is a trademark of Reddit, Inc. This independent Actor is not affiliated with, associated with, or endorsed by Reddit."
+    },
+    {
+      "name": "Trustpilot",
+      "use": "Public reviews used as research input by a paid Actor",
+      "disclosure": "Trustpilot is a trademark of Trustpilot A/S. This independent Actor is not affiliated with, associated with, or endorsed by Trustpilot."
+    },
+    {
+      "name": "G2, Capterra and TrustRadius",
+      "use": "Public software reviews used as research input by a paid Actor",
+      "disclosure": "G2, Capterra and TrustRadius are trademarks of their respective owners. This independent Actor is not affiliated with, associated with, or endorsed by them."
+    }
+  ]
+}
