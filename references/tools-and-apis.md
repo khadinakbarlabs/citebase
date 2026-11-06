@@ -3,8 +3,8 @@
 All live data comes from maintained `khadinakbar/*` Actors on the user's own Apify account, through the bundled `apify` MCP server (sign in with Apify — no API key to copy). Free work (local crawl, analysis, writing) needs no account.
 
 ## Connect (lowest friction first)
-1. **Already connected?** If the session has Apify tools (`call-actor`, `fetch-actor-details`, `get-dataset-items`, or `khadinakbar--…` tools — any prefix, e.g. `mcp__plugin_vibecited_apify__call-actor`), use them.
-2. **Plugin server not authenticated** → ask the user to run `/mcp`, choose `plugin:vibecited:apify`, and **Authenticate** (signs in with Apify in the browser). New Apify accounts include free monthly credit.
+1. **Already connected?** If the session has Apify tools (`call-actor`, `fetch-actor-details`, `get-dataset-items`, or `khadinakbar--…` tools — any prefix, e.g. `mcp__plugin_citebase_apify__call-actor`), use them.
+2. **Plugin server not authenticated** → ask the user to run `/mcp`, choose `plugin:citebase:apify`, and **Authenticate** (signs in with Apify in the browser). New Apify accounts include free monthly credit.
 3. **claude.ai / Claude Desktop / ChatGPT** → add a custom connector with the URL in `.mcp.json` and sign in with Apify.
 Never ask for an API key or token in chat.
 

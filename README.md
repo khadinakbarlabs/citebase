@@ -1,20 +1,20 @@
-# VibeCited
+# Citebase
 
 ### Get cited by AI.
 
 **The open-source agent that gets your brand recommended, cited and featured by ChatGPT, Claude, Gemini and Perplexity.**
 
-When someone asks an AI "what's the best X for Y?", it answers from what it finds said about brands across the web: search results, press, review sites, creator content, podcasts, community threads. VibeCited measures where AI stands on your brand today, finds the gaps on live data, and plans the pages, press, partnerships and outreach emails that close them. It works inside the AI assistant you already use.
+When someone asks an AI "what's the best X for Y?", it answers from what it finds said about brands across the web: search results, press, review sites, creator content, podcasts, community threads. Citebase measures where AI stands on your brand today, finds the gaps on live data, and plans the pages, press, partnerships and outreach emails that close them. It works inside the AI assistant you already use.
 
 One sign-in with Apify. Every data call shows its price first, runs under a hard spending cap, and you pay only per result. No subscriptions, no five API keys.
 
 ```
-/vibecited:start https://yourbrand.com
+/citebase:start https://yourbrand.com
 ```
 
 ## Why this one
 
-| | Typical SEO plugins | SEO / GEO SaaS suites | VibeCited |
+| | Typical SEO plugins | SEO / GEO SaaS suites | Citebase |
 |---|---|---|---|
 | Setup | 3–5 API keys | Account + $100–500/mo | One "Sign in with Apify"; free mode needs nothing |
 | Goal | Rankings | Dashboards | **Getting cited and recommended by AI**; Google rankings support it |
@@ -26,7 +26,7 @@ One sign-in with Apify. Every data call shows its price first, runs under a hard
 
 ## What it does today
 
-| Skill (`/vibecited:<name>`) | Outcome |
+| Skill (`/citebase:<name>`) | Outcome |
 |---|---|
 | `start` | Start here: baseline your AI visibility, then picks the right workflow, prioritises, 30/60/90-day plan |
 | `seo-audit` | Health score + findings across technical, on-page, content, backlinks, competitors, local, AI search |
@@ -64,16 +64,16 @@ The agent quotes each run before starting; runs without a cap or above your per-
 ## Install
 
 ```bash
-claude plugin marketplace add khadinakbarlabs/vibecited
-claude plugin install vibecited@vibecited
+claude plugin marketplace add khadinakbarlabs/citebase
+claude plugin install citebase@citebase
 ```
-Local checkout: `claude plugin marketplace add ./vibecited` or `claude --plugin-dir ./vibecited`.
+Local checkout: `claude plugin marketplace add ./citebase` or `claude --plugin-dir ./citebase`.
 
-**Connect data (once):** run `/mcp`, choose `plugin:vibecited:apify`, click **Authenticate** and sign in with Apify. No key to copy.
+**Connect data (once):** run `/mcp`, choose `plugin:citebase:apify`, click **Authenticate** and sign in with Apify. No key to copy.
 **claude.ai / Claude Desktop / ChatGPT:** add a custom connector with the URL from `.mcp.json` and sign in with Apify.
 **Email sending (optional):** connect Gmail, or a ReachInbox / Instantly / Smartlead MCP. Without one you get copy-paste drafts.
 
-Settings (`/plugin configure vibecited@vibecited`): `max_run_usd` (default 2) and `daily_send_cap` (default 20).
+Settings (`/plugin configure citebase@citebase`): `max_run_usd` (default 2) and `daily_send_cap` (default 20).
 
 ## Your workspace
 Everything is saved in your project under `seo-workspace/<domain>/`: `context.md`, `audit.json`, `report.md`, checklists, `competitors.md`, `keyword-opportunities.csv`, `prompt-panel.csv`, `ai-visibility.md`, `prospects.csv`, `drafts/`, `outreach-log.csv`, `offpage-log.csv`, `pr/`, `ledger.json` (every paid run with quote, cap and actual cost).

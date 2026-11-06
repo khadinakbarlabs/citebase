@@ -1,8 +1,8 @@
 {
-  "name": "vibecited",
+  "name": "citebase",
   "version": "0.2.0",
-  "displayName": "VibeCited",
-  "description": "VibeCited: get cited by AI. The open-source agent that gets your brand recommended, cited and featured by ChatGPT, Claude, Gemini and Perplexity. It measures where AI stands on your brand today, finds the gaps on live data, and plans the pages, press, partnerships and outreach that close them. One sign-in with Apify; every data call shows its price first and runs under a hard spending cap.",
+  "displayName": "Citebase",
+  "description": "Citebase: get cited by AI. The open-source agent that gets your brand recommended, cited and featured by ChatGPT, Claude, Gemini and Perplexity. It measures where AI stands on your brand today, finds the gaps on live data, and plans the pages, press, partnerships and outreach that close them. One sign-in with Apify; every data call shows its price first and runs under a hard spending cap.",
   "author": {
     "name": "Khadin Akbar"
   },
@@ -26,7 +26,7 @@
     }
   },
   "keywords": [
-    "vibecited",
+    "citebase",
     "get-cited-by-ai",
     "ai-citations",
     "ai-recommendations",
@@ -52,6 +52,6 @@
     "open-source",
     "claude-code"
   ],
-  "homepage": "https://github.com/khadinakbarlabs/vibecited",
-  "repository": "https://github.com/khadinakbarlabs/vibecited"
+  "homepage": "https://github.com/khadinakbarlabs/citebase",
+  "repository": "https://github.com/khadinakbarlabs/citebase"
 }

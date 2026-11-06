@@ -1,15 +1,15 @@
 {
-  "name": "vibecited",
+  "name": "citebase",
   "owner": {
     "name": "Khadin Akbar"
   },
   "metadata": {
-    "description": "VibeCited: get cited by AI. The open-source agent that gets your brand recommended, cited and featured by ChatGPT, Claude, Gemini and Perplexity.",
+    "description": "Citebase: get cited by AI. The open-source agent that gets your brand recommended, cited and featured by ChatGPT, Claude, Gemini and Perplexity.",
     "version": "0.2.0"
   },
   "plugins": [
     {
-      "name": "vibecited",
+      "name": "citebase",
       "description": "Get cited by AI: measure your AI visibility on live data, find the gaps, and plan the pages, PR and outreach that close them, with price quotes and approval gates",
       "source": "./"
     }

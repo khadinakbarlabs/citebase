@@ -30,7 +30,7 @@ KEEP_DAYS = 30
 
 
 def data_dir() -> str:
-    d = os.environ.get("CLAUDE_PLUGIN_DATA") or os.path.expanduser("~/.claude/plugins/data/vibecited")
+    d = os.environ.get("CLAUDE_PLUGIN_DATA") or os.path.expanduser("~/.claude/plugins/data/citebase")
     os.makedirs(d, exist_ok=True)
     return d
 
@@ -155,7 +155,7 @@ def main() -> int:
     if is_send:
         sent = int(load_counts().get(today, 0))
         if sent >= cap():
-            decide("deny", f"VibeCited daily send cap reached ({sent}/{cap()}). "
+            decide("deny", f"Citebase daily send cap reached ({sent}/{cap()}). "
                            "Raise daily_send_cap in the plugin settings or continue tomorrow.")
             return 0
         decide("ask", f"Outreach send ({sent + 1}/{cap()} today): {summarize(tool_input)}. "
