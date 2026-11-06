@@ -1,7 +1,8 @@
 {
   "name": "citebase",
   "owner": {
-    "name": "Khadin Akbar"
+    "name": "Khadin Akbar",
+    "email": "hello@khadinakbar.com"
   },
   "metadata": {
     "description": "Citebase: get cited by AI. The open-source agent that gets your brand recommended, cited and featured by ChatGPT, Claude, Gemini and Perplexity.",
