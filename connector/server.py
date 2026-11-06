@@ -166,7 +166,7 @@ def dump(items, *, exclude_none: bool = True) -> list[dict[str, Any]] | None:
 
 def build_server() -> MCPServer:
     mcp = MCPServer("citebase", title="Citebase: get cited by AI", version=VERSION, instructions=INSTRUCTIONS,
-                    website_url="https://github.com/khadinakbarlabs/citebase")
+                    website_url="https://apify.com/khadinakbar/citebase")
 
     def tool(name: str, annotations: ToolAnnotations):
         title, description = TOOL_TEXT[name]

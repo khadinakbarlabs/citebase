@@ -140,8 +140,5 @@ python3 -m unittest discover tests
 ```
 Standard library only. Scripts: `site_audit.py` (crawler), `approval_gate.py` (hook), `outreach_ledger.py` (approvals, suppression, pause), `citation_loop.py` (measurement), `cb_state.py` (shared state in `~/.citebase`, override with `CITEBASE_HOME`).
 
-## Also by the same maker
-[Looksy Agent](https://github.com/khadinakbarlabs/looksy) — the general research layer: leads, ads, social, ecommerce and 650+ data tools for any AI assistant.
-
 ## License
 MIT

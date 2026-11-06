@@ -1,7 +1,7 @@
 {
   "actorKeyValueStoreSchemaVersion": 1,
   "title": "Citebase key-value store",
-  "description": "Holds the tool result of a one-shot run. Nothing else is stored.",
+  "description": "Holds the tool result of a one-shot run. Saved projects (only when a project name is given) go to a separate named store, citebase-projects, in the same account.",
   "collections": {
     "output": {
       "title": "Tool result",

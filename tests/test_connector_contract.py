@@ -66,6 +66,11 @@ class ActorFilesTests(unittest.TestCase):
         self.assertIn("overview", ds["views"])
         self.assertEqual(set(ds["views"]["overview"]["transformation"]["fields"]), set(props))
 
+    def test_dataset_schema_accepts_every_tool(self):
+        text = json.dumps(load(".actor", "dataset_schema.json"))
+        for name in TOOLS | ONE_SHOT_ONLY:
+            self.assertIn(f'"{name}"', text)  # otherwise push_data rejects that tool's result in normal runs
+
     def test_key_value_store_schema_documents_the_output_record(self):
         kv = load(".actor", "key_value_store_schema.json")
         self.assertEqual(kv["actorKeyValueStoreSchemaVersion"], 1)
@@ -75,6 +80,15 @@ class ActorFilesTests(unittest.TestCase):
         schema = load(".actor", "input_schema.json")
         self.assertEqual(schema["required"], ["tool"])
         self.assertEqual(set(schema["properties"]["tool"]["enum"]), TOOLS | ONE_SHOT_ONLY)
+
+    def test_openapi_tool_list_matches_what_run_accepts(self):
+        spec = load(".actor", "web_server_openapi.json")
+        post = spec["paths"]["/run"]["post"]
+        enum = post["requestBody"]["content"]["application/json"]["schema"]["properties"]["tool"]["enum"]
+        self.assertEqual(set(enum), TOOLS | ONE_SHOT_ONLY)  # web agents only see this list
+        for name in TOOLS | ONE_SHOT_ONLY:
+            self.assertIn(name, post["description"])
+        self.assertNotIn("Nothing is stored", post["description"])
 
     def test_openapi_lists_run_with_examples(self):
         spec = load(".actor", "web_server_openapi.json")

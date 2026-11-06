@@ -144,6 +144,7 @@ Prompt to try: *"Use Citebase to check example.com, tell me the three most impor
 - Site check: up to 30 pages, public sites only, server HTML only (no JavaScript), about a minute at most.
 - Nothing is saved unless you give a project name. Saved projects live in a named key-value store in your own Apify account; up to 100 projects and 60 rounds each.
 - Requests are limited to 2 MB.
+- Save to one project from one conversation at a time. Two saves to the same project at the same moment from different sessions can overwrite each other.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|

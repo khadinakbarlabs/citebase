@@ -2,26 +2,41 @@
   "openapi": "3.0.1",
   "info": {
     "title": "Citebase: get cited by AI",
-    "description": "Plain-language SEO and AI-recommendation helper. Start with POST /run using tool get_playbook and name start, then follow it.",
-    "version": "0.3.0"
+    "description": "Plain-language SEO and get-recommended-by-AI helper. Start with POST /run using tool get_playbook and name start, then follow it. Free. Saves nothing unless you give a project name; then it saves in your own Apify account.",
+    "version": "0.4.0"
   },
   "paths": {
     "/run": {
       "post": {
         "operationId": "runCitebaseTool",
         "summary": "Run one Citebase tool (use this one)",
-        "description": "Runs one free Citebase tool and returns JSON {ok, tool, result}. First call: body {\"tool\":\"get_playbook\",\"arguments\":{\"name\":\"start\"}} and follow that playbook. Tools and their arguments: get_playbook {name?} lists or reads guidelines; audit_site {url, max_pages?} checks a public website; quote_cost {items:[{job,units,requests?}]} prices paid data jobs and returns suggested_cap_usd; measure_recommendation_share {panel,runs,baseline?,current?,experiments?} computes how often AI recommends the brand; next_steps {audit?,report?,max_steps?} makes a plain to-do list; check_outreach_draft {to,subject,body,suppressed?,sent_today?,daily_cap?} checks an email before sending and never sends. Errors return {ok:false,error} with what to fix. Nothing is stored.",
+        "description": "Runs one free Citebase tool and returns JSON {ok, tool, result}. First call: body {\"tool\":\"get_playbook\",\"arguments\":{\"name\":\"start\"}} and follow that playbook. Tools and their arguments: get_playbook {name?} lists or reads guidelines; audit_site {url, max_pages?} checks a public website; quote_cost {items:[{job,units,requests?}]} prices paid data jobs and returns suggested_cap_usd; measure_recommendation_share {panel,runs,baseline?,current?,experiments?} or {project} computes how often AI recommends the brand; next_steps {audit?,report?,max_steps?} makes a plain to-do list; check_outreach_draft {to,subject,body,suppressed?,sent_today?,daily_cap?} checks an email and never sends; save_results {project, runs?, panel?, brand?, audit?, append?, replace?} saves progress under a project name; get_history {project} shows progress over time; make_report {project} makes a shareable one-page report link; import_ai_results {project, items, snapshot, save?} converts AI Brand Monitor results; schedule_checks {project, url, frequency?} gives steps and costs for automatic re-checks; scheduled_check {project, url, max_pages?} is the site check plus report refresh meant for an Apify Schedule. true/false fields must be real booleans. Errors return {ok:false,error} with what to fix. Nothing is saved unless a project name is given; saved data stays in the caller's own Apify account.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["tool"],
+                "required": [
+                  "tool"
+                ],
                 "properties": {
                   "tool": {
                     "type": "string",
-                    "enum": ["get_playbook", "audit_site", "quote_cost", "measure_recommendation_share", "next_steps", "check_outreach_draft"],
+                    "enum": [
+                      "get_playbook",
+                      "audit_site",
+                      "quote_cost",
+                      "measure_recommendation_share",
+                      "next_steps",
+                      "check_outreach_draft",
+                      "save_results",
+                      "get_history",
+                      "make_report",
+                      "import_ai_results",
+                      "schedule_checks",
+                      "scheduled_check"
+                    ],
                     "description": "Which Citebase tool to run, for example get_playbook. NOT an Apify Actor name."
                   },
                   "arguments": {
@@ -34,22 +49,71 @@
           }
         },
         "responses": {
-          "200": {"description": "Result", "content": {"application/json": {"schema": {"type": "object"}}}},
-          "400": {"description": "Bad input; the error says what to fix", "content": {"application/json": {"schema": {"type": "object"}}}}
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad input; the error says what to fix",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/": {
       "get": {
         "summary": "Readiness probe",
-        "responses": {"200": {"description": "Server is running", "content": {"text/plain": {"schema": {"type": "string"}}}}}
+        "responses": {
+          "200": {
+            "description": "Server is running",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/mcp": {
       "post": {
         "summary": "MCP JSON-RPC endpoint for MCP clients only (AI assistants should use /run)",
-        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
-        "responses": {"200": {"description": "JSON-RPC response", "content": {"application/json": {"schema": {"type": "object"}}}}}
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JSON-RPC response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
       }
     }
   }

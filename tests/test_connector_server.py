@@ -166,7 +166,8 @@ class ServerTests(unittest.TestCase):
         spec = json.load(open(os.path.join(ROOT, ".actor", "web_server_openapi.json")))
         self.assertEqual(list(spec["paths"])[0], "/run")
         enum = spec["paths"]["/run"]["post"]["requestBody"]["content"]["application/json"]["schema"]["properties"]["tool"]["enum"]
-        self.assertEqual(len(enum), 6)
+        import runner
+        self.assertEqual(set(enum), set(runner.TOOL_NAMES))
 
     def test_calls_are_logged_without_any_content(self):
         import contextlib
