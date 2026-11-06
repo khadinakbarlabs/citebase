@@ -69,6 +69,33 @@ class QuoteTests(unittest.TestCase):
             self.assertIn(spec["actor"], ref, job)
 
 
+class PackTests(unittest.TestCase):
+    def test_every_pack_prices_and_uses_known_jobs(self):
+        for name, spec in tools.PRICES["packs"].items():
+            q = tools.quote_cost(None, name)
+            self.assertEqual(q["pack"], name)
+            self.assertGreater(q["total_usd"], 0)
+            self.assertTrue(spec["about"].endswith("."), name)
+            for item in spec["items"]:
+                self.assertIn(item["job"], tools.PRICES["jobs"], f"{name}: {item['job']}")
+
+    def test_pack_and_items_together_are_refused(self):
+        with self.assertRaises(ValueError):
+            tools.quote_cost([{"job": "serp_page", "units": 1}], "starter")
+
+    def test_unknown_pack_lists_valid_ones(self):
+        with self.assertRaises(ValueError) as e:
+            tools.quote_cost(None, "nope")
+        self.assertIn("starter", str(e.exception))
+
+    def test_starter_is_cheap_enough_for_a_beginner(self):
+        self.assertLess(tools.quote_cost(None, "starter")["total_usd"], 0.25)
+
+    def test_only_public_khadinakbar_actors_are_priced(self):
+        for job, spec in tools.PRICES["jobs"].items():
+            self.assertTrue(spec["actor"].startswith("khadinakbar/"), job)
+
+
 class MeasureTests(unittest.TestCase):
     def data(self, after_hits, total=24):
         panel = [{"prompt_id": f"p{n:03d}", "prompt": f"best tool {n}", "type": "consideration"} for n in range(1, total + 1)]
@@ -117,7 +144,7 @@ class NextStepsTests(unittest.TestCase):
     def test_failures_come_first_in_plain_words(self):
         steps = tools.next_steps(self.audit)["steps"]
         self.assertEqual(steps[0]["urgency"], "do first")
-        self.assertIn("Let search engines and AI tools read your site", [s["step"] for s in steps])
+        self.assertIn("Let search engines and AI answer tools read your site", [s["step"] for s in steps])
         self.assertTrue(all(s["who"] and s["effort"] for s in steps))
 
     def test_unknown_checks_still_produce_a_step(self):

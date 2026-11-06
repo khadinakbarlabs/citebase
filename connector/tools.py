@@ -116,9 +116,19 @@ def run_audit(url: str, max_pages: int = 15, time_budget: float = 60.0) -> dict:
 
 
 # ---------------------------------------------------------------- costs
-def quote_cost(items: list[dict]) -> dict:
+def quote_cost(items: list[dict] | None = None, pack: str | None = None) -> dict:
+    pack_about = None
+    if pack:
+        spec = (PRICES.get("packs") or {}).get(str(pack))
+        if not spec:
+            raise ValueError(f"Unknown pack '{pack}'. Valid packs: {', '.join(sorted(PRICES.get('packs', {})))}. "
+                             "Or send items like {\"job\": \"serp_page\", \"units\": 15}.")
+        if items:
+            raise ValueError("Send either a pack or items, not both.")
+        items, pack_about = [dict(i) for i in spec["items"]], spec["about"]
     if not items or len(items) > 50:
-        raise ValueError("Send between 1 and 50 items, each like {\"job\": \"serp_page\", \"units\": 15}.")
+        raise ValueError("Send a pack name (for example 'starter') or between 1 and 50 items, each like "
+                         "{\"job\": \"serp_page\", \"units\": 15}.")
     lines, total = [], 0.0
     for item in items:
         job = str(item.get("job", ""))
@@ -138,7 +148,8 @@ def quote_cost(items: list[dict]) -> dict:
         lines.append({"job": job, "actor": spec["actor"], "units": units, "unit": spec["unit"], "requests": requests,
                       "cost_usd": round(cost, 4)})
     cap = max(0.01, math.ceil(total * CAP_MULTIPLIER * 100) / 100)
-    return {"lines": lines, "total_usd": round(total, 4), "suggested_cap_usd": cap,
+    return {"pack": pack or None, "pack_about": pack_about, "lines": lines, "total_usd": round(total, 4),
+            "suggested_cap_usd": cap,
             "how_to_run": "Tell the user the total, wait for a yes, then call-actor with "
                           f"callOptions.maxTotalChargeUsd = {cap}.",
             "prices_read_on": PRICES["read_on"],
@@ -259,7 +270,7 @@ def schedule_plan(project: str, url: str, frequency: str = "weekly", max_pages: 
 # (match on check-name prefix) -> plain-language step
 STEP_RULES = [
     ("robots.txt reachable", "Make sure your site's robots file loads", "If it can't load, search engines and AI tools may skip you.", "your web developer", "30 minutes"),
-    ("Search + AI crawler access", "Let search engines and AI tools read your site", "Your robots file blocks some of them, so they can't read or recommend you.", "your web developer", "30 minutes"),
+    ("Search + AI crawler access", "Let search engines and AI answer tools read your site", "Your robots file blocks a search or answer bot, so it can't read or recommend you. (Blocking training-only bots is fine.)", "your web developer", "30 minutes"),
     ("HTTP redirects to HTTPS", "Make the secure version (https) the only version", "Visitors and search engines should always land on the secure address.", "your web developer", "1 hour"),
     ("Content present in server HTML", "Make your page text visible without JavaScript", "Many AI tools only read the text the server sends. If it's empty to them, they can't recommend you.", "your web developer", "1 to 3 days"),
     ("Broken internal pages", "Fix pages that show errors", "Broken pages waste visitors' time and search engines' trust.", "you or your developer", "1 to 2 hours"),
@@ -267,13 +278,19 @@ STEP_RULES = [
     ("XML sitemap", "Add a sitemap", "A sitemap is a list of your pages that helps search engines find them all.", "you or your developer", "1 hour"),
     ("Soft 404", "Make missing pages say 'not found' properly", "Right now missing pages look like real pages to search engines.", "your web developer", "1 hour"),
     ("Title tag present", "Give every page a clear title", "The title is the first thing search results and AI tools read.", "you", "2 hours"),
-    ("Title length", "Tidy up page titles (30 to 60 characters)", "Titles that are too long or short get cut off or ignored.", "you", "1 hour"),
+    ("Title length", "Make sure each title says what the page is about", "A title that is just a few words, or a huge pile of words, tells nobody what the page is for.", "you", "1 hour"),
     ("Unique title", "Make each page title different", "Repeated titles make pages look like copies of each other.", "you", "1 hour"),
     ("Exactly one H1", "Give every page one main headline", "One clear headline tells readers and search engines what the page is about.", "you", "1 hour"),
     ("Meta description present", "Write a short summary for each page", "It's the line shown under your link in search results. Low priority.", "you", "2 hours"),
     ("Mobile viewport", "Make the site work properly on phones", "Most visitors use phones; search engines judge the phone version.", "your web developer", "1 hour"),
     ("Canonical tag", "Tell search engines which address is the main one for each page", "It stops duplicate versions from competing with each other.", "your web developer", "1 hour"),
-    ("Thin content", "Add real, useful detail to short pages", "Very short pages rarely get picked up or recommended.", "you", "a few hours per page"),
+    ("Thin content", "Make sure short pages fully answer the question", "A page should answer what a visitor came for. Length does not matter; missing answers do.", "you", "a few hours per page"),
+    ("Pricing or comparison pages", "Add a clear pricing page and a comparison page", "These are the pages buyers and AI assistants look for when deciding what to choose.", "you", "a few hours"),
+    ("Money pages linked from", "Link to your pricing and comparison pages from more pages", "Pages that few of your own pages link to look unimportant.", "you", "1 hour"),
+    ("Published / updated date", "Show when long pages were last updated", "Fresh, dated pages are easier for people and assistants to trust.", "you", "1 hour"),
+    ("Author byline", "Add a real author name to long articles", "It shows who stands behind the advice.", "you", "1 hour"),
+    ("Click depth", "Make important pages easier to reach", "Pages buried many clicks deep are hard to find.", "you", "1 hour"),
+    ("Canonical points to another URL", "Check pages that point to a different main address", "Make sure each one is meant to.", "your web developer", "1 hour"),
     ("Image alt text", "Describe your images in words", "It helps search engines and people using screen readers.", "you", "1 to 2 hours"),
     ("Entity schema", "Add your business details as hidden page data", "Tells machines who you are. Helps rich search results; no proof yet that it helps AI recommend you.", "your web developer", "1 hour"),
     ("JSON-LD structured data", "Add structured page data (low priority)", "Helps rich search results. A controlled test found no AI-recommendation boost from it, so do it after the basics.", "your web developer", "a few hours"),
@@ -288,7 +305,10 @@ def _rule_for(check: str):
 def next_steps(audit: dict | None = None, report: dict | None = None, max_steps: int = 5) -> dict:
     max_steps = max(1, min(int(max_steps), 10))
     steps: list[dict] = []
-    for prob in sorted((audit or {}).get("problems", []), key=lambda p: (p.get("level") != "fail",)):
+    def weight(prob: dict) -> int:
+        return -sa.weight_of(str(prob.get("check", "")))  # heavier checks first within the same level
+
+    for prob in sorted((audit or {}).get("problems", []), key=lambda p: (p.get("level") != "fail", weight(p))):
         rule = _rule_for(str(prob.get("check", "")))
         steps.append({"step": rule[1] if rule else f"Look into: {prob.get('check')}",
                       "why": rule[2] if rule else str(prob.get("detail", ""))[:200],
@@ -369,7 +389,7 @@ def check_outreach_draft(to: list[str] | str, subject: str, body: str, suppresse
 DISPATCH = {
     "get_playbook": lambda a: get_playbook(a.get("name")),
     "audit_site": lambda a: run_audit(a.get("url", ""), a.get("max_pages", 15)),
-    "quote_cost": lambda a: quote_cost(a.get("items") or []),
+    "quote_cost": lambda a: quote_cost(a.get("items") or [], a.get("pack")),
     "measure_recommendation_share": lambda a: measure(a.get("panel") or [], a.get("runs") or [], a.get("baseline", ""),
                                                       a.get("current", ""), a.get("experiments")),
     "next_steps": lambda a: next_steps(a.get("audit"), a.get("report"), a.get("max_steps", 5)),
@@ -378,7 +398,7 @@ DISPATCH = {
                                                            a.get("daily_cap", 20)),
 }
 ALLOWED_ARGS = {
-    "get_playbook": {"name"}, "audit_site": {"url", "max_pages"}, "quote_cost": {"items"},
+    "get_playbook": {"name"}, "audit_site": {"url", "max_pages"}, "quote_cost": {"items", "pack"},
     "measure_recommendation_share": {"panel", "runs", "baseline", "current", "experiments"},
     "next_steps": {"audit", "report", "max_steps"},
     "check_outreach_draft": {"to", "subject", "body", "suppressed", "sent_today", "daily_cap"},

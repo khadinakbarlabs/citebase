@@ -26,6 +26,7 @@ If a paid data source is unavailable, the agent reports what it could do with fr
 For the homepage and the top 5–10 money pages (from context, sitemap or traffic), check every `[agent]` item in `../../references/checklist-onpage.md`: keyword in the four relevance slots, title formula, intent vs SERP page type (look at the live SERP for the target keyword), above-the-fold answer/CTA, trust cues, cannibalisation, internal links, freshness. Quote the actual title/H1/first sentence as evidence.
 
 ## Step 4 — Local (only if the business serves an area)
+On the web, `quote_cost` with `pack: "local"` (about $0.15) covers map ranking and the local results pack.
 Run the local checklist at the end of `../../references/checklist-technical.md` (GBP category, Core 30, reviews, grid) by hand with the user's Business Profile access; for the geo-grid use `khadinakbar/local-rank-tracker` ($0.06 per local check).
 
 ## Step 5 — Synthesize `report.md`

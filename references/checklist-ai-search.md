@@ -1,5 +1,7 @@
 # AI-search (GEO / AEO) checklist
 
+**Evidence grades used in every checklist:** A = controlled test or large dataset · B = practitioner consensus or one study with a clear method · C = anecdote or vendor-reported figure. Numbers below without a grade are B at best: treat as direction, not fact.
+
 **Core model (most-supported view across the transcripts):** LLM answers are assembled from web search results. ChatGPT, Perplexity, Claude, Gemini and AI Overviews rewrite a prompt into several search queries ("query fan-out", ~9–11 on average, up to 28; deep research ran 420), read the top results, and synthesise. So **AI visibility ≈ ranking for the fan-out queries + being mentioned consistently on the pages those queries return.** 76% of AI Overview citations come from Google's top 10; 88% of ChatGPT-cited URLs come from its search index (Ahrefs, 1.4M prompts). Dissent: one study found only ~16% of prompts trigger retrieval; ~14–33% of citations come from outside the top 100. Do both: rank the fan-outs **and** build off-site consensus.
 
 **Keep expectations honest:** AI referrals are ~0.25–1% of site traffic for most sites (ChatGPT ≈0.62% of Google organic across 100 sites / 145M sessions); citations ≠ clicks (37,000 Bing citations vs ~300 clicks in one case). ChatGPT sends 8–9× more referrals than the next AI platform; don't weight Perplexity equally.
@@ -45,4 +47,4 @@
 - Watch for poisoning: fake third-party pages or "Summarize with AI" prompt-injection links about the brand.
 
 ## 7. Don't
-Scaled AI pages targeting fan-outs (Google names it scaled content abuse; 85–95% visibility losses reported), mass self-promotional "best X" lists ranking yourself #1 (cited ~2× less; rising demotion risk), date refreshes without real updates, fake Reddit threads/upvotes, fabricated press releases, cloaking markdown to AI bots.
+Scaled AI pages targeting fan-outs (Google names it scaled content abuse; 85–95% visibility losses reported), mass self-promotional "best X" lists ranking yourself #1 (reported cited less, rising demotion risk; C), date refreshes without real updates, fake Reddit threads/upvotes, fabricated press releases, cloaking markdown to AI bots.

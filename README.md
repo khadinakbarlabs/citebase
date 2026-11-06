@@ -31,6 +31,7 @@ One sign-in with Apify. Every data call shows its price first, runs under a spen
 | `start` | Start here: picks the right workflow, prioritises, 30/60/90-day plan |
 | `seo-audit` | Weighted health score with sub-scores across technical, on-page, content, backlinks, competitors, local, AI search |
 | `seo-checklists` | On-page and off-page checklists pre-filled pass/fail for *your* site |
+| `keyword-research` | What people search for: suggestions, trends, questions, YouTube. Five groups, a page plan, one price for a ready-made pack |
 | `competitor-research` | Real SERP competitors, keyword + backlink gaps, weak pages you can outrank, page plan |
 | `ai-search-visibility` | What AI says about you, cited domains, wrong facts, and a plan to get cited |
 | `citation-loop` | Frozen prompt panel → repeat runs → Recommendation Share → logged experiments → re-measure |

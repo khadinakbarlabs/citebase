@@ -13,6 +13,7 @@ CASES = [
     ("Prove the ROI of our GEO work", "prove the roi of geo", "citation-loop"),
     ("Re-measure our AI citations next month", "re-measure", "citation-loop"),
     ("Who are our SEO competitors and what is the keyword gap?", "keyword gap", "competitor-research"),
+    ("What do people search for in my niche?", "find what people search for", "keyword-research"),
     ("Find me guest posts for the blog", "guest posts", "link-building"),
     ("Do some link prospecting for our new tool", "link prospecting", "link-building"),
     ("Write a press release for our launch", "press release", "press-release"),

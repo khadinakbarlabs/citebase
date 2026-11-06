@@ -6,7 +6,7 @@
 - [auto] **robots.txt reachable, not over-broad.** `Disallow: /category` also blocks `/category-1` and `/category.html`.
 - [auto] **Googlebot, Bingbot and AI crawlers allowed** (GPTBot, OAI-SearchBot, ChatGPT-User, ClaudeBot, PerplexityBot, Google-Extended). ~5.9% of 140M sites block GPTBot; Cloudflare's managed robots.txt / AI-bot toggle can add blocks silently — check the CDN settings too. (A)
 - [auto] **Content in server HTML.** H1, body, internal links and reviews must exist without JavaScript. ChatGPT's crawler does not render JS; Google renders late; JS review widgets are invisible to LLMs. Fix: SSR/SSG/prerendering. (B)
-- [agent] **Bing indexed + Bing Webmaster Tools + IndexNow.** ChatGPT search leans on Bing's index; Bing WMT's AI Performance report shows Copilot citations and grounding queries. (B)
+- [agent] **Bing indexed + Bing Webmaster Tools + IndexNow.** ChatGPT search has used Bing's index and is reported to be building its own, so don't rely on Bing alone; Bing WMT's AI Performance report shows Copilot citations and grounding queries. (B)
 - [agent] **LLM fetch test**: ask an LLM with browsing to fetch the URL and describe it; a wrong summary = retrievability problem. (B)
 
 ## Indexing
@@ -44,7 +44,7 @@
 Freeze content ~1 month before; crawl before/after; preserve titles, canonicals, internal links and anchors; HTML sitemap; settle trailing slash; prioritise the 80/20 pages; re-check noindex after launch.
 
 ## Diagnosing drops: match the date to the update first
-2025–26 updates targeted scaled content abuse (AI or programmatic), thin affiliate, site-reputation abuse (Cointelegraph ~4M → ~75k clicks/mo after casino directories), expired-domain abuse, keyword stuffing, doorway pages, self-promotional listicles; directories lost "near me" in the May 2026 core update. Spam updates can hit a whole domain and every site in one GSC account. Rank-tracker data is distorted since Google removed `num=100` and added `goto` redirects — use GSC as ground truth.
+2025–26 updates targeted scaled content abuse (AI or programmatic), thin affiliate, site-reputation abuse (Cointelegraph ~4M → ~75k clicks/mo after casino directories), expired-domain abuse, keyword stuffing, doorway pages, self-promotional listicles; directories lost "near me" in the May 2026 core update. Spam-update phases in March and September 2026 (reported in the analysed videos; verify dates in Google's status page) target AI-written scaled pages. Google's "Preferred Sources" setting became a global signal on 1 May 2026 as reported: being a source people choose to follow helps. Spam updates can hit a whole domain and every site in one GSC account. Rank-tracker data is distorted since Google removed `num=100` and added `goto` redirects — use GSC as ground truth.
 
 ---
 

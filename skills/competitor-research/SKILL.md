@@ -1,12 +1,14 @@
 ---
 name: competitor-research
-description: SEO competitor research — find the real SERP competitors, compare authority, traffic and backlinks, mine keyword and content gaps, spot weak pages you can outrank, and turn them into a page plan. Use when the user asks who their competitors are, competitor analysis, keyword gap, content gap, backlink gap, "what are competitors ranking for", or keyword research.
+description: SEO competitor research — find the real SERP competitors, compare authority, traffic and backlinks, mine keyword and content gaps, spot weak pages you can outrank, and turn them into a page plan. Use when the user asks who their competitors are, competitor analysis, keyword gap, content gap, backlink gap, or "what are competitors ranking for". For general keyword ideas use keyword-research.
 argument-hint: "<your domain> [competitor domains...] [country]"
 ---
 
 # Competitor research
 
 Tools: Apify Actors per `../../references/tools-and-apis.md` (run protocol: quote → cap → run → report cost). Log paid calls in `ledger.json`.
+
+On the web, price the whole step with one call: `quote_cost` with `pack: "competitors"` (about $0.30), then ask for one yes. Beginners: show five findings, not a data dump (`../../references/plain-language.md`).
 
 ## 1. Identify real competitors (by SERP, not by opinion)
 - Take 5–15 money keywords (from `context.md`, the homepage/money pages, or the user's GSC export).

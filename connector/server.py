@@ -60,9 +60,10 @@ TOOL_TEXT = {
         "problems with example pages. Free; takes up to a minute."),
     "quote_cost": (
         "Quote costs",
-        "Work out what a set of paid Apify data jobs will cost and which spending cap to use. Use before every "
-        "call-actor run. Not for running jobs: it only prices them. Items are {job, units, requests}. Returns each "
-        "job's cost, the total and suggested_cap_usd (total x 1.3) for callOptions.maxTotalChargeUsd. Free."),
+        "Work out what paid Apify data jobs will cost and which spending cap to use. Use before every call-actor "
+        "run: pass a pack name (starter, keywords, competitors, creators, local, ai_check) or custom items. Not for "
+        "running jobs: it only prices them. Returns each job's cost, the total and suggested_cap_usd "
+        "for callOptions.maxTotalChargeUsd. Free."),
     "measure_recommendation_share": (
         "Measure AI recommendations",
         "Turn AI-answer test results into Recommendation Share: how often ChatGPT, Perplexity, Gemini and others "
@@ -192,10 +193,15 @@ def build_server() -> MCPServer:
 
     @tool("quote_cost", READ_ONLY)
     @friendly
-    def quote_cost(items: Annotated[list[m.QuoteItem], Field(min_length=1, max_length=50, description=(
-            "The paid jobs to price, each like {\"job\": \"serp_page\", \"units\": 15}. Between 1 and 50 items. "
-            "NOT a list of Actor names."))]) -> m.QuoteResult:
-        return m.QuoteResult(**tools.quote_cost(dump(items)))
+    def quote_cost(
+            pack: Annotated[Optional[m.PackName], Field(description=(
+                "The easy way: a ready-made bundle, for example 'starter' (first look at a site), 'keywords', "
+                "'competitors', 'creators', 'local' or 'ai_check'. Use this unless the user wants something custom. "
+                "Defaults to none. NOT a job name."))] = None,
+            items: Annotated[Optional[list[m.QuoteItem]], Field(max_length=50, description=(
+                "Custom jobs instead of a pack, each like {\"job\": \"serp_page\", \"units\": 15}. Up to 50 items. "
+                "Defaults to none. NOT a list of Actor names."))] = None) -> m.QuoteResult:
+        return m.QuoteResult(**tools.quote_cost(dump(items), pack))
 
     @tool("measure_recommendation_share", READ_ONLY)
     @friendly

@@ -32,7 +32,7 @@ Pass all: real organic traffic with no recent cliff, traffic in the target count
 ## 4. Act
 - **Outreach links** (`type` = listicle / resource / broken-link / unlinked-mention / competitor-gap / guest-post): set `status=to_contact` and hand to the `outreach` skill (templates in `../../references/outreach-playbook.md`). Contacts come from `khadinakbar/bulk-website-contact-extractor` and are verified with `khadinakbar/email-address-validator` there.
 - **Claimable listings** (directories, review sites, partner pages): list the exact URL and the fields to submit; the user (or a browser session they supervise) completes them.
-- **Paid placements**: Citebase does not sell, resell or recommend vendors for links or placements. If the user decides to buy one on their own, help vet the site with §3, keep exact-match anchors ≤10% of the profile, link the most relevant page, use `rel="sponsored"` where the publisher allows, and never place an order yourself.
+- **Paid placements**: Citebase does not sell, resell or recommend vendors for links or placements. If the user decides to buy one on their own, help vet the site with §3, link the most relevant page, every paid link must carry `rel="sponsored"` or `nofollow` (if the publisher refuses, do not buy it), and never place an order yourself.
 - For guest posts, draft the article to the publisher's guidelines: genuinely useful, original, one contextual link, brand mention, no AI slop.
 - Log every placement in `seo-workspace/<domain>/offpage-log.csv`: `date,type,vendor,target_url,live_url,anchor,cost_usd,status`.
 

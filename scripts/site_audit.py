@@ -36,11 +36,15 @@ NOT_FOUND_PROBE = "/citebase-audit-should-404"
 TOTAL_TIMEOUT_S = 30.0  # wall-clock limit for one response, however slowly it trickles in
 MAX_LINKS_PER_PAGE = 5000
 MAX_QUEUE = 20000
-AI_CRAWLERS = [
-    "GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "Claude-SearchBot",
-    "PerplexityBot", "Google-Extended", "Googlebot", "Bingbot", "CCBot", "Applebot-Extended",
-]
-TITLE_RANGE = (30, 60)
+# Bots that fetch pages to ANSWER people (search and assistants). Blocking these can hide a site from AI answers.
+ANSWER_BOTS = ["Googlebot", "Bingbot", "OAI-SearchBot", "ChatGPT-User", "PerplexityBot", "Claude-SearchBot", "Claude-User"]
+# Bots that collect training data only. Blocking these is a choice about training; it does not remove a site from answers.
+TRAINING_BOTS = ["GPTBot", "ClaudeBot", "Google-Extended", "CCBot", "Applebot-Extended"]
+AI_CRAWLERS = ANSWER_BOTS + TRAINING_BOTS
+TITLE_RANGE = (15, 100)  # only flag titles that are clearly too short or absurdly long; longer is fine if it states the topic
+MONEY_PAGE = re.compile(r"/(pricing|prices?|plans|vs|versus|alternatives?|compare|comparison|best)(\b|[-_/])", re.I)
+MIN_PAGES_FOR_MONEY_CHECK = 10
+MONEY_PAGE_MIN_INLINKS = 5
 DESC_RANGE = (70, 160)
 THIN_WORDS = 300
 LONG_CONTENT_WORDS = 600
@@ -535,7 +539,7 @@ def crawl(start: str, max_pages: int, delay: float, time_budget: float | None = 
 HIGH_WEIGHT = ("Search + AI crawler access", "robots.txt reachable", "HTTP redirects to HTTPS", "Broken internal pages",
                "Unreachable pages", "Title tag present", "Content present in server HTML")
 MED_WEIGHT = ("XML sitemap", "Soft 404", "Mobile viewport", "Canonical tag present", "Exactly one H1", "Unique title",
-              "Meta description present", "Server response under", "Redirect chains", "Valid JSON-LD", "Entity schema")
+              "Server response under", "Redirect chains")  # meta description and schema are hygiene: weight 1
 POINTS = {"pass": 1.0, "warn": 0.5, "fail": 0.0}
 
 
@@ -560,9 +564,14 @@ def technical_checks(audit: dict, pages: list[dict]) -> list[dict]:
     if None in s["ai_crawler_access"].values():
         out.append(check("fail", "technical", "robots.txt reachable", "Could not fetch robots.txt (network/TLS error)"))
     blocked = [b for b, ok in s["ai_crawler_access"].items() if ok is False]
-    level = "fail" if {"Googlebot", "Bingbot"} & set(blocked) else ("warn" if blocked else "pass")
-    out.append(check(level, "technical", "Search + AI crawler access (robots.txt)",
-                     "Blocked: " + (", ".join(blocked) or "none")))
+    answer_blocked = [b for b in blocked if b in ANSWER_BOTS]
+    training_blocked = [b for b in blocked if b in TRAINING_BOTS]
+    level = "fail" if {"Googlebot", "Bingbot"} & set(answer_blocked) else ("warn" if answer_blocked else "pass")
+    detail = "Search and answer bots blocked: " + (", ".join(answer_blocked) or "none")
+    if training_blocked:
+        detail += (". Training-only bots blocked (" + ", ".join(training_blocked) + "): your choice; this does not "
+                   "remove you from search or AI answers")
+    out.append(check(level, "ai-search", "Search + AI crawler access (robots.txt)", detail))
     out.append(check("pass" if s["http_to_https"] else "fail", "technical", "HTTP redirects to HTTPS",
                      " -> ".join(s["http_redirect_chain"])))
     if s["www_consolidated"] is False:
@@ -616,10 +625,10 @@ def rendering_checks(pages: list[dict]) -> list[dict]:
                 and p.get("scripts", 0) >= 5 and p.get("internal_link_count", 0) < 3]
     name = "Content present in server HTML (heuristic)"
     if not likely and not possible:
-        return [check("pass", "technical", name, "No empty app shells detected in the server HTML")]
+        return [check("pass", "ai-search", name, "No empty app shells detected in the server HTML")]
     home_hit = any(p.get("depth", 1) == 0 for p in pages if p["url"] in likely)
     level = "fail" if home_hit or len(likely) > len(pages) / 2 else "warn"
-    return [check(level, "technical", name,
+    return [check(level, "ai-search", name,
                   f"{len(likely)} pages look like an empty app shell and {len(possible)} serve very little text with "
                   "many scripts. This is a heuristic, not a render: confirm with curl or view-source. If true, "
                   "crawlers that do not run JavaScript (reported for GPTBot, ClaudeBot, PerplexityBot) see little: "
@@ -634,7 +643,7 @@ def onpage_checks(pages: list[dict]) -> list[dict]:
     dup_t = [p["url"] for p in pages if p["title"] and titles[p["title"]] > 1]
     out.append(check("fail" if missing_t else "pass", "on-page", "Title tag present", f"{len(missing_t)} missing", missing_t))
     out.append(check("warn" if bad_t else "pass", "on-page", f"Title length {TITLE_RANGE[0]}-{TITLE_RANGE[1]} chars",
-                     f"{len(bad_t)} outside range", bad_t))
+                     f"{len(bad_t)} clearly too short or too long (a longer title is fine if it states the topic)", bad_t))
     out.append(check("warn" if dup_t else "pass", "on-page", "Unique title tags", f"{len(dup_t)} duplicated", dup_t))
     descs = Counter(p["meta_description"] for p in pages if p["meta_description"])
     missing_d = [p["url"] for p in pages if not p["meta_description"]]
@@ -670,19 +679,33 @@ def onpage_checks(pages: list[dict]) -> list[dict]:
     return out
 
 
+def money_page_checks(pages: list[dict]) -> list[dict]:
+    """Pages AI assistants and buyers lean on (pricing, comparison, alternatives): present, and linked from enough pages."""
+    if len(pages) < MIN_PAGES_FOR_MONEY_CHECK:
+        return []
+    money = [p for p in pages if MONEY_PAGE.search(urllib.parse.urlsplit(p["url"]).path + "/")]
+    if not money:
+        return [check("warn", "ai-search", "Pricing or comparison pages found",
+                      "None of the pages read look like a pricing, comparison or alternatives page. Pages that state "
+                      "prices and compare options are the ones assistants lean on when people ask what to buy")]
+    weak = [p["url"] for p in money if p.get("inlinks", 0) < MONEY_PAGE_MIN_INLINKS]
+    return [check("warn" if weak else "pass", "on-page", f"Money pages linked from {MONEY_PAGE_MIN_INLINKS}+ pages",
+                  f"{len(weak)} of {len(money)} pricing/comparison pages have fewer links in from your own pages", weak)]
+
+
 def ai_search_checks(audit: dict, pages: list[dict]) -> list[dict]:
     out = []
     # llms.txt is recorded in signals but not scored: no evidence it changes citations.
     no_schema = [p["url"] for p in pages if not p.get("schema_types")]
-    out.append(check("warn" if no_schema else "pass", "ai-search", "JSON-LD structured data",
+    out.append(check("warn" if no_schema else "pass", "on-page", "JSON-LD structured data",
                      f"{len(no_schema)} pages without schema (helps rich-result eligibility; "
                      "a controlled test found no AI-citation lift from adding it)", no_schema))
     bad = [p["url"] for p in pages if p.get("schema_invalid_blocks")]
     if bad:
-        out.append(check("fail", "ai-search", "Valid JSON-LD", f"{len(bad)} pages with unparsable JSON-LD", bad))
+        out.append(check("fail", "on-page", "Valid JSON-LD", f"{len(bad)} pages with unparsable JSON-LD", bad))
     types = {t for p in pages for t in p.get("schema_types", [])}
     entity = types & {"Organization", "LocalBusiness", "Corporation", "Person", "WebSite", "ProfessionalService"}
-    out.append(check("pass" if entity else "warn", "ai-search", "Entity schema (Organization / Person / WebSite)",
+    out.append(check("pass" if entity else "warn", "on-page", "Entity schema (Organization / Person / WebSite)",
                      "Found: " + (", ".join(sorted(entity)) or "none")))
     undated = [p["url"] for p in pages if not p.get("has_date") and p["word_count"] > LONG_CONTENT_WORDS]
     if undated:
@@ -697,7 +720,7 @@ def score(audit: dict) -> list[dict]:
     pages = [p for p in audit["pages"] if "word_count" in p]
     checks = technical_checks(audit, pages)
     if pages:
-        checks += rendering_checks(pages) + onpage_checks(pages) + ai_search_checks(audit, pages)
+        checks += rendering_checks(pages) + onpage_checks(pages) + ai_search_checks(audit, pages) + money_page_checks(pages)
     order = {"fail": 0, "warn": 1, "pass": 2}
     return sorted(checks, key=lambda c: (order[c["level"]], c["area"]))
 

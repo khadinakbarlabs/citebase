@@ -13,6 +13,8 @@ import tools
 
 JOB_NAMES = tuple(sorted(tools.PRICES["jobs"]))
 JobName = Literal[JOB_NAMES]  # type: ignore[valid-type]
+PACK_NAMES = tuple(sorted(tools.PRICES.get("packs", {})))
+PackName = Literal[PACK_NAMES]  # type: ignore[valid-type]
 PromptType = Literal["awareness", "consideration", "brand", "control"]
 Mechanism = Literal["onpage", "fact-page", "listicle", "review-site", "press", "reddit", "youtube", "directory",
                     "podcast", "creator", "schema", "llms-txt", "technical", "other"]
@@ -62,6 +64,8 @@ class QuoteLine(BaseModel):
 
 
 class QuoteResult(BaseModel):
+    pack: Optional[str] = Field(None, description="Name of the pack that was priced, for example 'starter'. Null when single jobs were priced.")
+    pack_about: Optional[str] = Field(None, description="One plain sentence about what the pack gets you. Null when single jobs were priced.")
     lines: list[QuoteLine] = Field(description="One entry per priced job.")
     total_usd: float = Field(description="Total estimated cost in US dollars.")
     suggested_cap_usd: float = Field(description="Spending cap to pass as callOptions.maxTotalChargeUsd (total x 1.3, rounded up to the cent).")

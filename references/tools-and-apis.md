@@ -52,6 +52,27 @@ Never ask for an API key or token in chat.
 | YouTube (mentions, creators) | `khadinakbar/youtube-search-scraper` | — | $0.003 / result (+ $0.01 when the managed fallback is used) |
 | Review sites (G2, Capterra, TrustRadius) | `khadinakbar/software-reviews-all-in-one-scraper` | — | $0.007 / review · $0.01 / product card |
 | Trustpilot reviews | `khadinakbar/trustpilot-reviews-scraper` | — | $0.0025 / review |
+| Google Trends (interest over time, regions, rising queries) | `khadinakbar/google-trends-scraper` (`keywords`, `geo`, `timeframe`, `property`: web / news / youtube) | — | $0.005 / item |
+| Search suggestions (what people type) | `khadinakbar/google-autocomplete-api` (`queries`, `expansionMode`, `country`) | — | $0.005 / lookup |
+| Long-tail keyword ideas | `khadinakbar/keyword-fanout-longtail` (`seedKeywords`, `maxResults`, `maxDepth`) | — | $0.0015 / keyword |
+| Keyword difficulty | `khadinakbar/ahrefs-keyword-difficulty-checker` (`keywords`, `country`) | — | $0.30 / batch |
+| Keyword numbers, matching and related terms | `khadinakbar/ahrefs-keyword-explorer` (`report`, `keywords`, `maxResults`) | `khadinakbar/dataforseo-keyword-research` | $0.01 / result |
+| Content brief from the top results | `khadinakbar/surfer-seo-alternative` (`keyword`, `maxCompetitors`) | — | $0.02 / run + $0.005 / brief |
+| Questions on Quora | `khadinakbar/quora-scraper` (`startUrls`, `maxItemsPerTarget`) | — | $0.005 / run + $0.003 / item |
+| Reddit search (voice of customer) | `khadinakbar/reddit-search-scraper` (`searchQuery`, `timeFilter`, `maxResults`) | `khadinakbar/reddit-posts-comments-scraper` | $0.003 / result |
+| Forum threads Google shows | `khadinakbar/google-forums-search-scraper` (`queries`, `maxResultsPerQuery`) | — | $0.065 / search page |
+| YouTube trending charts | `khadinakbar/youtube-trending-videos-scraper` (`regions`, `chart`) | — | $0.03 / run + $0.0006 / video |
+| YouTube transcripts | `khadinakbar/youtube-transcript-extractor` (`videoUrls` or `searchQuery`) | — | $0.005 / transcript |
+| YouTube channel stats (vet creators) | `khadinakbar/youtube-channel-statistics-scraper` (`channelUrls`) | — | $0.0035 / channel |
+| YouTube comments | `khadinakbar/youtube-comments-scraper` (`startUrls`, `maxComments`) | — | $0.001 / comment |
+| Creator report (fit, audience, recent posts) | `khadinakbar/influencer-marketing-intelligence-scraper` (`creatorTargets`) | — | $0.05 / report |
+| Newsletter posts | `khadinakbar/substack-posts-scraper` (`startUrls`, `maxPosts`) | `khadinakbar/beehiiv-newsletter-scraper` ($0.002 / item) | $0.005 / post |
+| Website traffic and rank | `khadinakbar/similarweb-traffic-rank-scraper` (`domains`) | — | $0.08 / domain |
+| What a site is built with | `khadinakbar/website-tech-stack-detector` (`websiteUrls`) | — | $0.01 / site |
+| Bing rank tracking | `khadinakbar/bing-rank-tracker` (`targetDomain`, `keywords`) | — | $0.008 / rank check |
+| Full-site crawl | `khadinakbar/website-seo-spider` (`startUrls`, `maxPages`) | — | $0.01 / page |
+| Local map ranking | `khadinakbar/local-rank-tracker` (`businessName`, `keywords`, `locations`) | `khadinakbar/google-local-pack-api` ($0.03 / snapshot) | $0.06 / local check |
+| Agency and company directory listings | `khadinakbar/clutch-listings-scraper` (`categoryUrl`, `maxResults`) | — | $0.004 / listing |
 
 Every run also pays a tiny start fee (about $0.00005) and Apify may bill platform usage separately; say so when quoting. Local-business audits (Google Business Profile, citations) have no public Actor here: use the manual local checklist in `checklist-technical.md` plus `local-rank-tracker` for the geo-grid.
 
@@ -70,7 +91,13 @@ Request fees dominate small keyword and backlink runs: batch seeds and targets i
 ## Free / no-account fallbacks
 - `scripts/site_audit.py` (local crawler, 30+ scored checks, weighted sub-scores) — always run first. It reads server HTML only and blocks private addresses unless `--allow-private`.
 - WebFetch / WebSearch for single pages and quick lookups (label results "unsampled").
-- The user's own exports (Google Search Console, GA4, Bing Webmaster Tools, Ahrefs/Semrush CSVs) dropped into `seo-workspace/<domain>/` — preferred ground truth for rankings and clicks.
+- The user's own exports (Google Search Console, GA4, Bing Webmaster Tools, or exports from any SEO tool the user already has) dropped into `seo-workspace/<domain>/` — preferred ground truth for rankings and clicks.
 
 ## Sending email (approval-gated, user's own accounts)
 Whatever email connector the user already has (drafts → approved send). No sender connected → copy-paste drafts. See `outreach-playbook.md` for the approval, suppression and cap mechanics.
+
+## Packs (the easy way to quote)
+`quote_cost` accepts `pack`: `starter` (about $0.13), `keywords` (about $1.37), `competitors` (about $0.30), `creators` (about $0.39), `local` (about $0.15), `ai_check` (about $14.70). Packs are defined in `connector/prices.json`. Use a pack unless the user asks for something custom.
+
+## Credentials
+Never ask the user to paste a login, password or API key into a tool or Actor input. Some other Actors take provider logins as input: do not use those.

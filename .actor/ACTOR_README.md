@@ -34,7 +34,7 @@ Built for founders, marketers and small agencies who want to show up when people
 
 | Tool | What it returns | Price |
 |---|---|---|
-| `get_playbook` | Citebase's guidelines: the list of names, or one playbook's text (10 workflows and 9 guides and checklists) | Free |
+| `get_playbook` | Citebase's guidelines: the list of names, or one playbook's text (11 workflows and 9 guides and checklists) | Free |
 | `audit_site` | 0-100 health score, scores per area, the top problems with example pages | Free |
 | `quote_cost` | Cost of each paid job, the total and the spending cap to use | Free |
 | `measure_recommendation_share` | How often AI recommends the brand, with ranges, a noise check and a verdict per change | Free |
@@ -113,8 +113,42 @@ Citebase never runs these itself and never calls other people's Actors. It tells
 | `youtube_result` | [YouTube Search Scraper](https://apify.com/khadinakbar/youtube-search-scraper) | YouTube videos and channels on a topic | $0.003 per result |
 | `review_site` | [Software Reviews Scraper](https://apify.com/khadinakbar/software-reviews-all-in-one-scraper) | Software reviews from G2, Capterra and TrustRadius | $0.007 per review |
 | `trustpilot_review` | [Trustpilot Reviews Scraper](https://apify.com/khadinakbar/trustpilot-reviews-scraper) | Trustpilot ratings, reviews and replies | $0.0025 per review |
+| `google_trend` | [Google Trends](https://apify.com/khadinakbar/google-trends-scraper) | Interest over time, regions and rising searches for a topic | $0.005 per trend item |
+| `search_suggestion` | [Google Autocomplete Suggestions](https://apify.com/khadinakbar/google-autocomplete-api) | What people start typing in Google for a topic | $0.005 per lookup |
+| `longtail_keyword` | [Long-Tail Keyword Ideas](https://apify.com/khadinakbar/keyword-fanout-longtail) | Many specific long-tail phrases grown from a seed word | $0.0015 per keyword |
+| `keyword_difficulty` | [Keyword Difficulty Checker](https://apify.com/khadinakbar/ahrefs-keyword-difficulty-checker) | How hard each keyword is to rank for, in batches | $0.30 per batch |
+| `keyword_metrics` | [Keyword Metrics](https://apify.com/khadinakbar/ahrefs-keyword-explorer) | Search numbers, matching terms and related terms for keywords | $0.01 per result |
+| `content_brief` | [SEO Content Brief Generator](https://apify.com/khadinakbar/surfer-seo-alternative) | A page outline built from what the top results cover | $0.02 per run + $0.005 per brief |
+| `quora_question` | [Quora Scraper](https://apify.com/khadinakbar/quora-scraper) | Real questions and answers people post on a topic | $0.005 per run + $0.003 per item |
+| `reddit_search` | [Reddit Search Scraper](https://apify.com/khadinakbar/reddit-search-scraper) | Reddit posts that match a search, in people's own words | $0.003 per result |
+| `forum_search` | [Google Forums Search](https://apify.com/khadinakbar/google-forums-search-scraper) | Public forum discussions Google shows for a question | $0.065 per search page |
+| `youtube_trending` | [YouTube Trending Videos](https://apify.com/khadinakbar/youtube-trending-videos-scraper) | Videos on YouTube's trending charts by country | $0.03 per run + $0.0006 per video |
+| `youtube_transcript` | [YouTube Transcript Extractor](https://apify.com/khadinakbar/youtube-transcript-extractor) | What is said in a video, as text | $0.005 per transcript |
+| `youtube_channel_stats` | [YouTube Channel Statistics](https://apify.com/khadinakbar/youtube-channel-statistics-scraper) | Subscribers, views and activity of channels you might approach | $0.0035 per channel |
+| `youtube_comment` | [YouTube Comments Scraper](https://apify.com/khadinakbar/youtube-comments-scraper) | What viewers say under a video | $0.001 per comment |
+| `creator_report` | [Creator Intelligence Report](https://apify.com/khadinakbar/influencer-marketing-intelligence-scraper) | A report on a creator's audience fit and recent posts | $0.05 per creator report |
+| `newsletter_post` | [Substack Posts Scraper](https://apify.com/khadinakbar/substack-posts-scraper) | Posts from newsletters on your topic | $0.005 per post |
+| `traffic_rank` | [Website Traffic and Rank](https://apify.com/khadinakbar/similarweb-traffic-rank-scraper) | Estimated traffic and rank of a website | $0.08 per domain |
+| `tech_stack` | [Website Technology Detector](https://apify.com/khadinakbar/website-tech-stack-detector) | What a site is built with | $0.01 per site |
+| `bing_rank` | [Bing Rank Tracker](https://apify.com/khadinakbar/bing-rank-tracker) | Where a domain ranks on Bing for your keywords | $0.008 per rank check |
+| `crawl_page` | [Website SEO Crawler](https://apify.com/khadinakbar/website-seo-spider) | A full-site crawl, page by page | $0.01 per page |
+| `local_rank` | [Local Rank Tracker](https://apify.com/khadinakbar/local-rank-tracker) | Where a business shows on the map around a location | $0.06 per local check |
+| `local_pack` | [Google Local Pack](https://apify.com/khadinakbar/google-local-pack-api) | Who appears in Google's map results for a search | $0.03 per snapshot |
+| `agency_listing` | [Agency Directory Listings](https://apify.com/khadinakbar/clutch-listings-scraper) | Listings of agencies and companies in a category | $0.004 per listing |
 
-Each paid run also pays a tiny start fee of $0.00005. Prices were read from each Actor's public pricing on 2026-11-06 and can change: the assistant checks again before quoting.
+Each paid run also pays a tiny start fee of $0.00005. Prices were read from each Actor's public pricing on 2026-11-07 and can change: the assistant checks again before quoting.
+
+**Easy bundles.** You do not need to pick jobs yourself. Ask for a pack and the assistant prices it in one go:
+
+| Pack | What you get | About |
+|---|---|---|
+| `starter` | A first look at a website | $0.13 |
+| `keywords` | What people search for on one topic | $1.37 |
+| `competitors` | How rivals look and rank | $0.30 |
+| `creators` | YouTube creators worth approaching | $0.39 |
+| `local` | Where a business shows on the map | $0.15 |
+| `ai_check` | Does AI recommend you (20 questions, 3 assistants, 3 times) | $14.70 |
+
 
 ## Pricing and cost example
 
@@ -156,7 +190,7 @@ Prompt to try: *"Use Citebase to check example.com, tell me the three most impor
 
 ## Evidence and freshness
 
-Prices were read from public Actor pricing on 2026-11-06. On 2026-11-07 a 46-case live check of the deployed build passed: good, bad, oversized and hostile inputs, parallel calls and all three ways in (Standby, `/run` and normal runs). That is a release check, not a guarantee of future reliability. The version history is in the changelog.
+Prices were read from public Actor pricing on 2026-11-07. On 2026-11-07 a 46-case live check of the deployed build passed: good, bad, oversized and hostile inputs, parallel calls and all three ways in (Standby, `/run` and normal runs). That is a release check, not a guarantee of future reliability. The version history is in the changelog.
 
 ## Frequently asked questions
 

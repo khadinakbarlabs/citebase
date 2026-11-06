@@ -242,6 +242,12 @@ class ServedSchemaTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(re.search(r"(?i)for example|e\.g\.|defaults? to|between", text), f"{name}.{key}: no example/default")
                 self.assertLess(len(text), 520, f"{name}.{key} too long")
 
+    async def test_front_stays_small_and_simple(self):
+        self.assertLessEqual(len(self.tools), 11)  # new data sources are jobs/packs behind quote_cost, not new tools
+        quote = self.dump(self.tools["quote_cost"])["inputSchema"]
+        self.assertEqual(quote.get("required", []), [])  # a beginner can say "starter" and nothing else
+        self.assertIn("starter", json.dumps(quote))
+
     async def test_required_inputs_are_few(self):
         for name, tool in self.tools.items():
             required = self.dump(tool)["inputSchema"].get("required", [])

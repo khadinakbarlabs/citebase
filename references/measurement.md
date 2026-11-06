@@ -34,4 +34,4 @@ Used by `skills/citation-loop`. The aim is a number you can trust enough to deci
 `onpage`, `fact-page`, `listicle`, `review-site`, `press`, `reddit`, `youtube`, `directory`, `podcast`, `creator`, `schema`, `llms-txt`, `technical`, `other`. Tagging `schema` and `llms-txt` experiments is encouraged: they are disputed levers, and the loop is how to test them on your own site.
 
 ## Evidence grades used across the references
-**A** controlled test or large dataset · **B** practitioner consensus or single study with clear method · **C** anecdote or vendor-reported figure. Cite the grade next to any statistic you put in a report, and prefer the lower grade when sources disagree.
+**A** controlled test or large dataset · **B** practitioner consensus or one study with a clear method · **C** anecdote or vendor-reported figure (same definition in every checklist). Cite the grade next to any statistic you put in a report, and prefer the lower grade when sources disagree.

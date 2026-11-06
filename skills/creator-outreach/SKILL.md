@@ -12,7 +12,7 @@ Read `../../references/creator-playbook.md` fully (hard rules, vetting score, of
 Ask: "What should a good result look like: sign-ups, sales, or being talked about by people AI listens to?" Pick the format from the answer (video, podcast, newsletter, community). Keep the first round small: 10 to 20 creators.
 
 ## 2. Find candidates
-Follow "Find the right creators" in the playbook, starting with the sources AI answers already cite (`ai-search-visibility`). Quote the cost of any Apify run first (`quote_cost` on the web, the run protocol in `../../references/tools-and-apis.md` in Claude Code). Save the list to `seo-workspace/<domain>/prospects.csv` with `type=creator|podcast|newsletter`.
+Follow "Find the right creators" in the playbook, starting with the sources AI answers already cite (`ai-search-visibility`). Quote the cost of any Apify run first (`quote_cost` with `pack: "creators"` on the web, about $0.39, the run protocol in `../../references/tools-and-apis.md` in Claude Code). Save the list to `seo-workspace/<domain>/prospects.csv` with `type=creator|podcast|newsletter`.
 
 ## 3. Vet
 Score every candidate with the table in the playbook. Drop anyone under 9 of 14 or with a red flag. Show the user the top picks with the score and one line of why. Do not contact anyone yet.

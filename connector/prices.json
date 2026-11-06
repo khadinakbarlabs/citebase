@@ -1,25 +1,359 @@
 {
-  "read_on": "2026-11-06",
+  "read_on": "2026-11-07",
   "source": "Public pricing of the khadinakbar/* Actors on Apify. Prices change: re-check with fetch-actor-details before quoting.",
-  "start_fee_usd": 0.00005,
+  "start_fee_usd": 5e-05,
   "jobs": {
-    "site_audit":        {"actor": "khadinakbar/complete-seo-audit", "unit": "audit", "per_unit": 0.10, "per_request": 0.0},
-    "serp_page":         {"actor": "khadinakbar/scrape-google-serp", "unit": "SERP page", "per_unit": 0.0018, "per_request": 0.0},
-    "keyword_ideas":     {"actor": "khadinakbar/dataforseo-keyword-research", "unit": "keyword row", "per_unit": 0.01, "per_request": 0.20},
-    "keyword_volume":    {"actor": "khadinakbar/dataforseo-keyword-research", "unit": "keyword row", "per_unit": 0.01, "per_request": 1.00},
-    "backlinks":         {"actor": "khadinakbar/website-backlink-checker", "unit": "backlink or domain row", "per_unit": 0.01, "per_request": 0.05},
-    "backlink_prospects":{"actor": "khadinakbar/backlink-opportunity-finder", "unit": "prospect", "per_unit": 0.006, "per_request": 0.0},
-    "ai_brand_check":    {"actor": "khadinakbar/ai-search-brand-monitor", "unit": "prompt x engine x run", "per_unit": 0.08, "per_request": 0.0},
-    "ai_page_citation":  {"actor": "khadinakbar/ai-search-visibility-tracker", "unit": "keyword x query x engine", "per_unit": 0.09, "per_request": 0.0},
-    "ai_citation_scan":  {"actor": "khadinakbar/ai-citations-tracker", "unit": "Perplexity prompt", "per_unit": 0.12, "per_request": 0.0},
-    "ai_overview":       {"actor": "khadinakbar/google-ai-overviews-scraper", "unit": "query", "per_unit": 0.015, "per_request": 0.0},
-    "ai_mode":           {"actor": "khadinakbar/google-ai-mode-scraper", "unit": "query", "per_unit": 0.025, "per_request": 0.0},
-    "website_contact":   {"actor": "khadinakbar/bulk-website-contact-extractor", "unit": "domain", "per_unit": 0.005, "per_request": 0.0},
-    "email_verify":      {"actor": "khadinakbar/email-address-validator", "unit": "email", "per_unit": 0.0009, "per_request": 0.0},
-    "news_article":      {"actor": "khadinakbar/google-news-scraper", "unit": "article", "per_unit": 0.003, "per_request": 0.0},
-    "reddit_result":     {"actor": "khadinakbar/reddit-posts-comments-scraper", "unit": "result", "per_unit": 0.003, "per_request": 0.0},
-    "youtube_result":    {"actor": "khadinakbar/youtube-search-scraper", "unit": "result", "per_unit": 0.003, "per_request": 0.0},
-    "review_site":       {"actor": "khadinakbar/software-reviews-all-in-one-scraper", "unit": "review", "per_unit": 0.007, "per_request": 0.0},
-    "trustpilot_review": {"actor": "khadinakbar/trustpilot-reviews-scraper", "unit": "review", "per_unit": 0.0025, "per_request": 0.0}
+    "site_audit": {
+      "actor": "khadinakbar/complete-seo-audit",
+      "unit": "audit",
+      "per_unit": 0.1,
+      "per_request": 0.0
+    },
+    "serp_page": {
+      "actor": "khadinakbar/scrape-google-serp",
+      "unit": "SERP page",
+      "per_unit": 0.0018,
+      "per_request": 0.0
+    },
+    "keyword_ideas": {
+      "actor": "khadinakbar/dataforseo-keyword-research",
+      "unit": "keyword row",
+      "per_unit": 0.01,
+      "per_request": 0.2
+    },
+    "keyword_volume": {
+      "actor": "khadinakbar/dataforseo-keyword-research",
+      "unit": "keyword row",
+      "per_unit": 0.01,
+      "per_request": 1.0
+    },
+    "backlinks": {
+      "actor": "khadinakbar/website-backlink-checker",
+      "unit": "backlink or domain row",
+      "per_unit": 0.01,
+      "per_request": 0.05
+    },
+    "backlink_prospects": {
+      "actor": "khadinakbar/backlink-opportunity-finder",
+      "unit": "prospect",
+      "per_unit": 0.006,
+      "per_request": 0.0
+    },
+    "ai_brand_check": {
+      "actor": "khadinakbar/ai-search-brand-monitor",
+      "unit": "prompt x engine x run",
+      "per_unit": 0.08,
+      "per_request": 0.0
+    },
+    "ai_page_citation": {
+      "actor": "khadinakbar/ai-search-visibility-tracker",
+      "unit": "keyword x query x engine",
+      "per_unit": 0.09,
+      "per_request": 0.0
+    },
+    "ai_citation_scan": {
+      "actor": "khadinakbar/ai-citations-tracker",
+      "unit": "Perplexity prompt",
+      "per_unit": 0.12,
+      "per_request": 0.0
+    },
+    "ai_overview": {
+      "actor": "khadinakbar/google-ai-overviews-scraper",
+      "unit": "query",
+      "per_unit": 0.015,
+      "per_request": 0.0
+    },
+    "ai_mode": {
+      "actor": "khadinakbar/google-ai-mode-scraper",
+      "unit": "query",
+      "per_unit": 0.025,
+      "per_request": 0.0
+    },
+    "website_contact": {
+      "actor": "khadinakbar/bulk-website-contact-extractor",
+      "unit": "domain",
+      "per_unit": 0.005,
+      "per_request": 0.0
+    },
+    "email_verify": {
+      "actor": "khadinakbar/email-address-validator",
+      "unit": "email",
+      "per_unit": 0.0009,
+      "per_request": 0.0
+    },
+    "news_article": {
+      "actor": "khadinakbar/google-news-scraper",
+      "unit": "article",
+      "per_unit": 0.003,
+      "per_request": 0.0
+    },
+    "reddit_result": {
+      "actor": "khadinakbar/reddit-posts-comments-scraper",
+      "unit": "result",
+      "per_unit": 0.003,
+      "per_request": 0.0
+    },
+    "youtube_result": {
+      "actor": "khadinakbar/youtube-search-scraper",
+      "unit": "result",
+      "per_unit": 0.003,
+      "per_request": 0.0
+    },
+    "review_site": {
+      "actor": "khadinakbar/software-reviews-all-in-one-scraper",
+      "unit": "review",
+      "per_unit": 0.007,
+      "per_request": 0.0
+    },
+    "trustpilot_review": {
+      "actor": "khadinakbar/trustpilot-reviews-scraper",
+      "unit": "review",
+      "per_unit": 0.0025,
+      "per_request": 0.0
+    },
+    "google_trend": {
+      "actor": "khadinakbar/google-trends-scraper",
+      "unit": "trend item",
+      "per_unit": 0.005,
+      "per_request": 0.0
+    },
+    "search_suggestion": {
+      "actor": "khadinakbar/google-autocomplete-api",
+      "unit": "lookup",
+      "per_unit": 0.005,
+      "per_request": 0.0
+    },
+    "longtail_keyword": {
+      "actor": "khadinakbar/keyword-fanout-longtail",
+      "unit": "keyword",
+      "per_unit": 0.0015,
+      "per_request": 0.0
+    },
+    "keyword_difficulty": {
+      "actor": "khadinakbar/ahrefs-keyword-difficulty-checker",
+      "unit": "batch of keywords",
+      "per_unit": 0.3,
+      "per_request": 0.0
+    },
+    "keyword_metrics": {
+      "actor": "khadinakbar/ahrefs-keyword-explorer",
+      "unit": "result",
+      "per_unit": 0.01,
+      "per_request": 0.0
+    },
+    "content_brief": {
+      "actor": "khadinakbar/surfer-seo-alternative",
+      "unit": "brief",
+      "per_unit": 0.005,
+      "per_request": 0.02
+    },
+    "quora_question": {
+      "actor": "khadinakbar/quora-scraper",
+      "unit": "item",
+      "per_unit": 0.003,
+      "per_request": 0.005
+    },
+    "reddit_search": {
+      "actor": "khadinakbar/reddit-search-scraper",
+      "unit": "result",
+      "per_unit": 0.003,
+      "per_request": 0.0
+    },
+    "forum_search": {
+      "actor": "khadinakbar/google-forums-search-scraper",
+      "unit": "search page",
+      "per_unit": 0.065,
+      "per_request": 0.0
+    },
+    "youtube_trending": {
+      "actor": "khadinakbar/youtube-trending-videos-scraper",
+      "unit": "video",
+      "per_unit": 0.0006,
+      "per_request": 0.03
+    },
+    "youtube_transcript": {
+      "actor": "khadinakbar/youtube-transcript-extractor",
+      "unit": "transcript",
+      "per_unit": 0.005,
+      "per_request": 0.0
+    },
+    "youtube_channel_stats": {
+      "actor": "khadinakbar/youtube-channel-statistics-scraper",
+      "unit": "channel",
+      "per_unit": 0.0035,
+      "per_request": 0.0
+    },
+    "youtube_comment": {
+      "actor": "khadinakbar/youtube-comments-scraper",
+      "unit": "comment",
+      "per_unit": 0.001,
+      "per_request": 0.0
+    },
+    "creator_report": {
+      "actor": "khadinakbar/influencer-marketing-intelligence-scraper",
+      "unit": "creator report",
+      "per_unit": 0.05,
+      "per_request": 0.0
+    },
+    "newsletter_post": {
+      "actor": "khadinakbar/substack-posts-scraper",
+      "unit": "post",
+      "per_unit": 0.005,
+      "per_request": 0.0
+    },
+    "traffic_rank": {
+      "actor": "khadinakbar/similarweb-traffic-rank-scraper",
+      "unit": "domain",
+      "per_unit": 0.08,
+      "per_request": 0.0
+    },
+    "tech_stack": {
+      "actor": "khadinakbar/website-tech-stack-detector",
+      "unit": "site",
+      "per_unit": 0.01,
+      "per_request": 0.0
+    },
+    "bing_rank": {
+      "actor": "khadinakbar/bing-rank-tracker",
+      "unit": "rank check",
+      "per_unit": 0.008,
+      "per_request": 0.0
+    },
+    "crawl_page": {
+      "actor": "khadinakbar/website-seo-spider",
+      "unit": "page",
+      "per_unit": 0.01,
+      "per_request": 0.0
+    },
+    "local_rank": {
+      "actor": "khadinakbar/local-rank-tracker",
+      "unit": "local check",
+      "per_unit": 0.06,
+      "per_request": 0.0
+    },
+    "local_pack": {
+      "actor": "khadinakbar/google-local-pack-api",
+      "unit": "snapshot",
+      "per_unit": 0.03,
+      "per_request": 0.0
+    },
+    "agency_listing": {
+      "actor": "khadinakbar/clutch-listings-scraper",
+      "unit": "listing",
+      "per_unit": 0.004,
+      "per_request": 0.0
+    }
+  },
+  "packs": {
+    "starter": {
+      "about": "A first look at a website: one deep check and 15 Google results pages.",
+      "items": [
+        {
+          "job": "site_audit",
+          "units": 1
+        },
+        {
+          "job": "serp_page",
+          "units": 15
+        }
+      ]
+    },
+    "keywords": {
+      "about": "What people search for: suggestions, long-tail ideas, trends, numbers and difficulty for one topic.",
+      "items": [
+        {
+          "job": "search_suggestion",
+          "units": 20
+        },
+        {
+          "job": "longtail_keyword",
+          "units": 100
+        },
+        {
+          "job": "google_trend",
+          "units": 10
+        },
+        {
+          "job": "keyword_metrics",
+          "units": 50
+        },
+        {
+          "job": "keyword_difficulty",
+          "units": 1
+        },
+        {
+          "job": "reddit_search",
+          "units": 25
+        },
+        {
+          "job": "forum_search",
+          "units": 3
+        }
+      ]
+    },
+    "competitors": {
+      "about": "How rivals look: who ranks, their traffic and what they build with.",
+      "items": [
+        {
+          "job": "serp_page",
+          "units": 15
+        },
+        {
+          "job": "traffic_rank",
+          "units": 3
+        },
+        {
+          "job": "tech_stack",
+          "units": 3
+        }
+      ]
+    },
+    "creators": {
+      "about": "Who to approach: YouTube videos and channels on your topic, with stats and reports for the best.",
+      "items": [
+        {
+          "job": "youtube_result",
+          "units": 30
+        },
+        {
+          "job": "youtube_channel_stats",
+          "units": 10
+        },
+        {
+          "job": "creator_report",
+          "units": 5
+        },
+        {
+          "job": "youtube_transcript",
+          "units": 3
+        }
+      ]
+    },
+    "local": {
+      "about": "Local search: where a business shows on the map for its main searches.",
+      "items": [
+        {
+          "job": "local_rank",
+          "units": 1
+        },
+        {
+          "job": "local_pack",
+          "units": 3
+        }
+      ]
+    },
+    "ai_check": {
+      "about": "Does AI recommend you: 20 questions on 3 assistants, 3 times each, plus Google AI Overviews.",
+      "items": [
+        {
+          "job": "ai_brand_check",
+          "units": 180
+        },
+        {
+          "job": "ai_overview",
+          "units": 20
+        }
+      ]
+    }
   }
 }

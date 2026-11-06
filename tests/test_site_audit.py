@@ -187,5 +187,46 @@ class CrawlTests(ServerCase):
         self.assertIn("blocked", proc.stderr + proc.stdout)
 
 
+class ReauditScoringTests(unittest.TestCase):
+    """Fixes from the transcript re-audit: answer bots vs training bots, schema and meta weights, title length."""
+
+    def audit_with_blocked(self, blocked):
+        access = {bot: (bot not in blocked) for bot in sa.AI_CRAWLERS}
+        audit = {"signals": {"ai_crawler_access": access, "http_to_https": True, "http_redirect_chain": [],
+                             "www_consolidated": True, "sitemaps": [], "soft_404": False}, "pages": []}
+        return [c for c in sa.technical_checks(audit, []) if c["check"].startswith("Search + AI crawler")][0]
+
+    def test_blocking_training_bots_is_not_a_problem(self):
+        c = self.audit_with_blocked({"GPTBot", "CCBot", "Google-Extended"})
+        self.assertEqual(c["level"], "pass")
+        self.assertIn("your choice", c["detail"])
+        self.assertEqual(c["area"], "ai-search")
+
+    def test_blocking_an_answer_bot_warns_and_blocking_search_fails(self):
+        self.assertEqual(self.audit_with_blocked({"OAI-SearchBot"})["level"], "warn")
+        self.assertEqual(self.audit_with_blocked({"PerplexityBot"})["level"], "warn")
+        self.assertEqual(self.audit_with_blocked({"Googlebot"})["level"], "fail")
+
+    def test_schema_and_meta_are_hygiene_not_heavy(self):
+        for name in ("JSON-LD structured data", "Valid JSON-LD", "Entity schema (Organization / Person / WebSite)",
+                     "Meta description present"):
+            self.assertEqual(sa.weight_of(name), 1, name)
+        self.assertEqual(sa.weight_of("Content present in server HTML (heuristic)"), 3)
+
+    def test_long_titles_are_allowed_but_tiny_ones_are_not(self):
+        self.assertEqual(sa.TITLE_RANGE[0], 15)
+        self.assertGreaterEqual(sa.TITLE_RANGE[1], 90)
+
+    def test_money_page_check_needs_enough_pages_and_finds_pricing(self):
+        pages = [{"url": f"https://x.example/p{i}", "inlinks": 9} for i in range(12)]
+        names = [c["check"] for c in sa.money_page_checks(pages)]
+        self.assertEqual(names, ["Pricing or comparison pages found"])
+        pages.append({"url": "https://x.example/pricing", "inlinks": 1})
+        out = sa.money_page_checks(pages)
+        self.assertEqual(out[0]["level"], "warn")
+        self.assertEqual(out[0]["urls"], ["https://x.example/pricing"])
+        self.assertEqual(sa.money_page_checks(pages[:3]), [])  # tiny crawls are not judged
+
+
 if __name__ == "__main__":
     unittest.main()
