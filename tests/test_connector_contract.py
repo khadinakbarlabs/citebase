@@ -115,7 +115,7 @@ class ReadmeTests(unittest.TestCase):
 
     def test_first_quarter_covers_what_when_output_price(self):
         head = self.text[: max(1200, len(self.text) // 4)].lower()
-        for word in ("what", "use", "returns", "free"):
+        for word in ("what", "use", "returns", "price"):
             self.assertIn(word, head)
 
     def test_every_tool_is_documented(self):
@@ -230,7 +230,7 @@ class ServedSchemaTests(unittest.IsolatedAsyncioTestCase):
             self.assertRegex(d, r"\bUse\b", name)  # when to use
             self.assertRegex(d, r"\bNot\b", name)  # negative scope
             self.assertRegex(d, r"\bReturns\b", name)  # return shape
-            self.assertTrue(d.rstrip().endswith(("Free.", "Free; takes up to a minute.")), f"{name}: price signal")
+            self.assertTrue(d.rstrip().endswith(("No Citebase fee.", "No Citebase fee; takes up to a minute.")), f"{name}: price signal")
             self.assertNotRegex(d, r"(?i)this (tool|actor) allows|best in|#1", name)
 
     async def test_every_input_property_is_described_with_an_example_or_bound(self):

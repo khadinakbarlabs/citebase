@@ -1,6 +1,6 @@
 ## What is Citebase?
 
-Citebase is an open-source connector that helps a brand get **recommended and cited by AI assistants** such as ChatGPT, Claude, Gemini and Perplexity. You connect it to your own AI assistant and ask for help in plain words. It returns step-by-step guidelines, a website health check, price quotes for paid data jobs, "how often does AI recommend me" results, a short to-do list, a check for outreach emails, saved history, a shareable report and a plan for automatic re-checks. All eleven tools are free; the paid data comes from separate Actors listed below, always with a price quote and a spending cap first.
+Citebase is an open-source connector that helps a brand get **recommended and cited by AI assistants** such as ChatGPT, Claude, Gemini and Perplexity. You connect it to your own AI assistant and ask for help in plain words. It returns step-by-step guidelines, a website health check, price quotes for paid data jobs, "how often does AI recommend me" results, a short to-do list, a check for outreach emails, saved history, a shareable report and a plan for automatic re-checks. Citebase itself adds no fee; the data jobs cost money and come from separate Actors listed below, always with a price quote and a spending cap first.
 
 Built for founders, marketers and small agencies who want to show up when people ask an AI "what is the best X for Y?" and do not want to learn SEO jargon first.
 
@@ -34,17 +34,17 @@ Built for founders, marketers and small agencies who want to show up when people
 
 | Tool | What it returns | Price |
 |---|---|---|
-| `get_playbook` | Citebase's guidelines: the list of names, or one playbook's text (11 workflows and 9 guides and checklists) | Free |
-| `audit_site` | 0-100 health score, scores per area, the top problems with example pages | Free |
-| `quote_cost` | Cost of each paid job, the total and the spending cap to use | Free |
-| `measure_recommendation_share` | How often AI recommends the brand, with ranges, a noise check and a verdict per change | Free |
-| `next_steps` | Ranked to-do list: what, why, who, how long | Free |
-| `check_outreach_draft` | Ready yes/no, problems to fix, warnings, a fingerprint of the exact text | Free |
-| `save_results` | Saves AI-answer rounds and site checks under a project name in your own Apify account | Free |
-| `get_history` | Recommendation Share and site score over time, plus logged changes | Free |
-| `make_report` | A one-page report with a trend chart and a link you can share | Free |
-| `import_ai_results` | Converts AI Brand Monitor results into saved rows, flags close calls for review | Free |
-| `schedule_checks` | Cron text, ready-to-paste inputs and monthly cost for automatic re-checks | Free |
+| `get_playbook` | Citebase's guidelines: the list of names, or one playbook's text (11 workflows and 9 guides and checklists) | No Citebase fee |
+| `audit_site` | 0-100 health score, scores per area, the top problems with example pages | No Citebase fee |
+| `quote_cost` | Cost of each paid job, the total and the spending cap to use | No Citebase fee |
+| `measure_recommendation_share` | How often AI recommends the brand, with ranges, a noise check and a verdict per change | No Citebase fee |
+| `next_steps` | Ranked to-do list: what, why, who, how long | No Citebase fee |
+| `check_outreach_draft` | Ready yes/no, problems to fix, warnings, a fingerprint of the exact text | No Citebase fee |
+| `save_results` | Saves AI-answer rounds and site checks under a project name in your own Apify account | No Citebase fee |
+| `get_history` | Recommendation Share and site score over time, plus logged changes | No Citebase fee |
+| `make_report` | A one-page report with a trend chart and a link you can share | No Citebase fee |
+| `import_ai_results` | Converts AI Brand Monitor results into saved rows, flags close calls for review | No Citebase fee |
+| `schedule_checks` | Cron text, ready-to-paste inputs and monthly cost for automatic re-checks | No Citebase fee |
 
 ## What one result contains
 
@@ -152,7 +152,7 @@ Each paid run also pays a tiny start fee of $0.00005. Prices were read from each
 
 ## Pricing and cost example
 
-- **Citebase itself:** the eleven tools are free to call. The connector has no start fee and no minimum.
+- **Citebase itself:** the eleven tools add no fee of their own. The connector has no start fee and no minimum. Everything that runs costs what Apify charges for compute plus the data jobs below.
 - **Platform usage:** running this Actor uses a small amount of Apify platform compute. It is paid by the account that starts the run, which is yours when you connect with your own sign-in. A 15-page site check takes under a minute.
 - **Paid data Actors:** each is priced per result on your account, as in the table. `quote_cost` totals them before anything runs.
 
@@ -194,7 +194,7 @@ Prices were read from public Actor pricing on 2026-11-07. On 2026-11-07 a 46-cas
 
 ## Frequently asked questions
 
-**Is it really free?** Yes, the eleven tools are free. You pay Apify's small running cost and the paid Actors you choose to run.
+**What does it cost?** Citebase adds no fee. You pay Apify's small running cost and the data jobs you choose to run, each priced before it starts (a first look is about $0.13).
 
 **Does it store my data?** Only if you ask it to. With a project name, `save_results` keeps your rounds and site checks in a store named `citebase-projects` in the Apify account that runs the Actor (yours, when you connect with your own sign-in). The author cannot see it. Without a project name every call stands alone and nothing is kept. Reports are shared by link only: delete the record to stop sharing.
 

@@ -51,64 +51,64 @@ TOOL_TEXT = {
         "Read Citebase's step-by-step guidelines for getting a brand recommended by AI assistants: workflows (start, "
         "seo-audit, citation-loop, outreach, link-building, press-release and more) and checklists. Use first, with "
         "name 'start', and whenever a task needs the exact steps. Not for running audits or prices: use audit_site or "
-        "quote_cost. Returns the list of names, or {name, text}. Free."),
+        "quote_cost. Returns the list of names, or {name, text}. No Citebase fee."),
     "audit_site": (
         "Check a website",
         "Check one public website for search and AI-readiness problems: crawl rules, secure redirects, sitemap, titles, "
         "headlines, page text, images. Use at the start of any SEO or 'get cited by AI' project. Not for private or "
         "local addresses; it does not run JavaScript. Returns a 0-100 health score, scores per area and the top "
-        "problems with example pages. Free; takes up to a minute."),
+        "problems with example pages. No Citebase fee; takes up to a minute."),
     "quote_cost": (
         "Quote costs",
         "Work out what paid Apify data jobs will cost and which spending cap to use. Use before every call-actor "
         "run: pass a pack name (starter, keywords, competitors, creators, local, ai_check) or custom items. Not for "
         "running jobs: it only prices them. Returns each job's cost, the total and suggested_cap_usd "
-        "for callOptions.maxTotalChargeUsd. Free."),
+        "for callOptions.maxTotalChargeUsd. No Citebase fee."),
     "measure_recommendation_share": (
         "Measure AI recommendations",
         "Turn AI-answer test results into Recommendation Share: how often ChatGPT, Perplexity, Gemini and others "
         "actively recommend the brand, with ranges, noise from control questions and a verdict on each logged change. "
         "Use after collecting answers for a fixed prompt panel, or with a project name to measure everything saved so "
         "far. Not for collecting answers, and it never saves: use save_results for that. Returns numbers, warnings and "
-        "a markdown report. Free."),
+        "a markdown report. No Citebase fee."),
     "next_steps": (
         "What to do next",
         "Turn audit and measurement results into a short plain-language to-do list: what to do, why, who does it, how "
         "long it takes. Use after audit_site or measure_recommendation_share, or when asked 'what should I do next?'. "
-        "Not a substitute for reading the results first. Returns ranked steps plus a 30-day re-check reminder. Free."),
+        "Not a substitute for reading the results first. Returns ranked steps plus a 30-day re-check reminder. No Citebase fee."),
     "save_results": (
         "Save progress",
         "Save AI-answer results and/or a site check under a project name in the user's own Apify account, so progress "
         "can be compared next month. Use after collecting a round of answers or running audit_site, once the user "
         "agrees to a project name. Not for measuring: use measure_recommendation_share. The question list is frozen "
-        "after the first save; a round name that exists needs append or replace. Returns what was stored. Free."),
+        "after the first save; a round name that exists needs append or replace. Returns what was stored. No Citebase fee."),
     "get_history": (
         "Show history",
         "Show a saved project's history: Recommendation Share per round with ranges, site health score over time and "
         "logged changes. Use when the user asks 'how am I doing?' or returns to a project. Not for new measurements. "
-        "Reads only. Returns tables and numbers. Free."),
+        "Reads only. Returns tables and numbers. No Citebase fee."),
     "make_report": (
         "Make a shareable report",
         "Build a one-page report from a saved project (trend chart, rounds, what worked, top problems, next steps) "
         "and save it in the user's Apify account with a link. Use when the user wants something to show a boss, client "
-        "or teammate. Anyone with the link can open it; say so. Not for new measurements. Returns share_url. Free."),
+        "or teammate. Anyone with the link can open it; say so. Not for new measurements. Returns share_url. No Citebase fee."),
     "import_ai_results": (
         "Import AI check results",
         "Convert results from an AI Brand Monitor run into Citebase rows for a saved project, so nobody has to retype "
         "them. Use after a paid or scheduled AI-answer check. Not for running the check itself. Rows where "
         "'recommended' is a close call are listed in needs_review. Saves only when save is true. Returns rows, skipped "
-        "questions and the review list. Free."),
+        "questions and the review list. No Citebase fee."),
     "schedule_checks": (
         "Plan automatic checks",
         "Give the exact steps and ready-to-paste inputs to run a project's site check and AI-answer checks on a "
         "schedule (daily, weekly or monthly) in Apify Schedules, with the monthly cost. Use when the user wants "
-        "tracking to happen by itself. Not a scheduler: the user creates the schedule. Returns cron, inputs, costs. Free."),
+        "tracking to happen by itself. Not a scheduler: the user creates the schedule. Returns cron, inputs, costs. No Citebase fee."),
     "check_outreach_draft": (
         "Check an outreach email",
         "Check one outreach email before sending: valid recipients, do-not-contact list, daily limit, leftover "
         "[brackets], length, spammy wording, opt-out line. Use for every cold email after drafting and before asking "
         "the user to approve. Not a sender: it never sends. Returns ready (true/false), problems to fix, warnings and "
-        "a fingerprint of the exact text. Free."),
+        "a fingerprint of the exact text. No Citebase fee."),
 }
 
 

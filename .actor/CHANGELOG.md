@@ -1,7 +1,7 @@
 # Changelog
 
 ## 0.4
-- Eleven free tools. New: save_results, get_history, make_report, import_ai_results, schedule_checks (plus scheduled_check for Apify Schedules in normal run mode).
+- Eleven tools with no Citebase fee. New: save_results, get_history, make_report, import_ai_results, schedule_checks (plus scheduled_check for Apify Schedules in normal run mode).
 - Optional saved projects: progress, site checks and a shareable one-page report are kept in a named key-value store (`citebase-projects`) in the account that runs the Actor. Nothing is saved unless a project name is given.
 - measure_recommendation_share can read a saved project instead of new data. Reads stay read-only; only save_results, import_ai_results and make_report write.
 - import_ai_results converts AI Brand Monitor output into Citebase rows and flags close calls for review.
