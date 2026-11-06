@@ -2,7 +2,7 @@
   "mcpServers": {
     "apify": {
       "type": "http",
-      "url": "https://mcp.apify.com/?tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,khadinakbar/complete-seo-audit,khadinakbar/website-seo-spider,khadinakbar/broken-link-checker,khadinakbar/scrape-google-serp,khadinakbar/google-serp-all-in-one-scraper,khadinakbar/dataforseo-keyword-research,khadinakbar/keyword-search-volume-api,khadinakbar/google-trends-scraper,khadinakbar/accuranker-alternative,khadinakbar/local-rank-tracker,khadinakbar/backlink-opportunity-finder,khadinakbar/website-backlink-checker,khadinakbar/ai-search-visibility-tracker,khadinakbar/ai-search-brand-monitor,khadinakbar/llm-visibility-tracker,khadinakbar/ai-citations-tracker,khadinakbar/ai-overviews-tracker,khadinakbar/google-ai-mode-scraper,khadinakbar/google-ai-overviews-scraper,khadinakbar/bulk-website-contact-extractor,khadinakbar/contact-details-scraper,khadinakbar/email-address-validator,khadinakbar/google-news-scraper,khadinakbar/reddit-posts-comments-scraper,khadinakbar/youtube-search-scraper,khadinakbar/google-business-profile-audit,khadinakbar/local-citation-audit,khadinakbar/software-reviews-all-in-one-scraper,khadinakbar/trustpilot-reviews-scraper"
+      "url": "https://mcp.apify.com/?tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,abort-actor-run"
     }
   }
 }

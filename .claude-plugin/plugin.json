@@ -1,8 +1,8 @@
 {
   "name": "citebase",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "displayName": "Citebase",
-  "description": "Citebase: get cited by AI. The open-source agent that gets your brand recommended, cited and featured by ChatGPT, Claude, Gemini and Perplexity. It measures where AI stands on your brand today, finds the gaps on live data, and plans the pages, press, partnerships and outreach that close them. One sign-in with Apify; every data call shows its price first and runs under a hard spending cap.",
+  "description": "Citebase: get cited by AI. The open-source agent that gets your brand recommended, cited and featured by ChatGPT, Claude, Gemini and Perplexity. It measures where AI stands on your brand today, finds the gaps on live data, and plans the pages, press, partnerships and outreach that close them. One sign-in with Apify; every data call shows its price first and runs under a spending cap and a daily ceiling, and a measurement loop re-checks whether your changes moved AI recommendations.",
   "author": {
     "name": "Khadin Akbar",
     "email": "hello@khadinakbar.com"
@@ -24,6 +24,20 @@
       "default": 20,
       "min": 1,
       "max": 100
+    },
+    "daily_spend_usd": {
+      "type": "number",
+      "title": "Daily Apify spend ceiling (USD)",
+      "description": "Citebase blocks new data runs once the caps of today's runs add up to this amount.",
+      "default": 25,
+      "min": 0.5,
+      "max": 500
+    },
+    "allowed_actors": {
+      "type": "string",
+      "title": "Extra allowed Apify Actors",
+      "description": "Comma-separated owner/name entries (or owner/*) Citebase may run besides khadinakbar/*. Leave empty unless you have checked their pricing.",
+      "default": ""
     }
   },
   "keywords": [

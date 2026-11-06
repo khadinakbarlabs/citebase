@@ -11,10 +11,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import gzip
+import http.client
+import ipaddress
 import json
 import os
 import re
+import socket
 import ssl
 import sys
 import time
@@ -22,12 +24,18 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import urllib.robotparser
+import zlib
 from collections import Counter, defaultdict, deque
 from html.parser import HTMLParser
 
-UA = "Mozilla/5.0 (compatible; AISEOAgentAudit/1.0)"
+UA = "Mozilla/5.0 (compatible; CitebaseAudit/0.3; +https://github.com/khadinakbarlabs/citebase)"
 TIMEOUT_S = 15
 MAX_BYTES = 3_000_000
+ALLOW_PRIVATE = False  # set by --allow-private (local development and tests only)
+NOT_FOUND_PROBE = "/citebase-audit-should-404"
+TOTAL_TIMEOUT_S = 30.0  # wall-clock limit for one response, however slowly it trickles in
+MAX_LINKS_PER_PAGE = 5000
+MAX_QUEUE = 20000
 AI_CRAWLERS = [
     "GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "Claude-SearchBot",
     "PerplexityBot", "Google-Extended", "Googlebot", "Bingbot", "CCBot", "Applebot-Extended",
@@ -39,6 +47,7 @@ LONG_CONTENT_WORDS = 600
 SLOW_MS = 1500
 HEAVY_HTML_KB = 500
 MAX_DEPTH_OK = 3
+ROOT_IDS = {"root", "app", "__next", "__nuxt", "___gatsby"}
 SKIP_EXT = re.compile(r"\.(pdf|jpe?g|png|gif|webp|avif|svg|zip|mp4|mp3|css|js|xml|json|ico)$", re.I)
 
 
@@ -49,6 +58,11 @@ class PageParser(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.title = ""
         self._in_title = False
+        self.title_done = False
+        self.scripts = 0
+        self.root_depth = 0  # >0 while inside a #root/#app container (client-side app shell detection)
+        self.root_found = False
+        self.root_content = False
         self.meta: dict[str, str] = {}
         self.links: list[dict] = []
         self.canonical = ""
@@ -69,10 +83,17 @@ class PageParser(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         a = {k.lower(): (v or "") for k, v in attrs}
+        if self.root_depth:
+            if tag == "div":
+                self.root_depth += 1
+            if not self._skip and tag not in ("script", "style", "noscript"):
+                self.root_content = True
+        elif tag == "div" and not self.root_found and a.get("id", "").lower() in ROOT_IDS:
+            self.root_depth, self.root_found = 1, True
         if tag == "html":
             self.lang = a.get("lang", "")
-        elif tag == "title":
-            self._in_title = True
+        elif tag == "title" and not self._skip and not self.title_done:
+            self._in_title = True  # first real <title> only; SVG <title> elements are skipped
         elif tag == "meta":
             key = (a.get("name") or a.get("property") or a.get("http-equiv") or "").lower()
             if key:
@@ -90,18 +111,28 @@ class PageParser(HTMLParser):
         elif tag in ("h1", "h2", "h3"):
             self._heading, self._heading_buf = tag, []
         elif tag == "img":
-            self.images.append({"src": a.get("src", ""), "alt": attrs_get(attrs, "alt")})
+            if len(self.images) < MAX_LINKS_PER_PAGE:
+                self.images.append({"src": a.get("src", ""), "alt": attrs_get(attrs, "alt")})
         elif tag == "script" and "ld+json" in a.get("type", "").lower():
             self._in_jsonld, self._jsonld_buf = True, []
         elif tag in ("script", "style", "noscript", "svg"):
             self._skip += 1
+            if tag == "script" and a.get("src"):
+                self.scripts += 1
+
+    @property
+    def empty_shell(self) -> bool:
+        return self.root_found and not self.root_content
 
     def handle_endtag(self, tag):
-        if tag == "title":
-            self._in_title = False
+        if tag == "div" and self.root_depth:
+            self.root_depth -= 1
+        if tag == "title" and self._in_title:
+            self._in_title, self.title_done = False, True
         elif tag == "a" and self._a_href is not None:
-            self.links.append({"href": self._a_href, "rel": self._a_rel,
-                               "text": " ".join(self._a_text).strip()[:120]})
+            if len(self.links) < MAX_LINKS_PER_PAGE:
+                self.links.append({"href": self._a_href, "rel": self._a_rel,
+                                   "text": " ".join(self._a_text).strip()[:120]})
             self._a_href = None
         elif tag == self._heading:
             self.headings[tag].append(" ".join(self._heading_buf).strip()[:200])
@@ -120,6 +151,8 @@ class PageParser(HTMLParser):
             return
         if self._skip:
             return
+        if self.root_depth and data.strip():
+            self.root_content = True
         if self._heading:
             self._heading_buf.append(data)
         if self._a_href is not None:
@@ -153,29 +186,141 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-_OPENER = urllib.request.build_opener(_NoRedirect, urllib.request.HTTPSHandler(context=_ssl_context()))
+def is_public_ip(ip: "ipaddress.IPv4Address | ipaddress.IPv6Address") -> bool:
+    """Global unicast only. IPv6 forms that embed an IPv4 address (mapped, ::a.b.c.d, NAT64, 6to4) must embed a public one."""
+    if ip.version == 6:
+        packed = ip.packed
+        embedded = ip.ipv4_mapped
+        if embedded is None and packed[:12] == bytes(12):
+            embedded = ipaddress.IPv4Address(packed[12:])
+        elif embedded is None and packed[:12] == bytes.fromhex("0064ff9b0000000000000000"):
+            embedded = ipaddress.IPv4Address(packed[12:])
+        elif embedded is None and packed[:2] == b"\x20\x02":
+            embedded = ipaddress.IPv4Address(packed[2:6])
+        if embedded is not None and not is_public_ip(embedded):
+            return False
+    return ip.is_global and not ip.is_multicast
+
+
+def host_is_public(host: str) -> bool:
+    """False when the host is, or resolves to, a private, loopback, link-local or otherwise non-global address.
+
+    Unresolvable names pass: the connection then fails with an ordinary network error."""
+    host = host.strip("[]")
+    try:
+        return is_public_ip(ipaddress.ip_address(host))
+    except ValueError:
+        pass
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except OSError:
+        return True
+    return all(is_public_ip(ipaddress.ip_address(i[4][0].split("%")[0])) for i in infos)
+
+
+def _check_peer(sock, host: str) -> None:
+    """Re-checks the address actually connected to, which closes the DNS-rebinding gap after the name check."""
+    if ALLOW_PRIVATE:
+        return
+    peer = sock.getpeername()[0].split("%")[0]
+    if not is_public_ip(ipaddress.ip_address(peer)):
+        sock.close()
+        raise OSError(f"blocked: {host} connected to non-public address {peer}")
+
+
+class _GuardedHTTPConnection(http.client.HTTPConnection):
+    def connect(self):
+        super().connect()
+        _check_peer(self.sock, self.host)
+
+
+class _GuardedHTTPSConnection(http.client.HTTPSConnection):
+    def connect(self):
+        http.client.HTTPConnection.connect(self)  # plain TCP first: verify the peer before any TLS bytes are sent
+        _check_peer(self.sock, self.host)
+        self.sock = self._context.wrap_socket(self.sock, server_hostname=self.host)
+
+
+class _HTTPHandler(urllib.request.HTTPHandler):
+    def http_open(self, req):
+        return self.do_open(_GuardedHTTPConnection, req)
+
+
+class _HTTPSHandler(urllib.request.HTTPSHandler):
+    def https_open(self, req):
+        return self.do_open(_GuardedHTTPSConnection, req, context=self._context)
+
+
+def _build_opener() -> urllib.request.OpenerDirector:
+    """http(s) only: no file://, ftp://, data: or environment proxies."""
+    opener = urllib.request.OpenerDirector()
+    for handler in (urllib.request.UnknownHandler(), urllib.request.HTTPDefaultErrorHandler(), _NoRedirect(),
+                    urllib.request.HTTPErrorProcessor(), _HTTPHandler(), _HTTPSHandler(context=_ssl_context())):
+        opener.add_handler(handler)
+    return opener
+
+
+_OPENER = _build_opener()
+
+
+def _blocked(url: str, why: str, start: float) -> dict:
+    return {"url": url, "status": 0, "error": f"blocked: {why}", "headers": {}, "body": b"",
+            "ms": int((time.time() - start) * 1000)}
+
+
+def read_body(resp, headers: dict, deadline: float) -> tuple[bytes, bool]:
+    """Reads at most MAX_BYTES of the decoded body before `deadline` (monotonic), so neither a gzip bomb
+    nor a slow-drip server can exhaust memory or time."""
+    reader = getattr(resp, "read1", resp.read)
+    chunks, total = [], 0
+    while total < MAX_BYTES:
+        if time.monotonic() > deadline:
+            raise TimeoutError("total deadline exceeded")
+        chunk = reader(min(65536, MAX_BYTES - total))
+        if not chunk:
+            break
+        chunks.append(chunk)
+        total += len(chunk)
+    raw = b"".join(chunks)
+    if headers.get("content-encoding", "").lower() != "gzip":
+        return raw, len(raw) >= MAX_BYTES
+    try:
+        dec = zlib.decompressobj(16 + zlib.MAX_WBITS)
+        body = dec.decompress(raw, MAX_BYTES)
+        return body, bool(dec.unconsumed_tail) or len(body) >= MAX_BYTES
+    except zlib.error:
+        return raw, False
 
 
 def fetch(url: str) -> dict:
-    """Fetches one URL without following redirects so chains stay visible."""
+    """Fetches one http(s) URL without following redirects so chains stay visible."""
     start = time.time()
+    deadline = time.monotonic() + TOTAL_TIMEOUT_S
+    try:
+        parts = urllib.parse.urlsplit(url)
+        host = parts.hostname
+    except ValueError:
+        return _blocked(url, "invalid URL", start)
+    if parts.scheme not in ("http", "https") or not host or "%" in parts.netloc:
+        return _blocked(url, "only plain http(s) URLs are fetched", start)
+    if not ALLOW_PRIVATE and not host_is_public(host):
+        return _blocked(url, "private or local address (use --allow-private for local development)", start)
     try:
         req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Encoding": "gzip"})
         resp = _OPENER.open(req, timeout=TIMEOUT_S)
-        status, hdrs, body = resp.status, dict(resp.headers), resp.read(MAX_BYTES)
+        status, hdrs = resp.status, dict(resp.headers)
     except urllib.error.HTTPError as err:
-        status, hdrs = err.code, dict(err.headers or {})
-        body = err.read(MAX_BYTES) if err.fp else b""
+        status, hdrs, resp = err.code, dict(err.headers or {}), err
     except Exception as err:  # network failures are reported as data, not raised
         return {"url": url, "status": 0, "error": str(err)[:200], "headers": {}, "body": b"",
                 "ms": int((time.time() - start) * 1000)}
     headers = {k.lower(): v for k, v in hdrs.items()}
-    if headers.get("content-encoding", "").lower() == "gzip":
-        try:
-            body = gzip.decompress(body)
-        except OSError:
-            pass
-    return {"url": url, "status": status, "headers": headers, "body": body,
+    try:
+        body, truncated = read_body(resp, headers, deadline) if getattr(resp, "fp", True) else (b"", False)
+    except Exception as err:
+        return {"url": url, "status": 0, "error": f"read: {err}"[:200], "headers": headers, "body": b"",
+                "ms": int((time.time() - start) * 1000)}
+    return {"url": url, "status": status, "headers": headers, "body": body, "truncated": truncated,
             "ms": int((time.time() - start) * 1000)}
 
 
@@ -183,7 +328,10 @@ def follow(url: str, limit: int = 6) -> tuple[dict, list[str]]:
     chain = [url]
     res = fetch(url)
     while res.get("status") in (301, 302, 303, 307, 308) and len(chain) <= limit:
-        nxt = urllib.parse.urljoin(chain[-1], res["headers"].get("location", ""))
+        try:
+            nxt = urllib.parse.urljoin(chain[-1], res["headers"].get("location", ""))
+        except ValueError:
+            break
         if nxt in chain:
             break
         chain.append(nxt)
@@ -196,34 +344,47 @@ def norm(url: str) -> str:
     return urllib.parse.urlunsplit((p.scheme, p.netloc.lower(), p.path or "/", p.query, ""))
 
 
+def safe_norm(url: str) -> str | None:
+    """norm() that returns None for malformed URLs (for example an unclosed IPv6 bracket) instead of raising."""
+    try:
+        return norm(url)
+    except ValueError:
+        return None
+
+
+def safe_join(base: str, ref: str) -> str:
+    try:
+        return urllib.parse.urljoin(base, ref) if ref else ""
+    except ValueError:
+        return ""
+
+
 def decode(body: bytes, headers: dict) -> str:
     m = re.search(r"charset=([\w-]+)", headers.get("content-type", ""))
     try:
         return body.decode(m.group(1) if m else "utf-8", errors="replace")
-    except LookupError:
+    except Exception:  # unknown or unusable charset names (LookupError, UnicodeError, ...)
         return body.decode("utf-8", errors="replace")
 
 
 def schema_types(blocks: list[str]) -> tuple[list[str], int]:
     types: list[str] = []
     invalid = 0
-
-    def walk(o):
-        if isinstance(o, dict):
-            t = o.get("@type")
-            if t:
-                types.extend(t if isinstance(t, list) else [t])
-            for v in o.values():
-                walk(v)
-        elif isinstance(o, list):
-            for v in o:
-                walk(v)
-
     for raw in blocks:
         try:
-            walk(json.loads(raw))
-        except ValueError:
+            stack = [json.loads(raw)]
+        except (ValueError, RecursionError):
             invalid += 1
+            continue
+        while stack:  # iterative, so deeply nested JSON-LD cannot overflow the stack
+            o = stack.pop()
+            if isinstance(o, dict):
+                t = o.get("@type")
+                if t:
+                    types.extend(t if isinstance(t, list) else [t])
+                stack.extend(o.values())
+            elif isinstance(o, list):
+                stack.extend(o)
     return sorted(set(map(str, types))), invalid
 
 
@@ -244,10 +405,14 @@ def analyse_page(url: str, res: dict, chain: list[str], host: str) -> dict:
         href = (link["href"] or "").strip()
         if not href or href.startswith(("#", "mailto:", "tel:", "javascript:")):
             continue
-        absu = urllib.parse.urldefrag(urllib.parse.urljoin(chain[-1], href))[0]
+        try:
+            absu = urllib.parse.urldefrag(urllib.parse.urljoin(chain[-1], href))[0]
+            is_internal = urllib.parse.urlsplit(absu).netloc.lower() == host
+        except ValueError:
+            continue  # malformed href (for example an unclosed IPv6 bracket from a template placeholder)
         if "nofollow" in link["rel"]:
             nofollow += 1
-        (internal if urllib.parse.urlsplit(absu).netloc.lower() == host else external).add(absu)
+        (internal if is_internal else external).add(absu)
     types, bad_schema = schema_types(p.jsonld)
     robots_meta = (p.meta.get("robots", "") + " " + res["headers"].get("x-robots-tag", "")).lower().strip()
     page.update({
@@ -255,7 +420,7 @@ def analyse_page(url: str, res: dict, chain: list[str], host: str) -> dict:
         "meta_description": p.meta.get("description", "").strip(),
         "h1": p.headings.get("h1", []),
         "h2": p.headings.get("h2", [])[:15],
-        "canonical": urllib.parse.urljoin(chain[-1], p.canonical) if p.canonical else "",
+        "canonical": safe_join(chain[-1], p.canonical),
         "robots": robots_meta,
         "noindex": "noindex" in robots_meta,
         "lang": p.lang,
@@ -265,7 +430,10 @@ def analyse_page(url: str, res: dict, chain: list[str], host: str) -> dict:
         "viewport": bool(p.meta.get("viewport")),
         "word_count": len(re.findall(r"\b\w+\b", " ".join(p.text))),
         "images": len(p.images),
-        "images_missing_alt": sum(1 for i in p.images if i["alt"] is None or not i["alt"].strip()),
+        "images_missing_alt": sum(1 for i in p.images if i["alt"] is None),  # alt="" is valid for decorative images
+        "scripts": p.scripts,
+        "empty_shell": p.empty_shell,
+        "truncated": bool(res.get("truncated")),
         "internal_links": sorted(internal),
         "external_links": len(external),
         "nofollow_links": nofollow,
@@ -280,7 +448,7 @@ def analyse_page(url: str, res: dict, chain: list[str], host: str) -> dict:
 
 def site_signals(origin: str) -> tuple[dict, urllib.robotparser.RobotFileParser]:
     sig: dict = {}
-    robots = fetch(urllib.parse.urljoin(origin, "/robots.txt"))
+    robots, _ = follow(urllib.parse.urljoin(origin, "/robots.txt"))
     txt = decode(robots["body"], robots["headers"]) if robots.get("status") == 200 else ""
     sig["robots_txt"] = {"status": robots.get("status"), "bytes": len(txt)}
     rp = urllib.robotparser.RobotFileParser()
@@ -295,9 +463,11 @@ def site_signals(origin: str) -> tuple[dict, urllib.robotparser.RobotFileParser]
         sm = urllib.parse.urljoin(origin + "/", sm)  # robots.txt may use relative paths
         r, sm_chain = follow(sm)
         body = decode(r["body"], r["headers"]) if r.get("status") == 200 else ""
-        sig["sitemaps"].append({"url": sm, "final_url": sm_chain[-1], "status": r.get("status"),
-                                "urls": body.count("<loc>")})
-    llms = fetch(urllib.parse.urljoin(origin, "/llms.txt"))
+        is_index = "<sitemapindex" in body
+        locs = body.count("<loc>")
+        sig["sitemaps"].append({"url": sm, "final_url": sm_chain[-1], "status": r.get("status"), "index": is_index,
+                                "urls": 0 if is_index else locs, "children": locs if is_index else 0})
+    llms, _ = follow(urllib.parse.urljoin(origin, "/llms.txt"))
     sig["llms_txt"] = llms.get("status") == 200 and "html" not in llms["headers"].get("content-type", "")
     host = urllib.parse.urlsplit(origin).netloc
     _, http_chain = follow(f"http://{host}/")
@@ -309,7 +479,7 @@ def site_signals(origin: str) -> tuple[dict, urllib.robotparser.RobotFileParser]
         sig["www_consolidated"] = None  # alternate host does not resolve: fine
     else:
         sig["www_consolidated"] = urllib.parse.urlsplit(alt_chain[-1]).netloc == host
-    not_found = fetch(urllib.parse.urljoin(origin, "/this-page-should-404-ai-seo-audit"))
+    not_found = fetch(urllib.parse.urljoin(origin, NOT_FOUND_PROBE))
     sig["soft_404"] = not_found.get("status") == 200
     return sig, rp
 
@@ -324,7 +494,8 @@ def crawl(start: str, max_pages: int, delay: float) -> dict:
     seen: set[str] = set()
     pages: list[dict] = []
     inlinks: Counter = Counter()
-    queue = deque([(norm(chain[-1]), 0)])
+    start_url = norm(chain[-1])
+    queue, queued = deque([(start_url, 0)]), {start_url}
     while queue and len(pages) < max_pages:
         url, depth = queue.popleft()
         if url in seen:
@@ -334,13 +505,21 @@ def crawl(start: str, max_pages: int, delay: float) -> dict:
             pages.append({"url": url, "status": "blocked_by_robots", "depth": depth})
             continue
         res, ch = follow(url)
-        page = analyse_page(url, res, ch, host)
+        try:
+            page = analyse_page(url, res, ch, host)
+        except Exception as err:  # one hostile page must not abort the whole audit
+            page = {"url": url, "final_url": ch[-1], "status": res.get("status"), "ms": res.get("ms"),
+                    "redirects": len(ch) - 1, "error": f"analyse: {type(err).__name__}"}
         page["depth"] = depth
         pages.append(page)
         for link in page.get("internal_links", []):
-            n = norm(link)
+            n = safe_norm(link)
+            if n is None:
+                continue
             inlinks[n] += 1
-            if n not in seen and not SKIP_EXT.search(urllib.parse.urlsplit(n).path):
+            if n not in seen and n not in queued and len(queued) < MAX_QUEUE \
+                    and not SKIP_EXT.search(urllib.parse.urlsplit(n).path):
+                queued.add(n)
                 queue.append((n, depth + 1))
         time.sleep(delay)
     for p in pages:
@@ -349,8 +528,27 @@ def crawl(start: str, max_pages: int, delay: float) -> dict:
     return {"start": start, "origin": origin, "crawled": len(pages), "signals": signals, "pages": pages}
 
 
+HIGH_WEIGHT = ("Search + AI crawler access", "robots.txt reachable", "HTTP redirects to HTTPS", "Broken internal pages",
+               "Unreachable pages", "Title tag present", "Content present in server HTML")
+MED_WEIGHT = ("XML sitemap", "Soft 404", "Mobile viewport", "Canonical tag present", "Exactly one H1", "Unique title",
+              "Meta description present", "Server response under", "Redirect chains", "Valid JSON-LD", "Entity schema")
+POINTS = {"pass": 1.0, "warn": 0.5, "fail": 0.0}
+
+
+def weight_of(name: str) -> int:
+    return 3 if name.startswith(HIGH_WEIGHT) else (2 if name.startswith(MED_WEIGHT) else 1)
+
+
 def check(level: str, area: str, name: str, detail: str, urls: list[str] | None = None) -> dict:
-    return {"level": level, "area": area, "check": name, "detail": detail, "urls": (urls or [])[:15]}
+    return {"level": level, "area": area, "check": name, "detail": detail, "urls": (urls or [])[:15],
+            "weight": weight_of(name)}
+
+
+def weighted_score(checks: list[dict]) -> int | None:
+    total = sum(c["weight"] for c in checks)
+    if not total:
+        return None
+    return round(100 * sum(c["weight"] * POINTS[c["level"]] for c in checks) / total)
 
 
 def technical_checks(audit: dict, pages: list[dict]) -> list[dict]:
@@ -366,9 +564,10 @@ def technical_checks(audit: dict, pages: list[dict]) -> list[dict]:
     if s["www_consolidated"] is False:
         out.append(check("warn", "technical", "www / non-www consolidation",
                          "Alternate host serves content without redirecting to the canonical host"))
-    good_sm = [x for x in s["sitemaps"] if x["status"] == 200 and x["urls"]]
+    good_sm = [x for x in s["sitemaps"] if x["status"] == 200 and (x["urls"] or x["children"])]
     out.append(check("pass" if good_sm else "fail", "technical", "XML sitemap reachable",
-                     "; ".join(f"{x['url']} -> {x.get('final_url')} ({x['status']}, {x['urls']} urls)"
+                     "; ".join(f"{x['url']} -> {x.get('final_url')} ({x['status']}, "
+                               + (f"index of {x['children']} sitemaps" if x["index"] else f"{x['urls']} urls") + ")"
                                for x in s["sitemaps"])))
     if s["soft_404"]:
         out.append(check("fail", "technical", "Soft 404", "A non-existent URL returns HTTP 200"))
@@ -407,16 +606,20 @@ def technical_checks(audit: dict, pages: list[dict]) -> list[dict]:
 
 
 def rendering_checks(pages: list[dict]) -> list[dict]:
-    """Flags pages whose server HTML is nearly empty: content likely needs JavaScript to render."""
-    js_only = [p["url"] for p in pages if p["word_count"] < 150 and p.get("internal_link_count", 0) < 3]
-    if not js_only:
-        return [check("pass", "technical", "Content present in server HTML (no JS needed)", "OK")]
-    homepage_hit = any(p.get("depth", 1) == 0 for p in pages if p["url"] in js_only)
-    level = "fail" if homepage_hit or len(js_only) > len(pages) / 2 else "warn"
-    return [check(level, "technical", "Content present in server HTML (no JS needed)",
-                  f"{len(js_only)} pages serve almost no text/links without JavaScript. AI crawlers (GPTBot, "
-                  "ClaudeBot, PerplexityBot) do not run JS and Google renders it late: use SSR/SSG or prerendering.",
-                  js_only)]
+    """Heuristic only (no browser runs here): flags server HTML that looks like an empty JavaScript app shell."""
+    likely = [p["url"] for p in pages if p.get("empty_shell") and p["word_count"] < 80]
+    possible = [p["url"] for p in pages if p["url"] not in likely and p["word_count"] < 60
+                and p.get("scripts", 0) >= 5 and p.get("internal_link_count", 0) < 3]
+    name = "Content present in server HTML (heuristic)"
+    if not likely and not possible:
+        return [check("pass", "technical", name, "No empty app shells detected in the server HTML")]
+    home_hit = any(p.get("depth", 1) == 0 for p in pages if p["url"] in likely)
+    level = "fail" if home_hit or len(likely) > len(pages) / 2 else "warn"
+    return [check(level, "technical", name,
+                  f"{len(likely)} pages look like an empty app shell and {len(possible)} serve very little text with "
+                  "many scripts. This is a heuristic, not a render: confirm with curl or view-source. If true, "
+                  "crawlers that do not run JavaScript (reported for GPTBot, ClaudeBot, PerplexityBot) see little: "
+                  "use SSR/SSG or prerendering.", likely + possible)]
 
 
 def onpage_checks(pages: list[dict]) -> list[dict]:
@@ -465,11 +668,11 @@ def onpage_checks(pages: list[dict]) -> list[dict]:
 
 def ai_search_checks(audit: dict, pages: list[dict]) -> list[dict]:
     out = []
-    out.append(check("pass" if audit["signals"]["llms_txt"] else "warn", "ai-search", "llms.txt present",
-                     "Optional. Google ignores it; some AI tools read it. Low priority."))
+    # llms.txt is recorded in signals but not scored: no evidence it changes citations.
     no_schema = [p["url"] for p in pages if not p.get("schema_types")]
     out.append(check("warn" if no_schema else "pass", "ai-search", "JSON-LD structured data",
-                     f"{len(no_schema)} pages without schema", no_schema))
+                     f"{len(no_schema)} pages without schema (helps rich-result eligibility; "
+                     "a controlled test found no AI-citation lift from adding it)", no_schema))
     bad = [p["url"] for p in pages if p.get("schema_invalid_blocks")]
     if bad:
         out.append(check("fail", "ai-search", "Valid JSON-LD", f"{len(bad)} pages with unparsable JSON-LD", bad))
@@ -495,20 +698,30 @@ def score(audit: dict) -> list[dict]:
     return sorted(checks, key=lambda c: (order[c["level"]], c["area"]))
 
 
+def summarise(checks: list[dict]) -> dict:
+    counts = Counter(c["level"] for c in checks)
+    areas = sorted({c["area"] for c in checks})
+    return {"fail": counts["fail"], "warn": counts["warn"], "pass": counts["pass"],
+            "health_score": weighted_score(checks),
+            "subscores": {a: weighted_score([c for c in checks if c["area"] == a]) for a in areas},
+            "scoring": "weighted: critical checks x3, important x2, others x1; pass=1, warn=0.5, fail=0"}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Crawl a site and score technical, on-page and AI-search checks.")
     ap.add_argument("url")
     ap.add_argument("--max-pages", type=int, default=50)
     ap.add_argument("--delay", type=float, default=0.3, help="seconds between page requests")
     ap.add_argument("--out", default="", help="write the full JSON audit here")
+    ap.add_argument("--allow-private", action="store_true",
+                    help="allow localhost/private addresses (local development only; blocked by default)")
     args = ap.parse_args()
+    global ALLOW_PRIVATE
+    ALLOW_PRIVATE = args.allow_private
     url = args.url if re.match(r"^https?://", args.url) else "https://" + args.url
     audit = crawl(url, max(1, min(args.max_pages, 500)), max(0.0, args.delay))
     audit["checks"] = score(audit)
-    counts = Counter(c["level"] for c in audit["checks"])
-    total = max(1, sum(counts.values()))
-    audit["summary"] = {"fail": counts["fail"], "warn": counts["warn"], "pass": counts["pass"],
-                        "health_score": round(100 * (counts["pass"] + 0.5 * counts["warn"]) / total)}
+    audit["summary"] = summarise(audit["checks"])
     if args.out:
         with open(args.out, "w") as fh:
             json.dump(audit, fh, indent=2, default=str)

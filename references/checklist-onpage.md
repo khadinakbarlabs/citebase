@@ -26,8 +26,8 @@ Evidence grades: **A** controlled test or large dataset · **B** repeated practi
 
 ## 3. Content quality and effort
 - [auto] **Thin content** under ~300 words on non-home pages → warn (context-dependent; BoFu pages ranking at ~415 words exist).
-- [auto] **Content present in server HTML** (no JS needed) — AI crawlers don't execute JavaScript.
-- [agent] **Information gain**: original data, tests, photos, methodology, first-hand experience. Google's Oct 2026 guidance: AI output (incl. titles, meta, alt text, structured data) must be human-reviewed. 2025–26 spam updates hit scaled, unreviewed AI content: AInvest ~9.5M → <8k clicks; ClickUp blog −97.6% in 15 months; WPBeginner 2.6M → ~27k. (A — observed cases)
+- [auto] **Content present in server HTML** (no JS needed) — most AI crawlers are reported not to execute JavaScript, and Google renders it later than HTML. The local crawl flags empty app shells heuristically; confirm with view-source.
+- [agent] **Information gain**: original data, tests, photos, methodology, first-hand experience. Google judges content by quality, not by how it was produced, and its spam policies target scaled content made mainly to rank: have a person review AI-assisted output (titles, meta, alt text, structured data included). Reported cases of 2025–26 losses on scaled, unreviewed AI content: AInvest ~9.5M → <8k clicks; ClickUp blog −97.6% in 15 months; WPBeginner 2.6M → ~27k. (C — observed cases, figures as reported)
 - [agent] **No cannibalisation**: same query shows 2+ of your URLs in GSC, positions bounce (20↔80), or two pages share >70% of top-10 SERP URLs → merge into the winner (best position, most clicks over 90 days, most links), 301 the losers, update internal links. Don't fix with canonicals; no year-stamped duplicate URLs. (B)
 - [agent] **Freshness**: visible updated date; refresh decaying pages. AI-cited content is ~25.7% fresher than organic results (Ahrefs); 79% of AI-cited "best X" lists were updated in the last year. (B)
 - [auto] **Published/updated date + author byline on long content** (E-E-A-T; bylines also correlate with AI citation).

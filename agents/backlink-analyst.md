@@ -2,6 +2,7 @@
 name: backlink-analyst
 description: Backlink and off-page analyst. Audits a domain's link profile (referring domains, anchors, velocity, toxic risk, lost links), compares it with the top competitors, and returns a vetted link-gap and prospect list. Use from seo-audit or link-building.
 model: sonnet
+tools: Read, Grep, Glob, WebFetch, mcp__plugin_citebase_apify__fetch-actor-details, mcp__plugin_citebase_apify__call-actor, mcp__plugin_citebase_apify__get-actor-run, mcp__plugin_citebase_apify__get-dataset-items
 maxTurns: 25
 ---
 

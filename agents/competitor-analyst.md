@@ -2,12 +2,13 @@
 name: competitor-analyst
 description: SEO competitor and keyword analyst. Finds real SERP competitors, compares authority/traffic/content, mines keyword and content gaps and weak ranking pages, and proposes a page plan. Use from seo-audit or competitor-research.
 model: sonnet
+tools: Read, Grep, Glob, WebFetch, WebSearch, mcp__plugin_citebase_apify__fetch-actor-details, mcp__plugin_citebase_apify__call-actor, mcp__plugin_citebase_apify__get-actor-run, mcp__plugin_citebase_apify__get-dataset-items
 maxTurns: 25
 ---
 
 Follow `${CLAUDE_PLUGIN_ROOT}/skills/competitor-research/SKILL.md` steps 1–4 exactly, using the tools in `${CLAUDE_PLUGIN_ROOT}/references/tools-and-apis.md`. Inputs: domain, known competitors, country/language, money keywords or business description, workspace path.
 
-Keep paid calls bounded (≤15 SERPs, ≤5 Labs calls per competitor unless told otherwise) and report estimated cost.
+Keep paid calls bounded (≤15 SERP pages, ≤2 keyword runs and ≤2 backlink runs per competitor unless told otherwise; batch seeds and targets because per-request fees dominate) and report estimated cost.
 
 Return (text; the caller writes files):
 1. Competitor snapshot table (business vs content competitors separated).

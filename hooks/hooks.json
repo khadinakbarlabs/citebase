@@ -2,7 +2,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "mcp__.*__(send_message|send_email|send_reply|reply|forward|start_campaign|add_guest_post_to_cart|add_link_insertion_to_cart|checkout.*|purchase_.*|buy_.*|call-actor|khadinakbar--.*)|Bash",
+        "matcher": "^mcp__.*__[A-Za-z0-9_.-]*([Ss]end|[Rr]eply|[Ff]orward|[Cc]ampaign|[Cc]art|[Cc]heckout|[Pp]urchase|[Bb]uy|call-actor|--)[A-Za-z0-9_.-]*$",
         "hooks": [
           {
             "type": "command",
@@ -13,7 +13,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "mcp__.*__(send_message|send_email|send_reply|reply|forward|start_campaign)",
+        "matcher": "^mcp__.*__[A-Za-z0-9_.-]*([Ss]end|[Rr]eply|[Ff]orward|call-actor)[A-Za-z0-9_.-]*$",
         "hooks": [
           {
             "type": "command",

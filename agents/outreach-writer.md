@@ -2,6 +2,7 @@
 name: outreach-writer
 description: Writes short, personalised SEO/PR outreach emails (listicle inclusion, broken link, unlinked mention, competitor-backlink, image credit, data pitch, podcast, testimonial, reactive PR answers) from prospect rows. Drafts only — never sends. Use from the outreach skill for batches.
 model: sonnet
+tools: Read, Grep, Glob, WebFetch
 maxTurns: 30
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: press-release
-description: Digital PR and press releases — find a genuine news angle, write a wire-ready press release, find journalists who recently covered the topic, pitch data stories, answer HARO/Featured/Qwoted-style requests, and track coverage and AI pickup. Use for press release, PR, digital PR, newswire, journalist pitch, HARO, media coverage, brand mentions.
+description: Digital PR and press releases — find a genuine news angle, write a wire-ready press release, find journalists who recently covered the topic, pitch data stories, answer expert-request platform queries (Featured, Qwoted and similar), and track coverage and AI pickup. Use for press release, PR, digital PR, newswire, journalist pitch, HARO-style requests, media coverage, brand mentions.
 argument-hint: "<domain> [release|pitch|reactive] [news/angle]"
 ---
 
@@ -21,8 +21,8 @@ Read `../../references/outreach-playbook.md` (§ Press releases, templates 1 and
 3. **Journalist list**: `khadinakbar/google-news-scraper` for the topic over the last 60–90 days → bylines, outlets, article URLs. Contacts via the `outreach` skill (author pages, `bulk-website-contact-extractor`, `email-address-validator`).
 4. Pitch with template 1 (≤90 words, 2–3 stats matched to each journalist's angle). Follow-ups day 3–4 and +2–3 days. Drafting and sending go through `outreach` (approval-gated).
 
-## C. Reactive PR (HARO-style)
-If the user subscribes to Featured.com, Qwoted, Source of Sources or Help a B2B Writer and the digests reach a connected inbox: triage today's queries against the client's real expertise, skip ones that conflict with their stance, and draft answers with template 9 that mirror the journalist's stated angle. Draft only — the user edits and sends; credibility must be human. Never fabricate credentials or personas.
+## C. Reactive PR (expert-request platforms)
+HARO (later Connectively) was shut down in December 2024 as far as we know; verify any platform is still operating before recommending it. If the user subscribes to Featured.com, Qwoted, Source of Sources or Help a B2B Writer and the digests reach a connected inbox: triage today's queries against the client's real expertise, skip ones that conflict with their stance, and draft answers with template 9 that mirror the journalist's stated angle. Draft only — the user edits and sends; credibility must be human. Never fabricate credentials or personas.
 
 ## Rules
 - No fabricated events, awards, quotes or customers; no competitor attacks; no anchor-text stuffing.
