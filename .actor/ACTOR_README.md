@@ -1,6 +1,6 @@
 ## What is Citebase?
 
-Citebase is an open-source connector that helps a brand get **recommended and cited by AI assistants** such as ChatGPT, Claude, Gemini and Perplexity. You connect it to your own AI assistant and ask for help in plain words. It returns step-by-step guidelines, a website health check, price quotes for paid data jobs, "how often does AI recommend me" results, a short to-do list, a check for outreach emails, saved history, a shareable report and a plan for automatic re-checks. Citebase itself adds no fee; the data jobs cost money and come from separate Actors listed below, always with a price quote and a spending cap first.
+Citebase is a connector that helps a brand get **recommended and cited by AI assistants** such as ChatGPT, Claude, Gemini and Perplexity. You connect it to your own AI assistant and ask for help in plain words. It returns step-by-step guidelines, a website health check, price quotes for paid data jobs, "how often does AI recommend me" results, a short to-do list, a check for outreach emails, saved history, a shareable report and a plan for automatic re-checks. Citebase itself adds no fee; the data jobs cost money and come from separate Actors listed below, always with a price quote and a spending cap first.
 
 Built for founders, marketers and small agencies who want to show up when people ask an AI "what is the best X for Y?" and do not want to learn SEO jargon first.
 

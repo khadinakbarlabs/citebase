@@ -4,7 +4,7 @@
   "title": "Citebase: AI SEO & AI Visibility Toolkit (MCP Server)",
   "version": "0.4",
   "buildTag": "latest",
-  "description": "Open-source MCP server for AI SEO and AI visibility. Check a website, see how often AI assistants recommend your brand, research keywords, trends and YouTube topics, find creators and links, get a plain to-do list. Data jobs are priced first. History and reports stay in your Apify account.",
+  "description": "MCP server for AI SEO and AI visibility. Check a website, see how often AI assistants recommend your brand, research keywords, trends and YouTube topics, find creators and links, get a plain to-do list. Data jobs are priced first. History and reports stay in your Apify account.",
   "usesStandbyMode": true,
   "webServerSchema": "./web_server_openapi.json",
   "webServerMcpPath": "/mcp",
