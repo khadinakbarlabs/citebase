@@ -1,6 +1,6 @@
 {
   "actorSpecification": 1,
-  "name": "citebase-mcp-server",
+  "name": "citebase",
   "title": "Citebase: get cited by AI (MCP server)",
   "version": "0.3",
   "buildTag": "latest",

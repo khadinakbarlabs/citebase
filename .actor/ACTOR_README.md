@@ -73,7 +73,7 @@ Every tool has a typed output schema, so an assistant can read the exact shape b
 
 ## Quick start and input
 
-1. In your assistant, add `https://mcp.apify.com/?actors=khadinakbar/citebase-mcp-server` as a custom MCP server and sign in with Apify. (Or connect to this Actor's Standby URL ending in `/mcp` with your Apify token.)
+1. In your assistant, add `https://mcp.apify.com/?actors=khadinakbar/citebase` as a custom MCP server and sign in with Apify. (Or connect to this Actor's Standby URL ending in `/mcp` with your Apify token.)
 2. Say: "Use Citebase to help me get my brand recommended by AI. Start with the start playbook."
 
 Plain JSON call, `POST /run` (what an assistant sends through `mcp.apify.com`):

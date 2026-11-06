@@ -19,11 +19,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Install connector dependencies (full connector tests)
+        if: matrix.python-version != '3.10'
+        run: pip install "mcp>=2.3,<3" "pydantic>=2.7" "uvicorn>=0.30" httpx
       - name: Compile scripts
-        run: python -m py_compile scripts/*.py
-      - name: Validate JSON manifests
+        run: python -m py_compile scripts/*.py connector/tools.py
+      - name: Validate JSON manifests and Actor files
         run: |
-          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json .mcp.json hooks/hooks.json; do
+          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json .mcp.json hooks/hooks.json connector/prices.json .actor/*.json; do
             python -m json.tool "$f" > /dev/null
           done
       - name: Run tests

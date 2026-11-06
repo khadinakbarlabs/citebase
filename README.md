@@ -72,7 +72,7 @@ claude plugin install citebase@citebase
 Local checkout: `claude plugin marketplace add ./citebase` or `claude --plugin-dir ./citebase`.
 
 **Connect data (once):** run `/mcp`, choose `plugin:citebase:apify`, click **Authenticate** and sign in with Apify. No key to copy.
-**claude.ai / Claude Desktop / ChatGPT:** add a custom connector with the URL from `.mcp.json` and sign in with Apify. Hooks do not run there, so the spending and send guardrails below rely on the skills' instructions and each product's own confirmation prompts.
+**claude.ai / Claude Desktop / ChatGPT / Cursor:** use the web connector described below. Hooks do not run there, so the spending and send guardrails below rely on the playbooks' instructions and each product's own confirmation prompts.
 **Email sending (optional):** connect Gmail, or a ReachInbox / Instantly / Smartlead MCP. Without one you get copy-paste drafts.
 
 Settings (`/plugin configure citebase@citebase`):
@@ -83,6 +83,24 @@ Settings (`/plugin configure citebase@citebase`):
 | `daily_spend_usd` | 25 | New runs are denied once today's caps add up to this |
 | `daily_send_cap` | 20 | Maximum recipients per day (to + cc + bcc) |
 | `allowed_actors` | empty | Extra `owner/name` Actors besides `khadinakbar/*` |
+
+## Use it on the web: the Citebase connector
+
+For assistants without plugins (ChatGPT, claude.ai, Cursor, any MCP client) this repo also contains an open-source MCP server in `connector/`, published as the Apify Actor `khadinakbar/citebase`.
+
+1. Add `https://mcp.apify.com/?actors=khadinakbar/citebase` as a custom MCP server and sign in with Apify (ChatGPT only supports this OAuth route, not a pasted token).
+2. Say: "Use Citebase to help me get my brand recommended by AI. Start with the start playbook."
+
+| Tool | Returns |
+|---|---|
+| `get_playbook` | The skills and references of this plugin, as text |
+| `audit_site` | Health score, scores per area, top problems |
+| `quote_cost` | Cost of paid Apify jobs and the cap to use |
+| `measure_recommendation_share` | Recommendation Share with ranges, controls and experiment verdicts |
+| `next_steps` | A plain-language, ranked to-do list |
+| `check_outreach_draft` | Whether an email is ready to send, with fixes |
+
+All six are free and stateless (nothing is stored). Each has described inputs, a typed output schema and tool annotations. Paid data comes from the author's public Apify Actors, listed with prices in `.actor/ACTOR_README.md`; the connector only quotes them and never runs them. Run your own copy with `apify push` from the repo root (`.actor/` holds the Actor settings, `connector/` the server). Tests: `python3 -m unittest discover tests` (install `mcp`, `pydantic`, `uvicorn` and `httpx` to include the server tests).
 
 ## Your workspace
 Everything is saved in your project under `seo-workspace/<domain>/`: `context.md`, `audit.json`, `report.md`, checklists, `competitors.md`, `keyword-opportunities.csv`, `ai-visibility.md`, `citation/` (panel, runs, experiments), `prospects.csv`, `drafts/`, `outreach-log.csv`, `offpage-log.csv`, `suppression.txt`, `pr/`, `ledger.json` (every paid run with quote, cap and actual cost). Add `seo-workspace/` to your `.gitignore` if your project is public: it holds contact lists and audit data.

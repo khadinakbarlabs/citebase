@@ -1,5 +1,6 @@
 .git
 .github
+README.md
 tests
 __pycache__
 *.pyc
