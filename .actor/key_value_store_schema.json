@@ -1,0 +1,13 @@
+{
+  "actorKeyValueStoreSchemaVersion": 1,
+  "title": "Citebase key-value store",
+  "description": "Holds the tool result of a one-shot run. Nothing else is stored.",
+  "collections": {
+    "output": {
+      "title": "Tool result",
+      "description": "The result object of the tool that ran, as JSON.",
+      "key": "OUTPUT",
+      "contentTypes": ["application/json"]
+    }
+  }
+}

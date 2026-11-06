@@ -225,7 +225,7 @@ def next_steps(audit: dict | None = None, report: dict | None = None, max_steps:
                       "who": rule[3] if rule else "you or your developer",
                       "effort": rule[4] if rule else "unknown",
                       "urgency": "do first" if prob.get("level") == "fail" else "soon",
-                      "from": f"site check: {prob.get('check')}"})
+                      "based_on": f"site check: {prob.get('check')}"})
     if report:
         overall = (report.get("summary") or {}).get("all")
         if overall:
@@ -235,20 +235,20 @@ def next_steps(audit: dict | None = None, report: dict | None = None, max_steps:
                               "why": f"AI recommends you in about {share * 100:.0f}% of answers. Lists, review sites and "
                                      "community answers it already cites are the fastest way in.",
                               "who": "you, with Claude's help", "effort": "a few hours per week",
-                              "urgency": "do first", "from": "AI recommendation results"})
+                              "urgency": "do first", "based_on": "AI recommendation results"})
             ctrl = overall.get("control_false_positive")
             if ctrl:
                 steps.append({"step": "Treat the AI results with care", "why": "The test questions that should not mention you did. "
                               "The measurements are noisy.", "who": "Claude", "effort": "a re-run",
-                              "urgency": "soon", "from": "control questions"})
+                              "urgency": "soon", "based_on": "control questions"})
         for due in report.get("due", []):
             steps.append({"step": f"Re-measure: {due}", "why": "Enough time has passed to see if the change worked.",
-                          "who": "Claude", "effort": "about 15 minutes", "urgency": "now", "from": "experiment log"})
+                          "who": "Claude", "effort": "about 15 minutes", "urgency": "now", "based_on": "experiment log"})
     rank = {"now": 0, "do first": 1, "soon": 2}
     steps.sort(key=lambda s: rank.get(s["urgency"], 3))
     steps = steps[:max_steps]
     steps.append({"step": "Check again in 30 days", "why": "Changes take weeks to show up. A repeat check tells you what worked.",
-                  "who": "Claude", "effort": "about 15 minutes", "urgency": "later", "from": "habit"})
+                  "who": "Claude", "effort": "about 15 minutes", "urgency": "later", "based_on": "habit"})
     return {"steps": steps, "tip": "Do the first one or two before anything else. Ask Claude to explain any step in simpler words."}
 
 

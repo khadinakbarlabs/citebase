@@ -4,13 +4,20 @@
   "title": "Citebase: get cited by AI (MCP server)",
   "version": "0.3",
   "buildTag": "latest",
-  "description": "Connector that lets claude.ai, ChatGPT and other AI assistants run Citebase: playbooks, site check, cost quotes, AI-recommendation results, to-do lists and outreach email checks.",
+  "description": "Open-source SEO and AI-visibility connector for claude.ai, ChatGPT and other AI assistants: guidelines, site check, cost quotes, AI-recommendation results, to-do lists and outreach email checks.",
   "usesStandbyMode": true,
   "webServerSchema": "./web_server_openapi.json",
   "webServerMcpPath": "/mcp",
   "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "storages": {
+    "dataset": "./dataset_schema.json",
+    "keyValueStore": "./key_value_store_schema.json"
+  },
   "dockerfile": "./Dockerfile",
   "readme": "./ACTOR_README.md",
+  "changelog": "./CHANGELOG.md",
+  "defaultMemoryMbytes": 1024,
   "minMemoryMbytes": 512,
   "maxMemoryMbytes": 2048,
   "meta": {

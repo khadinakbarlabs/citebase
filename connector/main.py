@@ -22,10 +22,10 @@ async def run_once() -> None:
     try:
         result = await asyncio.to_thread(tools.dispatch, tool, args)
     except ValueError as err:  # bad input: say what to fix, and end the run honestly as failed
-        await Actor.push_data({"tool": tool, "ok": False, "error": str(err)})
+        await Actor.push_data({"tool": tool, "ok": False, "result": None, "error": str(err)})
         await Actor.fail(status_message=str(err)[:200])
         return
-    await Actor.push_data({"tool": tool, "ok": True, "result": result})
+    await Actor.push_data({"tool": tool, "ok": True, "result": result, "error": None})
     await Actor.set_value("OUTPUT", result)
     await Actor.set_status_message(f"{tool}: done")
 

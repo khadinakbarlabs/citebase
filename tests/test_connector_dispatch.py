@@ -39,7 +39,7 @@ class DispatchTests(unittest.TestCase):
     def test_dispatch_covers_exactly_the_tools_the_server_exposes(self):
         text = open(os.path.join(ROOT, "connector", "server.py")).read()
         for name in tools.DISPATCH:
-            self.assertIn(f'name="{name}"', text)
+            self.assertTrue(f'"{name}": (' in text, f"{name} missing from connector/server.py")
 
 
 class InputSchemaTests(unittest.TestCase):

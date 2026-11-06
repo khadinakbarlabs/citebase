@@ -1,0 +1,50 @@
+{
+  "actorSpecification": 1,
+  "fields": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "tool": {
+        "type": "string",
+        "title": "Tool",
+        "description": "Which Citebase tool was run in this one-shot run.",
+        "example": "quote_cost",
+        "enum": ["get_playbook", "audit_site", "quote_cost", "measure_recommendation_share", "next_steps", "check_outreach_draft"]
+      },
+      "ok": {
+        "type": "boolean",
+        "title": "Succeeded",
+        "description": "True when the tool ran without a problem. False means the error field says what to fix.",
+        "example": true
+      },
+      "result": {
+        "type": ["object", "null"],
+        "title": "Result",
+        "description": "The tool's result object. Its fields depend on the tool and match that tool's MCP output schema. Null when ok is false.",
+        "example": {"total_usd": 0.0271, "suggested_cap_usd": 0.04}
+      },
+      "error": {
+        "type": ["string", "null"],
+        "title": "Error",
+        "description": "Plain-language explanation of what went wrong and how to fix the input. Null when ok is true.",
+        "example": null
+      }
+    },
+    "required": ["tool", "ok", "result", "error"]
+  },
+  "views": {
+    "overview": {
+      "title": "Tool result",
+      "transformation": {"fields": ["tool", "ok", "result", "error"]},
+      "display": {
+        "component": "table",
+        "properties": {
+          "tool": {"label": "Tool", "format": "text"},
+          "ok": {"label": "Succeeded", "format": "boolean"},
+          "result": {"label": "Result", "format": "object"},
+          "error": {"label": "Error", "format": "text"}
+        }
+      }
+    }
+  }
+}

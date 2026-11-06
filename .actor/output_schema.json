@@ -1,0 +1,19 @@
+{
+  "actorOutputSchemaVersion": 1,
+  "title": "Output of a Citebase one-shot run",
+  "description": "One dataset item per run: {tool, ok, result, error}. result holds the tool's answer (for example total_usd and suggested_cap_usd for quote_cost); error explains what to fix when ok is false. The same answer is saved as the OUTPUT record. The live MCP server (Standby) returns results directly and does not use these.",
+  "properties": {
+    "results": {
+      "type": "string",
+      "title": "Tool result",
+      "description": "The run's result as a dataset item: tool, ok, result, error.",
+      "template": "{{links.apiDefaultDatasetUrl}}/items"
+    },
+    "output": {
+      "type": "string",
+      "title": "OUTPUT record",
+      "description": "The tool's result object on its own, as JSON. Missing when the run failed.",
+      "template": "{{links.apiDefaultKeyValueStoreUrl}}/records/OUTPUT"
+    }
+  }
+}
