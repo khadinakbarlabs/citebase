@@ -1,10 +1,10 @@
 {
   "actorSpecification": 1,
   "name": "citebase",
-  "title": "Citebase: get cited by AI (MCP server)",
+  "title": "Citebase: AI SEO & AI Visibility Toolkit (MCP Server)",
   "version": "0.4",
   "buildTag": "latest",
-  "description": "Open-source MCP connector for AI SEO: audit a website, quote paid data jobs, measure how often ChatGPT, Claude, Gemini and Perplexity recommend your brand, save history, share a report and plan schedules. Free tools; data stays in your own Apify account.",
+  "description": "Free open-source MCP server for AI SEO and AI visibility. Check a website, see how often AI assistants recommend your brand, research keywords, trends and YouTube topics, find creators and links, and get a plain to-do list. Saves history and shareable reports in your own Apify account.",
   "usesStandbyMode": true,
   "webServerSchema": "./web_server_openapi.json",
   "webServerMcpPath": "/mcp",
