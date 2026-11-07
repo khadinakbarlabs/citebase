@@ -7,5 +7,6 @@ COPY --chown=myuser:myuser scripts/ ./scripts/
 COPY --chown=myuser:myuser skills/ ./skills/
 COPY --chown=myuser:myuser references/ ./references/
 COPY --chown=myuser:myuser connector/ ./connector/
+COPY --chown=myuser:myuser .claude-plugin/plugin.json ./.claude-plugin/plugin.json
 
 CMD ["python3", "connector/main.py"]
