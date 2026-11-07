@@ -6,10 +6,12 @@ argument-hint: "<domain or brand> [category] [competitors...]"
 
 # AI-search visibility (GEO / AEO)
 
+Talk like `../../references/plain-language.md`: plain words, and end each step with Done / Cost so far / Next, asking for one yes.
+
 Read `../../references/checklist-ai-search.md` first; it holds the model, thresholds and evidence. Tools per `../../references/tools-and-apis.md`.
 
 ## 1. Prompt panel
-- **Measure with the `citation-loop` skill**: it owns the frozen panel (20–40 prompts, at least 5 controls), the repeat runs and the Recommendation Share maths. Use this skill to decide *what to change* from those results. Draft prompts in customers' words: ~20% awareness, ~40% consideration ("best X for Y", "X vs Y", "alternatives to X", "cost of X in [city]"), ~20% brand ("is [brand] legit", "[brand] pricing", "[brand] vs [competitor]"), plus controls.
+- **Measure with the `citation-loop` skill**: it owns the frozen panel (about 30 prompts: at least 20 buying questions, 5 controls, a few brand-name checks), the repeat runs and the Recommendation Share maths. Use this skill to decide *what to change* from those results. Draft prompts in customers' words: ~20% awareness, ~40% consideration ("best X for Y", "X vs Y", "alternatives to X", "cost of X in [city]"), ~20% brand ("is [brand] legit", "[brand] pricing", "[brand] vs [competitor]"), plus controls.
 - Pick the measurement path, cheapest viable first (all priced per the run protocol in `../../references/tools-and-apis.md`):
   1. **Brand mentions + recommendations**: `khadinakbar/ai-search-brand-monitor` — `brandName`, `brandDomain`, `brandAliases`, `competitors`, `platforms`, `customQueries` (the panel), `querySelectionMode: custom_only`, `maxQueriesPerPlatform`; **$0.08 per prompt × platform**, so cost = prompts × platforms × repeats × $0.08 (20 × 3 × 3 = $14.40).
   2. **Page citations** (which of your URLs get cited): `khadinakbar/ai-search-visibility-tracker` — `targetDomain`, `keywords`, `competitorDomains`, `platforms`, `maxQueriesPerKeyword`; **$0.09 per keyword × query × platform**: with the defaults (3 queries, 4 platforms) that is $1.08 per keyword, so limit it to 5–10 priority keywords or lower `maxQueriesPerKeyword`/`platforms`. Source lists for a prompt: `khadinakbar/ai-citations-tracker` ($0.12 per Perplexity prompt).
@@ -23,7 +25,7 @@ Read `../../references/checklist-ai-search.md` first; it holds the model, thresh
 - **Recommendation check**: for each citation of the brand, does the cited passage recommend it? Citations without recommendation = weak.
 - **Fan-outs**: collect the sub-queries engines ran (Actor output where available; Bing WMT grounding queries if the user exports them; otherwise infer the likely rewrites — year, "reviews", "alternatives", `site:g2.com`). Check Google rank for each (SERP tool). Gap = fan-out where the brand has no top-20 page.
 - **Accuracy audit**: list every factual claim AI makes about the brand (price, features, setup time, locations, complaints). Mark wrong / missing / negative, with the source URL feeding it.
-- **Technical prerequisites** from `audit.json`: AI crawlers allowed, content in server HTML, Bing indexation.
+- **Technical prerequisites** from `audit.json`: search and answer bots allowed (training-only bots are the owner's choice and do not affect being cited), content in server HTML, Bing indexation.
 
 ## 3. Action plan (write `seo-workspace/<domain>/ai-visibility.md`)
 Ordered by expected effect:

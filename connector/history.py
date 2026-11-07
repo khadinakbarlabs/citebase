@@ -21,7 +21,8 @@ cl = tools.cl  # tools puts the shared scripts folder on the import path
 MAX_AUDIT_PROBLEMS = 10
 MAX_AUDITS = 90
 MAX_TEXT = 300
-BRAND_KEYS = ("name", "domain", "competitors", "site")
+RECHECK_DAYS = 30
+BRAND_KEYS = ("name", "domain", "competitors", "aliases", "site")
 _locks: dict[str, asyncio.Lock] = {}
 
 
@@ -46,9 +47,9 @@ def clean_brand(brand: dict | None) -> dict:
     out: dict[str, Any] = {}
     for key in BRAND_KEYS:
         value = (brand or {}).get(key)
-        if key == "competitors":
+        if key in ("competitors", "aliases"):
             if isinstance(value, list):
-                out[key] = [_text(v, 80) for v in value[:20]]
+                out[key] = [_text(v, 80) for v in value[:20] if v]
         elif value:
             out[key] = _text(value, 200)
     return out
@@ -65,6 +66,8 @@ def clean_experiments(experiments: list[dict] | None) -> list[dict]:
             raise ValueError(f"Change {n} needs an 'action' (what you changed, in plain words).")
         row = {k: _text(raw.get(k), 500) for k in cl.EXP_COLS if raw.get(k) is not None}
         row["date"] = row.get("date") or today()
+        if not row.get("recheck_after") and (shipped := cl.parse_date(row["date"])):
+            row["recheck_after"] = (shipped + dt.timedelta(days=RECHECK_DAYS)).isoformat()  # same default as the CLI
         out.append(row)
     return out
 
@@ -187,7 +190,8 @@ async def _save_results(slug: str, runs: list[dict], panel: list[dict] | None, e
     await be.set(stg.key(slug, "meta"), meta)
     return {"project": slug, "snapshots_saved": {k: len(v) for k, v in to_write.items()},
             "panel_prompts": len(panel_rows), "snapshots_in_project": sorted(meta["snapshots"]),
-            "brand": meta.get("brand", {}), "stored_in": "your own Apify account (key-value store 'citebase-projects')"}
+            "brand": meta.get("brand", {}), "stored_in": "your own Apify account (key-value store 'citebase-projects')",
+            "warnings": cl.panel_warnings(panel_rows, meta.get("brand"))}
 
 
 async def save_audit(project: str, audit: dict) -> dict:
@@ -247,7 +251,9 @@ def snapshot_trend(data: dict) -> list[dict]:
         if s:
             out.append({"snapshot": label, "saved_on": saved_on, "prompts": s["prompts"],
                         "recommendation_share": s["recommendation_share"], "rs_low": s["rs_low"], "rs_high": s["rs_high"],
-                        "mentioned_rate": s["mentioned_rate"], "cited_rate": s["cited_rate"]})
+                        "mentioned_rate": s["mentioned_rate"], "cited_rate": s["cited_rate"],
+                        "reputation_share": s["reputation_share"], "reputation_prompts": s["reputation_prompts"],
+                        "metric_version": s["metric_version"], "older_metric": s["older_metric"]})
     return out
 
 
@@ -258,9 +264,15 @@ async def history(project: str) -> dict:
               for a in data["audits"]]
     lines = [f"# History: {data['slug']}"]
     if snaps:
-        lines += ["", "| Round | Saved | Recommendation Share (95% range) |", "|---|---|---|"]
-        lines += [f"| {s['snapshot']} | {s['saved_on']} | {100 * s['recommendation_share']:.1f}% "
-                  f"({100 * s['rs_low']:.1f} to {100 * s['rs_high']:.1f}) |" for s in snaps]
+        lines += ["", "| Round | Saved | Recommendation Share, buying questions (95% range) | Brand-name questions |",
+                  "|---|---|---|---|"]
+        lines += [f"| {s['snapshot']}{' (older counting)' if s['older_metric'] else ''} | {s['saved_on']} | "
+                  f"{100 * s['recommendation_share']:.1f}% ({100 * s['rs_low']:.1f} to {100 * s['rs_high']:.1f}) | "
+                  f"{'n/a' if s['reputation_share'] is None else format(100 * s['reputation_share'], '.1f') + '%'} |"
+                  for s in snaps]
+        if any(s["older_metric"] for s in snaps):
+            lines += ["", "Rounds marked 'older counting' were saved before Citebase stopped counting every plain mention "
+                          "as a recommendation. Do not compare them with newer rounds."]
     if audits:
         lines += ["", "| Site check | Health score |", "|---|---|"] + [f"| {a['date']} | {a['health_score']} |" for a in audits]
     if not snaps and not audits:
@@ -277,7 +289,12 @@ def measure_loaded(data: dict, baseline: str = "", current: str = "") -> dict:
     order = [s["snapshot"] for s in snapshot_trend(data)]  # save order, not alphabetical
     base = stg.clean_part(baseline) if baseline else (order[0] if order else "")
     cur = stg.clean_part(current) if current else (order[-1] if order else "")
-    return tools.measure_rows(_by_id(data["panel"]), data["runs"], exp_rows, base, cur)
+    result = tools.measure_rows(_by_id(data["panel"]), data["runs"], exp_rows, base, cur)
+    extra = cl.panel_warnings(data["panel"], data["meta"].get("brand"))
+    if extra:
+        result["warnings"] = [*result["warnings"], *extra]
+        result["markdown"] = cl.render(result)
+    return result
 
 
 async def measure_project(project: str, baseline: str = "", current: str = "") -> dict:

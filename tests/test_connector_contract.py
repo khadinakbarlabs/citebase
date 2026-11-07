@@ -210,6 +210,77 @@ class ComplianceTests(unittest.TestCase):
         self.assertNotIn("Actor.exit(", text)
 
 
+SETUP_URL = ("https://mcp.apify.com/?actors=khadinakbar/citebase"
+             "&tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,get-key-value-store-record,abort-actor-run")
+SETUP_DOCS = (("README.md",), (".actor", "ACTOR_README.md"))
+
+
+def doc(parts):
+    with open(os.path.join(ROOT, *parts), encoding="utf-8") as fh:
+        return fh.read()
+
+
+class SetupAddressTests(unittest.TestCase):
+    """One setup address everywhere: it installs Citebase and the tools that run the paid data jobs the user approves."""
+
+    def test_every_setup_address_is_the_full_one(self):
+        for parts in SETUP_DOCS:
+            text = doc(parts)
+            found = re.findall(r"https://mcp\.apify\.com[^\s)\"'`\]>\\]*", text)
+            self.assertGreaterEqual(len(found), 3, f"{parts[-1]}: copy block, Claude Code command and JSON block")
+            for url in found:
+                self.assertEqual(url, SETUP_URL, f"{parts[-1]}: {url}")
+
+    def test_setup_address_adds_the_run_tools_and_sets_one_citebase_connector(self):
+        self.assertIn("actors=khadinakbar/citebase", SETUP_URL)
+        self.assertEqual(SETUP_URL.count("actors="), 1)
+        for tool in ("fetch-actor-details", "call-actor", "get-actor-run", "get-dataset-items",
+                     "get-key-value-store-record", "abort-actor-run"):
+            self.assertIn(tool, SETUP_URL)
+
+    def test_docs_explain_the_extra_tools_and_give_the_one_line_fallback(self):
+        for parts in SETUP_DOCS:
+            low = " ".join(doc(parts).lower().split())
+            self.assertIn("run the paid data jobs you approve", low, parts[-1])
+            self.assertIn("if your assistant cannot run data jobs, add the connector again using the setup address",
+                          low, parts[-1])
+
+    def test_check_that_it_works_is_a_plain_results_first_sentence(self):
+        for parts in SETUP_DOCS:
+            text = doc(parts)
+            self.assertNotIn("start playbook", text.lower(), parts[-1])
+            self.assertNotRegex(text, r"list 11 Citebase tools", parts[-1])
+            self.assertRegex(text.lower(), r"paste your website address[^.]*quick health check", parts[-1])
+
+    def test_docs_tell_a_newcomer_to_make_an_apify_account(self):
+        for parts in SETUP_DOCS:
+            self.assertRegex(doc(parts), r"(?i)create an apify account at apify\.com", parts[-1])
+
+    def test_troubleshooting_points_at_the_setup_address(self):
+        table = doc((".actor", "ACTOR_README.md")).split("| Symptom |")[1].split("\n\n", 1)[0]
+        self.assertNotIn("mcp.apify.com` link", table)
+        self.assertIn("setup address", table)
+
+
+class StoreWordingTests(unittest.TestCase):
+    """The Apify page never says free or open source; it says what Citebase charges (nothing) instead."""
+
+    def test_no_free_or_open_source_wording_in_actor_files(self):
+        for name in os.listdir(ACTOR):
+            if name.endswith((".md", ".json")):
+                text = doc((".actor", name))
+                self.assertNotRegex(text, r"(?i)\bfree\b", name)
+                self.assertNotRegex(text, r"(?i)open[- ]source", name)
+
+    def test_changelog_names_the_packs_and_new_jobs_of_this_version(self):
+        text = doc((".actor", "CHANGELOG.md"))
+        section = text.split("## 0.4")[1].split("\n## ", 1)[0].lower()
+        self.assertRegex(section, r"packs?")
+        for pack in load("connector", "prices.json")["packs"]:
+            self.assertIn(pack, section, f"pack {pack} missing from the 0.4 changelog")
+        self.assertRegex(section, r"\b\d+ (new )?(priced )?jobs?")
+
+
 @unittest.skipUnless(HAVE_MCP, "mcp is not installed")
 class ServedSchemaTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):

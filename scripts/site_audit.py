@@ -28,7 +28,23 @@ import zlib
 from collections import Counter, defaultdict, deque
 from html.parser import HTMLParser
 
-UA = "Mozilla/5.0 (compatible; CitebaseAudit/0.3; +https://github.com/khadinakbarlabs/citebase)"
+UA_TEMPLATE = "Mozilla/5.0 (compatible; CitebaseAudit/{version}; +https://github.com/khadinakbarlabs/citebase)"
+FALLBACK_VERSION = "unknown"  # used when the plugin manifest is not next to this script (for example in the connector)
+PLUGIN_JSON = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".claude-plugin", "plugin.json")
+VERSION_TOKEN = re.compile(r"[0-9A-Za-z][0-9A-Za-z.+-]{0,31}")  # fullmatch only: safe inside a User-Agent header
+
+
+def plugin_version(path: str = PLUGIN_JSON) -> str:
+    """The plugin version from its manifest, or FALLBACK_VERSION when it is missing or not a plain token."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            version = json.load(fh).get("version")
+    except (OSError, ValueError, AttributeError):
+        return FALLBACK_VERSION
+    return version if isinstance(version, str) and VERSION_TOKEN.fullmatch(version) else FALLBACK_VERSION
+
+
+UA = UA_TEMPLATE.format(version=plugin_version())
 TIMEOUT_S = 15
 MAX_BYTES = 3_000_000
 ALLOW_PRIVATE = False  # set by --allow-private (local development and tests only)
@@ -37,7 +53,8 @@ TOTAL_TIMEOUT_S = 30.0  # wall-clock limit for one response, however slowly it t
 MAX_LINKS_PER_PAGE = 5000
 MAX_QUEUE = 20000
 # Bots that fetch pages to ANSWER people (search and assistants). Blocking these can hide a site from AI answers.
-ANSWER_BOTS = ["Googlebot", "Bingbot", "OAI-SearchBot", "ChatGPT-User", "PerplexityBot", "Claude-SearchBot", "Claude-User"]
+ANSWER_BOTS = ["Googlebot", "Bingbot", "OAI-SearchBot", "ChatGPT-User", "PerplexityBot", "Perplexity-User", "Claude-SearchBot",
+                "Claude-User"]
 # Bots that collect training data only. Blocking these is a choice about training; it does not remove a site from answers.
 TRAINING_BOTS = ["GPTBot", "ClaudeBot", "Google-Extended", "CCBot", "Applebot-Extended"]
 AI_CRAWLERS = ANSWER_BOTS + TRAINING_BOTS
@@ -693,8 +710,26 @@ def money_page_checks(pages: list[dict]) -> list[dict]:
                   f"{len(weak)} of {len(money)} pricing/comparison pages have fewer links in from your own pages", weak)]
 
 
+NO_SNIPPET = re.compile(r"(?<![\w-])nosnippet(?![\w-])|max-snippet\s*:\s*0+(?![\d.])", re.I)
+
+
+def snippet_blocked(robots) -> bool:
+    """True when a robots directive string (meta robots plus X-Robots-Tag) forbids text snippets."""
+    return isinstance(robots, str) and bool(NO_SNIPPET.search(robots))
+
+
+def snippet_check(pages: list[dict]) -> dict:
+    """One aggregated check: pages that forbid snippets cannot be quoted in results or by Google's AI features."""
+    blocked = [p["url"] for p in pages if snippet_blocked(p.get("robots"))]
+    if not blocked:
+        return check("pass", "ai-search", "Snippets allowed (no nosnippet / max-snippet:0)", "0 pages block snippets")
+    return check("warn", "ai-search", "Snippets allowed (no nosnippet / max-snippet:0)",
+                 f"{len(blocked)} pages forbid text snippets (nosnippet or max-snippet:0). Google's own documentation says "
+                 "these controls also limit what its AI features can quote. Remove them from pages you want cited", blocked)
+
+
 def ai_search_checks(audit: dict, pages: list[dict]) -> list[dict]:
-    out = []
+    out = [snippet_check(pages)]
     # llms.txt is recorded in signals but not scored: no evidence it changes citations.
     no_schema = [p["url"] for p in pages if not p.get("schema_types")]
     out.append(check("warn" if no_schema else "pass", "on-page", "JSON-LD structured data",
@@ -746,16 +781,27 @@ def main() -> int:
     global ALLOW_PRIVATE
     ALLOW_PRIVATE = args.allow_private
     url = args.url if re.match(r"^https?://", args.url) else "https://" + args.url
+    if args.out:  # create the folder first so a bad path fails now, not after a full crawl
+        try:
+            os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
+        except OSError as err:
+            print(f"Cannot create the output folder for {args.out}: {err}", file=sys.stderr)
+            return 2
     audit = crawl(url, max(1, min(args.max_pages, 500)), max(0.0, args.delay))
     audit["checks"] = score(audit)
     audit["summary"] = summarise(audit["checks"])
+    status = 0
     if args.out:
-        with open(args.out, "w") as fh:
-            json.dump(audit, fh, indent=2, default=str)
+        try:
+            with open(args.out, "w") as fh:
+                json.dump(audit, fh, indent=2, default=str)
+        except OSError as err:
+            print(f"Could not write {args.out}: {err}. The crawl result is printed below.", file=sys.stderr)
+            status = 1
     print(json.dumps({"origin": audit["origin"], "crawled": audit["crawled"], "summary": audit["summary"],
                       "checks": [{k: c[k] for k in ("level", "area", "check", "detail")} for c in audit["checks"]]},
                      indent=2))
-    return 0
+    return status
 
 
 if __name__ == "__main__":

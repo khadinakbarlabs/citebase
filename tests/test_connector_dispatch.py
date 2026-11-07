@@ -31,6 +31,14 @@ class DispatchTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             tools.dispatch("measure_recommendation_share", {"panel": [], "runs": []})
 
+    def test_measure_takes_an_optional_brand_and_run_adds_project(self):
+        self.assertIn("brand", tools.ALLOWED_ARGS["measure_recommendation_share"])
+        self.assertEqual(runner.ALLOWED_ARGS["measure_recommendation_share"],
+                         tools.ALLOWED_ARGS["measure_recommendation_share"] | {"project"})
+
+    def test_schedule_checks_takes_only_what_the_mcp_tool_takes(self):
+        self.assertEqual(runner.ALLOWED_ARGS["schedule_checks"], {"project", "url", "frequency", "max_pages", "platforms"})
+
     def test_missing_arguments_default_to_empty(self):
         self.assertIn("playbooks", tools.dispatch("get_playbook", None))
 

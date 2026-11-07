@@ -2,7 +2,7 @@
 
 **Evidence grades used in every checklist:** A = controlled test or large dataset · B = practitioner consensus or one study with a clear method · C = anecdote or vendor-reported figure. Numbers below without a grade are B at best: treat as direction, not fact.
 
-**Core model (most-supported view across the transcripts):** LLM answers are assembled from web search results. ChatGPT, Perplexity, Claude, Gemini and AI Overviews rewrite a prompt into several search queries ("query fan-out", ~9–11 on average, up to 28; deep research ran 420), read the top results, and synthesise. So **AI visibility ≈ ranking for the fan-out queries + being mentioned consistently on the pages those queries return.** 76% of AI Overview citations come from Google's top 10; 88% of ChatGPT-cited URLs come from its search index (Ahrefs, 1.4M prompts). Dissent: one study found only ~16% of prompts trigger retrieval; ~14–33% of citations come from outside the top 100. Do both: rank the fan-outs **and** build off-site consensus.
+**Core model (most-supported view across the transcripts):** LLM answers are assembled from web search results. ChatGPT, Perplexity, Claude, Gemini and AI Overviews rewrite a prompt into several search queries ("query fan-out", ~9–11 on average, up to 28; deep research ran 420), read the top results, and synthesise. So **AI visibility ≈ ranking for the fan-out queries + being mentioned consistently on the pages those queries return.** How much AI citations overlap with Google's top 10 is disputed: studies report very different levels (one 2025 study near 76% for AI Overviews, others far lower), they count different things, and it shifts over time. Read it as "ranking helps, it is not sufficient". (C) Dissent: one study found only ~16% of prompts trigger retrieval; ~14–33% of citations come from outside the top 100. Do both: rank the fan-outs **and** build off-site consensus.
 
 **Keep expectations honest:** AI referrals are ~0.25–1% of site traffic for most sites (ChatGPT ≈0.62% of Google organic across 100 sites / 145M sessions); citations ≠ clicks (37,000 Bing citations vs ~300 clicks in one case). ChatGPT sends 8–9× more referrals than the next AI platform; don't weight Perplexity equally.
 
@@ -34,7 +34,8 @@
 - **Press releases** stating the exact category claim can be repeated by AI Overviews within 24–72 h — verifiable facts only; decays in weeks.
 
 ## 5. Technical prerequisites
-- AI crawlers not blocked (robots.txt **and** Cloudflare/CDN bot settings).
+- Answer bots not blocked: Googlebot, Bingbot, OAI-SearchBot, ChatGPT-User, PerplexityBot, Perplexity-User, Claude-SearchBot, Claude-User, in robots.txt **and** Cloudflare/CDN bot settings. Training-only bots (GPTBot, ClaudeBot, Google-Extended, CCBot, Applebot-Extended) are your choice and have no effect on being cited.
+- Google states that AI Overviews and AI Mode need no special markup or files: a page must be indexable and snippet-eligible. `nosnippet`, `data-nosnippet`, `max-snippet:0` or `noindex` (often set site-wide by an SEO plugin or theme) take it out. (Google's own documentation.)
 - Content in server-rendered HTML (ChatGPT's crawler doesn't run JS).
 - Indexed in **Bing** (Bing WMT + IndexNow) as well as Google.
 - Private pages use `noindex` (robots.txt alone leaked Claude shared chats into search).

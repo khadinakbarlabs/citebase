@@ -9,6 +9,7 @@ from __future__ import annotations
 import contextlib
 import datetime as dt
 import hashlib
+import html
 import json
 import os
 import re
@@ -207,6 +208,155 @@ def draft_hash(tool_input: dict) -> str:
             canon[name] = val
     blob = json.dumps(canon, sort_keys=True, default=str, ensure_ascii=False)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+PREVIEW_CHARS = 300  # how much of the message text the send prompt shows
+PREVIEW_SOURCE_CHARS = 100_000  # only the start of a long body is turned into the preview
+SCAN_LIMIT = 4_000_000  # characters scanned for links across one message
+MAX_HOSTS_SCANNED = 20000
+MAX_DOMAINS_KEPT = 50  # per approval record
+HTML_KEYS = ("html", "html_body", "htmlbody")
+_INVISIBLE = re.compile(r"[\x00-\x08\x0e-\x1f\x7f-\x9f\u00ad\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f"
+                        r"\ufeff\ufff9-\ufffb\U000e0001\U000e0020-\U000e007f]")  # control, zero-width and bidi characters
+_DOTS = {0x3002: ".", 0xFF0E: ".", 0xFF61: "."}  # dots that browsers treat as "."
+_BLOCKS = re.compile(r"(?is)<(script|style)\b[^>]{0,1000}>.*?(?:</\1\s*>|$)")
+_TAGS = re.compile(r"<[^>]{0,1000}>")
+_LOOKS_HTML = re.compile(r"</?[a-zA-Z][^>]{0,200}>")
+_AUTH = r"(\[[0-9a-fA-F:.%]{2,45}\]|[^\s/?#\\\"'<>()\[\]{}|^`]+)"
+_URL = re.compile(r"(?:\b[a-zA-Z][a-zA-Z0-9+.-]{1,15}:|(?<![\w:/.%-]))//" + _AUTH)  # http://host and //host
+_BEFORE = r"(?<![\w@./:-])"  # start of a word, not inside an address or a longer host
+_WWW = re.compile(_BEFORE + r"(www\.[a-z0-9-]+(?:\.[a-z0-9-]+)+)", re.I)
+_PATH_HOST = re.compile(_BEFORE + r"((?:[a-z0-9-]+\.)+[a-z]{2,24})(?=/)", re.I)  # evil.example/page
+_COMMON_TLDS = ("com|net|org|io|co|ai|dev|app|info|biz|xyz|me|us|uk|de|fr|ca|au|nl|in|shop|site|online|blog|tech|"
+                "link|ly|to|gg|tv|cc|ru|cn|top|club|store|zip|mov|click|help|work|support|live|icu|cyou|sbs|rest|fit|monster|"
+                "cfd|buzz|vip|win|loan|review|date|stream|download|party|trade|bid|host|website|space|press|today|"
+                "world|life|email|cloud|digital|network|solutions|services|agency|group|pro|one|page|xxx|ink|run")
+_BARE = re.compile(_BEFORE + r"((?:[a-z0-9-]+\.)+(?:" + _COMMON_TLDS + r"))(?![\w-])", re.I)
+_DOMAIN_DIR = re.compile(r"[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)+", re.I)
+
+
+def _clean_host(authority: str) -> str:
+    """The host a browser would contact for the text after '//': no user info, port, trailing punctuation."""
+    host = authority.rpartition("@")[2]
+    if host.startswith("["):
+        host = host.split("]", 1)[0] + "]"
+    else:
+        host = re.sub(r":\d*$", "", host)
+    host = host.strip(".,;:!?'\u2019\u201d").lower().rstrip(".")
+    return host[:80] if ("." in host or host.startswith("[")) else ""
+
+
+def _hosts_in(text: str):
+    text = text.translate(_DOTS)
+    for match in _URL.finditer(text):
+        yield _clean_host(match.group(1))
+    for pattern in (_WWW, _PATH_HOST, _BARE):
+        for match in pattern.finditer(text):
+            yield _clean_host(match.group(1))
+
+
+def link_scan(tool_input: dict) -> tuple[list[str], bool]:
+    """Distinct hosts linked from any text in the message, and whether some text was beyond SCAN_LIMIT.
+
+    Linear in the input: patterns are anchored at word starts and every bracketed part is bounded."""
+    found: dict[str, None] = {}
+    budget, truncated = SCAN_LIMIT, False
+    for text in _strings(tool_input):
+        if budget <= 0:
+            truncated = True
+            break
+        if len(text) > budget:
+            text, truncated = text[:budget], True
+        budget -= len(text)
+        for host in _hosts_in(_INVISIBLE.sub("", text)):
+            if host and len(found) < MAX_HOSTS_SCANNED:
+                found.setdefault(host)
+    return list(found), truncated
+
+
+def body_preview(tool_input: dict) -> tuple[str, bool]:
+    """The first PREVIEW_CHARS characters of the message as plain, single-line text, and whether more follows."""
+    for key, val in tool_input.items():
+        name = str(key).lower()
+        if name in BODY_KEYS and isinstance(val, str) and val.strip():
+            raw = val[:PREVIEW_SOURCE_CHARS]
+            if name in HTML_KEYS or _LOOKS_HTML.search(raw[:5000]):
+                raw = html.unescape(_TAGS.sub(" ", _BLOCKS.sub(" ", raw)))
+            text = _INVISIBLE.sub("", collapse(raw))
+            return text[:PREVIEW_CHARS], len(text) > PREVIEW_CHARS or len(val) > len(raw)
+    return "", False
+
+
+def sender_domains(tool_input: dict) -> set[str]:
+    out: set[str] = set()
+    for key, val in tool_input.items():
+        if any(hint in str(key).lower() for hint in SENDER_HINTS):
+            for text in _strings(val):
+                out.update(addr.lower().rpartition("@")[2] for addr in EMAIL_RE.findall(text))
+    return out
+
+
+def _bare(domain: str) -> str:
+    domain = domain.lower()
+    return domain[4:] if domain.startswith("www.") else domain
+
+
+def brand_domains(workspace: str | None, tool_input: dict | None = None) -> set[str]:
+    """Domains that are 'ours': seo-workspace/<domain>/ folder names and the sender address's domain."""
+    names = set(sender_domains(tool_input or {}))
+    if workspace and os.path.isdir(workspace):
+        try:
+            entries = os.listdir(workspace)
+        except OSError:
+            entries = []
+        names.update(e for e in entries if _DOMAIN_DIR.fullmatch(e) and os.path.isdir(os.path.join(workspace, e)))
+    return {_bare(n) for n in names}
+
+
+def foreign_domains(domains: list[str], brand: set[str], to: list[str]) -> list[str]:
+    """Linked domains that are neither the brand's nor a recipient's own."""
+    ok = {_bare(d) for d in brand} | {_bare(a.rpartition("@")[2]) for a in to}
+    return [d for d in domains if not any(_bare(d) == b or _bare(d).endswith("." + b) for b in ok)]
+
+
+def draft_id(tool_input: dict) -> str:
+    """The draft id a send-by-id call refers to ('' when the call carries none)."""
+    for key, val in tool_input.items():
+        if str(key).lower() in ("draft_id", "draftid") and isinstance(val, (str, int)) and not isinstance(val, bool):
+            text = str(val).strip()
+            if text:
+                return text[:200]
+    return ""
+
+
+def draft_approval(state: dict, tool_input: dict) -> dict | None:
+    """The newest unexpired approval record registered for this call's draft id, else None.
+
+    Raises StateError when a matching record has no readable recipient list (callers fail closed)."""
+    ident = draft_id(tool_input)
+    best = None
+    for digest, rec in (state.get("approvals", {}).items() if ident else ()):
+        if not isinstance(rec, dict) or rec.get("draft_id") != ident or not approval_ok(state, digest):
+            continue
+        to = rec.get("to")
+        if not (isinstance(to, list) and to and all(isinstance(a, str) and a for a in to)):
+            raise StateError("a registered draft has no readable recipient list")
+        if best is None or str(rec.get("ts")) > str(best.get("ts")):
+            best = rec
+    return best
+
+
+def drop_draft_approvals(state: dict, ident: str) -> None:
+    state["approvals"] = {k: v for k, v in state["approvals"].items()
+                          if not (isinstance(v, dict) and v.get("draft_id") == ident)}
+
+
+def draft_record(tool_input: dict, ident: str) -> dict:
+    """What the gate needs later to judge a send-by-draft-id call: id, text preview, links and sender domains."""
+    domains, truncated = link_scan(tool_input)
+    excerpt, more = body_preview(tool_input)
+    return {"draft_id": ident, "excerpt": excerpt, "excerpt_more": more, "domains": domains[:MAX_DOMAINS_KEPT],
+            "domains_total": len(domains), "scan_truncated": truncated, "senders": sorted(sender_domains(tool_input))}
 
 
 def find_workspace(cwd) -> str | None:

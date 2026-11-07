@@ -59,10 +59,16 @@ class GateCase(unittest.TestCase):
 
 
 class ScopeTests(GateCase):
-    def test_outside_workspace_is_silent(self):
+    def test_outside_workspace_own_apify_tool_is_still_gated(self):
         outside = os.path.join(self.tmp.name, "elsewhere")
         os.makedirs(outside)
         _, decision, _ = self.run_gate("pre", APIFY, self.actor(cap=None), cwd=outside)
+        self.assertEqual(decision, "deny")
+
+    def test_outside_workspace_other_servers_are_silent(self):
+        outside = os.path.join(self.tmp.name, "elsewhere")
+        os.makedirs(outside)
+        _, decision, _ = self.run_gate("pre", "mcp__apify__call-actor", self.actor(cap=None), cwd=outside)
         self.assertIsNone(decision)
 
     def test_workspace_found_in_parent_directory(self):

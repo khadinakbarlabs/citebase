@@ -1,11 +1,11 @@
 # Plain-language guide
 
-Most people using Citebase are founders and marketers, not SEOs. Write so a smart friend who has never heard of SEO can act on it.
+Most people using Citebase are founders and marketers, not SEOs. Write so a smart friend who has never heard of SEO can act on it. This guide applies to every reply, in every playbook.
 
 ## How to talk
 - Short sentences. One idea each. Words a 12-year-old knows. If a technical word is unavoidable, explain it once in brackets.
 - Lead with the answer, then the reason. "Your site can't be read by AI tools yet. The page text only appears after JavaScript runs."
-- Say what to do, who does it and how long it takes. "Ask your web developer to add a sitemap. About 1 hour."
+- Say what to do, who does it and how long it takes. "Add a sitemap (a list of your pages for search engines). Paste this request into your site builder. About 1 hour."
 - Numbers need a meaning: "Recommended 12% of the time (it was 4% before)". Never a bare percentage.
 - Give a range when the data is noisy: "somewhere between 8% and 16%". Say "no clear change" instead of guessing.
 - Maximum 5 items in any list the user must act on. Put the rest in the saved report.
@@ -37,6 +37,8 @@ End each work step with three short lines:
 | Fan-out query | the extra searches an AI runs behind the scenes to answer one question |
 | Outreach | emailing people to ask for a link, feature or review |
 | Suppression list | people you promised never to email again |
+| Answer bot | a program that reads pages so an AI or search engine can answer people. Keep these allowed |
+| Training bot | a program that collects pages to train AI models. Blocking it is your choice and does not hide you from AI answers |
 
 ## When the news is bad
 Say it plainly, then give the next step. "Right now AI tools don't recommend you for any of these questions. That is normal for a new brand. Here are the three changes most likely to move it."

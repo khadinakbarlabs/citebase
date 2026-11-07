@@ -1,5 +1,7 @@
 # Citebase scorecard: where it competes, where it does not yet
 
+> **Internal planning note. Not part of the product and not for the README, the Apify page or any public claim.** Do not copy its prices or product names into public text. Updated to the 0.4 state (saved history, hosted reports, `schedule_checks`).
+
 Facts about other products come from their own public pages, read on **2026-11-07**, and from the open-source projects' own READMEs. Prices are as shown on the pages (billing period and currency as noted). They change: re-check before you quote them. Citebase is independent and not affiliated with any product named here. Moz could not be read and is not covered.
 
 ## 1. Price snapshot
@@ -19,7 +21,7 @@ Facts about other products come from their own public pages, read on **2026-11-0
 | Elmo (open source, MIT) | Self-hosted free; Elmo Cloud from $29/mo | Dashboards, share of voice, sentiment, trends, reports, API, SDKs, MCP | Elmo README |
 | Ansvisor (open source, MIT) | Self-hosted free; managed cloud | Citations, prompts, competitors, MCP | Ansvisor README |
 | GEO/AEO Tracker (open source, MIT) | Free software; you pay data providers per call | 5 engines, optional cloud sync | its README |
-| **Citebase** | **No subscription.** Tools free; paid data per result on your Apify account | AI brand check $0.08 per prompt x engine x run, and the other jobs in the Store README | Actor listing |
+| **Citebase** | **No subscription.** No Citebase fee on the tools; paid data per result on your Apify account | AI brand check $0.08 per prompt x engine x run, and the other jobs in the Store README | Actor listing |
 
 ## 2. Same-job cost: checking whether AI recommends you
 
@@ -29,7 +31,7 @@ Arithmetic from the prices above. Assumption: one "check" = one prompt on one en
 |---|---|---|
 | 60 checks a week (20 prompts, 3 engines, weekly) = about 260 a month | about **$21/mo** | Otterly Lite $29/mo |
 | Daily tracking, 20 prompts x 3 engines = 1,800 a month | about **$144/mo** | Otterly Lite $29/mo (15 prompts x 4 engines daily is 1,800), Peec Starter $95/mo (4,500 answers stated) |
-| A one-off baseline, 180 checks + 20 AI Overviews | **$14.70, once** | A month of any plan |
+| A one-off baseline, 270 checks + 20 AI Overviews | **$21.90, once** | A month of any plan |
 
 Reading it honestly:
 - At steady daily volume, subscriptions cost roughly **4 to 9 times less per check** than Citebase today (about $0.016 to $0.021 per check against $0.08).
@@ -43,9 +45,9 @@ Status: **Covered** = works today. **Partial** = works with limits. **Not yet** 
 | Capability | Citebase today | What the tools above typically offer |
 |---|---|---|
 | Check AI answers across engines | **Covered** for ChatGPT, Perplexity, Gemini, Claude, Google AI Overviews and AI Mode (separate paid Actors) | 5 to 11 engines; adds Copilot, Grok, DeepSeek, Meta AI |
-| Daily or scheduled tracking | **Not yet** | Daily on almost every plan |
-| History and trends over time | **Not yet** (compares rounds you supply; nothing is stored) | 6 months to all-time history, dashboards |
-| Shareable reports and exports | **Partial** (a Markdown report, no hosted page, no export) | Dashboards, CSV, scheduled reports, Looker Studio |
+| Daily or scheduled tracking | **Partial** (0.4: `schedule_checks` gives the cron text, ready-to-paste inputs and a monthly cost; the scheduled site check refreshes the report by itself; AI re-checks run from an Apify Schedule you create, then an import step. Weekly or monthly, not daily) | Daily on almost every plan |
+| History and trends over time | **Covered** from 0.4 (named projects in your own Apify account: AI rounds, site scores and logged changes; up to 100 projects and 60 rounds each; `get_history`) | 6 months to all-time history, dashboards |
+| Shareable reports and exports | **Partial** (0.4: `make_report` gives a one-page report with a trend chart and a link you can share; no CSV export, no scheduled email) | Dashboards, CSV, scheduled reports, Looker Studio |
 | Alerts when visibility changes | **Not yet** | Offered by some (Otterly, AthenaHQ); others not stated |
 | Citation and source analysis | **Partial** (Perplexity sources job, cited domains in results) | Source and citation share dashboards |
 | Sentiment | **Not yet** in Citebase's own numbers | Common |
@@ -53,16 +55,16 @@ Status: **Covered** = works today. **Partial** = works with limits. **Not yet** 
 | Statistical honesty (repeat runs, control questions, confidence ranges, change verdicts) | **Covered**, and a real differentiator | Not stated on the pages read |
 | Plain-language recommended actions | **Covered** (playbooks and `next_steps`) | Content or action recommendations on many plans |
 | Technical site audit | **Partial** (30+ checks, up to 30 pages, no JavaScript; larger crawls through the Actors) | Large crawls (for example 250,000 pages a month), JavaScript rendering on some |
-| Keyword research | **Covered** through a paid Actor, per row, no history | Large databases with history |
+| Keyword research | **Covered** through the `keywords` pack (about $1.37), per row, no history | Large databases with history |
 | Backlink research | **Covered** through a paid Actor | Own backlink databases |
-| Rank tracking over time | **Not yet** (an Actor exists but is not wired in) | Standard |
+| Rank tracking over time | **Partial** (Bing and local rank checks are priced jobs behind `quote_cost`; no stored rank history yet) | Standard |
 | Writing and content optimisation editor | **Not yet** | Surfer, SE Ranking, Semrush |
 | Outreach and PR workflow | **Covered** (playbooks, email checker, never sends) | Mostly not included |
 | MCP and API | **Covered** | MCP on many plans (Peec, Otterly Standard+, Semrush Starter, Ahrefs, SE Ranking, Surfer) |
 | Open source | **Covered** (MIT) | Elmo, Ansvisor and GEO/AEO Tracker are also open source |
 | No subscription, pay per use | **Covered** | Mostly subscriptions |
 | Team seats, client portals, white label | **Not yet** | Common on higher plans |
-| Local SEO | **Not yet** | Varies |
+| Local SEO | **Partial** (the `local` pack prices map rank and the local results pack; guidance in the technical checklist) | Varies |
 
 ## 4. What this means for positioning
 
@@ -72,6 +74,8 @@ Status: **Covered** = works today. **Partial** = works with limits. **Not yet** 
 - Choose a subscription or self-hosted dashboard instead when you need **daily tracking at volume, long history, alerts or client reporting**.
 
 ## 5. Ranked build list (what earns the bigger claim)
+
+Status at 0.4: builds 1 and 3 shipped, build 2 partly (the steps and inputs ship; the AI re-check still needs a schedule the user creates). The list below keeps the original order for reference.
 
 | # | Build | Closes | Impact | Effort |
 |---|---|---|---|---|
@@ -86,11 +90,11 @@ Status: **Covered** = works today. **Partial** = works with limits. **Not yet** 
 | 9 | Bigger crawls with JavaScript rendering through the existing spider and audit Actors | site audit depth | Medium | Low to medium |
 | 10 | Read results from Elmo or Ansvisor through their APIs, so Citebase can be the planning layer on top | interoperability | Medium | Medium (verify their APIs first) |
 
-Recommended first bundle: **1 + 2 + 3** (history, scheduling, report). Together they turn Citebase from a one-time check into an ongoing tracker, and they are the three gaps buyers see first.
+The original first bundle (**1 + 2 + 3**: history, scheduling, report) is now mostly shipped. Next: finish 2 (a digest after each scheduled run, so the result reaches the user), then 4 (cost per check), then 5 and 6.
 
 ## 6. Method and limits
 
 - Pages were read by an automated reader on 2026-11-07. Anything a page did not state is written as "not stated" and is not counted as missing from the product.
 - Moz blocked the reader and was not checked. Surfer's AI tracker page and Screaming Frog's pricing page were linked but not read.
 - Prices shown without a billing label are listed as the page showed them. Re-check before publishing a comparison.
-- Cost arithmetic uses Citebase's live public prices (2026-11-06) and the stated plan limits above; it ignores free trials, annual discounts and add-ons.
+- Cost arithmetic uses Citebase's public prices (read 2026-11-07) and the stated plan limits above; it ignores free trials, annual discounts and add-ons.

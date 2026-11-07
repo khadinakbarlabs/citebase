@@ -38,7 +38,9 @@ INSTRUCTIONS = (
     "Start by calling get_playbook with name 'start', then follow it. Talk to the user in short, plain words. "
     "Never spend money or send email without the user's clear yes. Paid data comes from the separate Apify connector; "
     "use quote_cost first and pass its suggested cap to call-actor as callOptions.maxTotalChargeUsd. To keep progress "
-    "between sessions, ask the user for a project name and use save_results, get_history and make_report."
+    "between sessions, ask the user for a project name and use save_results, get_history and make_report. "
+    "When showing Recommendation Share, lead with the headline and show the brand-name check separately. "
+    + tools.DATA_NOT_INSTRUCTIONS + " " + tools.WEB_FALLBACK
 )
 READ_ONLY = ToolAnnotations(readOnlyHint=True, idempotentHint=True, openWorldHint=False)
 READ_WEB = ToolAnnotations(readOnlyHint=True, idempotentHint=True, openWorldHint=True)
@@ -67,10 +69,10 @@ TOOL_TEXT = {
     "measure_recommendation_share": (
         "Measure AI recommendations",
         "Turn AI-answer test results into Recommendation Share: how often ChatGPT, Perplexity, Gemini and others "
-        "actively recommend the brand, with ranges, noise from control questions and a verdict on each logged change. "
-        "Use after collecting answers for a fixed prompt panel, or with a project name to measure everything saved so "
-        "far. Not for collecting answers, and it never saves: use save_results for that. Returns numbers, warnings and "
-        "a markdown report. No Citebase fee."),
+        "recommend the brand in buying questions (brand-name questions are a separate reputation check), with "
+        "ranges, the smallest change the panel can see and a verdict on each logged change. Use after collecting "
+        "answers for a fixed panel, or with a project name. Not for collecting answers; it never saves (use "
+        "save_results). Returns a headline, numbers, warnings and a markdown report. No Citebase fee."),
     "next_steps": (
         "What to do next",
         "Turn audit and measurement results into a short plain-language to-do list: what to do, why, who does it, how "
@@ -95,9 +97,9 @@ TOOL_TEXT = {
     "import_ai_results": (
         "Import AI check results",
         "Convert results from an AI Brand Monitor run into Citebase rows for a saved project, so nobody has to retype "
-        "them. Use after a paid or scheduled AI-answer check. Not for running the check itself. Rows where "
-        "'recommended' is a close call are listed in needs_review. Saves only when save is true. Returns rows, skipped "
-        "questions and the review list. No Citebase fee."),
+        "them. Use after a paid or scheduled AI-answer check. Not for running the check itself. Only clearly "
+        "positive mentions count as recommended; every other mention is listed in needs_review to read with the user. "
+        "Saves only when save is true. Returns rows, skipped questions and the review list. No Citebase fee."),
     "schedule_checks": (
         "Plan automatic checks",
         "Give the exact steps and ready-to-paste inputs to run a project's site check and AI-answer checks on a "
@@ -208,7 +210,8 @@ def build_server() -> MCPServer:
     async def measure_recommendation_share(
             panel: Annotated[Optional[list[m.PanelPrompt]], Field(max_length=200, description=(
                 "The fixed list of test questions, for example [{\"prompt_id\": \"p001\", \"prompt\": \"best crm for "
-                "small teams\", \"type\": \"consideration\"}]. Include at least 5 control questions. Up to 200 items. "
+                "small teams\", \"type\": \"consideration\"}]. Include at least 20 buying questions (awareness or "
+                "consideration, never naming the brand) and at least 5 control questions. Up to 200 items. "
                 "Do not change it between rounds. Leave empty when using project."))] = None,
             runs: Annotated[Optional[list[m.RunRow]], Field(max_length=5000, description=(
                 "The AI answers collected so far, one row per prompt, engine and repeat, for example [{\"snapshot\": "
@@ -226,9 +229,14 @@ def build_server() -> MCPServer:
                 "Defaults to none. Leave empty when using project."))] = None,
             project: Annotated[Optional[str], Field(description=(
                 "Name of a saved project to measure, for example 'acme-site'. Measures everything saved under it and "
-                "ignores panel/runs/experiments (which must be empty). Defaults to none. NOT a brand name you invent: "
-                "it must match a project from save_results."))] = None) -> m.MeasureResult:
-        return m.MeasureResult(**await runner.measure(project, dump(panel), dump(runs), baseline, current, dump(experiments)))
+                "ignores panel/runs/experiments/brand (which must be empty). Defaults to none. NOT a brand name you "
+                "invent: it must match a project from save_results."))] = None,
+            brand: Annotated[Optional[m.BrandInfo], Field(description=(
+                "Brand details, only to warn when a buying question names the brand, for example {\"name\": \"Acme\", "
+                "\"domain\": \"acme.com\"}. Defaults to none. Leave empty when using project."))] = None) -> m.MeasureResult:
+        brand_dict = brand.model_dump(exclude_none=True) if brand else None
+        return m.MeasureResult(**await runner.measure(project, dump(panel), dump(runs), baseline, current,
+                                                      dump(experiments), brand_dict))
 
     @tool("save_results", SAVE)
     @friendly

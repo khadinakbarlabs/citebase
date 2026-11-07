@@ -57,14 +57,24 @@ class QuoteTests(unittest.TestCase):
         self.assertGreaterEqual(q["suggested_cap_usd"], q["total_usd"] * 1.3)
         self.assertAlmostEqual(q["total_usd"], 14.7001, places=3)
 
+    def test_ai_check_pack_is_big_enough_for_the_measurement_minimums(self):
+        """A user who buys the pack must not get 'fewer than 20 buying questions' on the first report."""
+        pack = {i["job"]: i["units"] for i in tools.PRICES["packs"]["ai_check"]["items"]}
+        questions = tools.cl.MIN_PROMPTS + tools.cl.MIN_CONTROLS
+        self.assertGreaterEqual(pack["ai_brand_check"], questions * 3 * tools.cl.MIN_REPEATS)
+        self.assertGreaterEqual(pack["ai_overview"], tools.cl.MIN_PROMPTS)
+        self.assertIn(str(questions + 5), tools.PRICES["packs"]["ai_check"]["about"])
+
     def test_bad_input_gets_a_helpful_error(self):
         for bad in ([], [{"job": "unknown", "units": 1}], [{"job": "serp_page", "units": -1}],
                     [{"job": "serp_page", "units": "lots"}]):
             with self.assertRaises(ValueError):
                 tools.quote_cost(bad)
 
-    def test_every_price_matches_the_plugin_reference_table(self):
-        ref = open(os.path.join(ROOT, "references", "tools-and-apis.md")).read()
+    def test_every_priced_actor_is_named_in_the_plugin_reference(self):
+        # the prices themselves are compared in test_prices_doc_sync.py
+        with open(os.path.join(ROOT, "references", "tools-and-apis.md"), encoding="utf-8") as fh:
+            ref = fh.read()
         for job, spec in tools.PRICES["jobs"].items():
             self.assertIn(spec["actor"], ref, job)
 
@@ -113,7 +123,7 @@ class MeasureTests(unittest.TestCase):
 
     def test_improvement_is_reported(self):
         panel, runs = self.data({f"p{n:03d}" for n in range(1, 13)})
-        exp = [{"action": "Joined two listicles", "mechanism": "listicle",
+        exp = [{"action": "Joined two listicles", "mechanism": "listicle", "date": "2026-11-15",  # between the two rounds
                 "target_prompt_ids": ",".join(f"p{n:03d}" for n in range(3, 13))}]
         rep = tools.measure(panel, runs, "baseline", "after", exp)
         self.assertEqual(rep["change"]["all"]["verdict"], "improved")
@@ -166,9 +176,9 @@ class NextStepsTests(unittest.TestCase):
 
 class OutreachCheckTests(unittest.TestCase):
     good = ("Hi Sam, I read your piece on small-business payroll and liked the point about hidden fees. We published "
-            "a free 2026 comparison of payroll costs across 40 providers, with the raw numbers, that your readers "
+            "a 2026 comparison of payroll costs across 40 providers, with the raw numbers, that your readers "
             "might find useful as a source. Happy to send the data or answer questions. If this isn't relevant, "
-            "just tell me and I won't write again. Thanks, Alex")
+            "just tell me and I won't write again.\n\nThanks,\nAlex Rivera\nAcme Payroll Data, 123 Main Street, Austin, TX 78701")
 
     def test_good_email_is_ready(self):
         r = tools.check_outreach_draft("sam@example.com", "Payroll cost data for your piece", self.good)
@@ -191,8 +201,10 @@ class OutreachCheckTests(unittest.TestCase):
         self.assertFalse(r["ready"])
 
     def test_warnings_do_not_block(self):
-        r = tools.check_outreach_draft("sam@example.com", "ACT NOW!!", "Guaranteed results. Click here https://a.com https://b.com https://c.com")
-        self.assertTrue(r["ready"])
+        body = ("Guaranteed results. Click here https://a.com https://b.com https://c.com. If this is not for you, "
+                "reply STOP and I will not write again.\n\nAlex Rivera\nAcme Payroll Data\nacme.example")
+        r = tools.check_outreach_draft("sam@example.com", "ACT NOW!!", body)
+        self.assertTrue(r["ready"], r["problems"])
         self.assertGreaterEqual(len(r["warnings"]), 3)
 
     def test_fingerprint_ignores_spacing_but_not_wording(self):

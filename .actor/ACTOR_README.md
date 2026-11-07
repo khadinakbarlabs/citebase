@@ -2,29 +2,31 @@
 
 Citebase is an MCP server. Add it once, sign in once, then ask for help in plain words.
 
-**You need:** an Apify account and an assistant that supports MCP connectors (Claude, ChatGPT, Cursor and others). The account you sign in with pays the small run cost and any data jobs you approve.
+**You need:** an Apify account and an assistant that supports MCP connectors (Claude, ChatGPT, Cursor and others). Create an Apify account at apify.com if you do not have one. The account you sign in with pays the small run cost and any data jobs you approve.
 
-**Server address (use this everywhere):**
+**Setup address (use this everywhere):**
 
 ```text
-https://mcp.apify.com/?actors=khadinakbar/citebase
+https://mcp.apify.com/?actors=khadinakbar/citebase&tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,get-key-value-store-record,abort-actor-run
 ```
+
+The extra tools in this address let your assistant run the paid data jobs you approve. On the web nothing but your assistant's own confirmation prompt stops a run, so approve only the Actor and the cost it quoted. If your assistant cannot run data jobs, add the connector again using the setup address.
 
 **Two ways to sign in**
 
 | Way | Use it when | What you do |
 |---|---|---|
-| Apify sign-in (OAuth), recommended | Your assistant has a "Connect" or "Sign in" button. ChatGPT only supports this way. | Add the address, press Connect, sign in to Apify, press Allow. No token to copy. |
+| Apify sign-in (OAuth), recommended | Your assistant has a "Connect" or "Sign in" button. ChatGPT only supports this way. | Add the setup address, press Connect, sign in to Apify, press Allow. No token to copy. |
 | Apify API token | Your assistant or script cannot do OAuth | Send the header `Authorization: Bearer YOUR_APIFY_TOKEN`. Find the token in Apify Console under Settings, then API and integrations. |
 
 **Steps for each assistant** (menu names can differ a little by plan and app version)
 
-- **Claude (claude.ai and Claude Desktop):** open Settings, then Connectors, then Add custom connector. Name it `Citebase`, paste the address, press Connect and sign in to Apify.
-- **ChatGPT:** open Settings, then Connectors, turn on Developer mode, create a new connector, paste the address, choose OAuth, then sign in to Apify.
+- **Claude (claude.ai and Claude Desktop):** open Settings, then Connectors, then Add custom connector. Name it `Citebase`, paste the setup address, press Connect and sign in to Apify.
+- **ChatGPT:** open Settings, then Connectors, turn on Developer mode, create a new connector, paste the setup address, choose OAuth, then sign in to Apify.
 - **Claude Code:** run this in your terminal, then type `/mcp` inside Claude Code, pick `citebase` and sign in.
 
   ```bash
-  claude mcp add --transport http citebase "https://mcp.apify.com/?actors=khadinakbar/citebase"
+  claude mcp add --transport http citebase "https://mcp.apify.com/?actors=khadinakbar/citebase&tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,get-key-value-store-record,abort-actor-run"
   ```
 
   To use a token instead, add `--header "Authorization: Bearer YOUR_APIFY_TOKEN"` to that command.
@@ -34,7 +36,7 @@ https://mcp.apify.com/?actors=khadinakbar/citebase
   {
     "mcpServers": {
       "citebase": {
-        "url": "https://mcp.apify.com/?actors=khadinakbar/citebase",
+        "url": "https://mcp.apify.com/?actors=khadinakbar/citebase&tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,get-key-value-store-record,abort-actor-run",
         "headers": { "Authorization": "Bearer YOUR_APIFY_TOKEN" }
       }
     }
@@ -42,7 +44,7 @@ https://mcp.apify.com/?actors=khadinakbar/citebase
   ```
 - **Direct connection (advanced):** use this Actor's own Standby address (the one ending in `/mcp`, shown on this Actor's API tab in Apify Console). It needs the token header and does not offer a sign-in button.
 
-**Check that it works.** Ask: "Use Citebase to help me get my brand recommended by AI. Start with the start playbook." Your assistant should list 11 Citebase tools and read the start playbook. Nothing is charged for that first call apart from Apify's small run cost.
+**Check that it works.** Paste your website address and ask for a quick health check. Your assistant should come back with a score in words and a short list of fixes. Citebase adds no fee for this; Apify's small run cost applies.
 
 **Keep your token safe.**
 - Prefer the sign-in route. A token gives access to your whole Apify account.
@@ -74,7 +76,7 @@ Built for founders, marketers and small agencies who want to show up when people
 
 ## How a session works: from a website address to a plan
 
-1. **Start.** The assistant reads the `start` playbook and asks a few plain questions about your business.
+1. **Start.** You paste your website address. The assistant reads the `start` playbook and checks your site first; it asks only what it still needs.
 2. **Check the site.** `audit_site` scores the site and lists the top problems.
 3. **Price the research.** `quote_cost` totals the paid data jobs (search results, keywords, backlinks, AI answers) and gives a spending cap.
 4. **Research.** With your yes, the assistant runs the Actors below with that cap.
@@ -122,7 +124,7 @@ Built for founders, marketers and small agencies who want to show up when people
     "lines": [{"job": "serp_page", "actor": "khadinakbar/scrape-google-serp", "units": 15, "unit": "SERP page", "requests": 1, "cost_usd": 0.0271}],
     "total_usd": 0.0271,
     "suggested_cap_usd": 0.04,
-    "prices_read_on": "2026-11-06"
+    "prices_read_on": "2026-11-07"
   }
 }
 ```
@@ -132,7 +134,7 @@ Every tool has a typed output schema, so an assistant can read the exact shape b
 ## Quick start and input
 
 1. Connect your assistant using the steps at the top of this page.
-2. Say: "Use Citebase to help me get my brand recommended by AI. Start with the start playbook."
+2. Paste your website address and ask for a quick health check.
 
 Plain JSON call, `POST /run` (what an assistant sends through `mcp.apify.com`):
 
@@ -200,7 +202,7 @@ Each paid run also pays a tiny start fee of $0.00005. Prices were read from each
 | `competitors` | How rivals look and rank | $0.30 |
 | `creators` | YouTube creators worth approaching | $0.39 |
 | `local` | Where a business shows on the map | $0.15 |
-| `ai_check` | Does AI recommend you (20 questions, 3 assistants, 3 times) | $14.70 |
+| `ai_check` | Does AI recommend you (30 questions, 3 assistants, 3 times) | $21.90 |
 
 
 ## Pricing and cost example
@@ -213,7 +215,7 @@ Each paid run also pays a tiny start fee of $0.00005. Prices were read from each
 |---|---|---|
 | Quick audit | 1 site audit + 15 results pages | $0.13 |
 | Full audit | site audit, keywords, backlinks for you and 3 competitors, link prospects, a small AI check | $7 |
-| AI recommendation baseline | 20 questions x 3 assistants x 3 repeats + 20 Google AI Overviews | $14.70 |
+| AI recommendation baseline | 30 questions x 3 assistants x 3 repeats + 20 Google AI Overviews | $21.90 |
 
 Request fees dominate small keyword and backlink jobs, so batch them into one run.
 
@@ -224,6 +226,7 @@ Prompt to try: *"Use Citebase to check example.com, tell me the three most impor
 - **Inputs:** every tool field is described, with an example and limits, and job names are a closed list.
 - **Failures:** errors are plain sentences that say what to fix, for example an unknown job lists the valid names.
 - **Size:** results are returned whole. The longest playbook is about 2,300 tokens, so nothing needs paging. For paid Actors use `get-dataset-items` with `limit` and `offset`.
+- **Run only what was quoted:** the assistant should run only the Actor and the spending cap that `quote_cost` gives you, after your yes.
 - **No automatic guard on the web:** the assistant is told to quote costs and ask you before spending or sending. Say yes only to what you understand.
 
 ## Limits, reliability and troubleshooting
@@ -238,12 +241,13 @@ Prompt to try: *"Use Citebase to check example.com, tell me the three most impor
 | "Cannot reach" on the site check | The address is private, blocked or wrong | Use a public address such as `example.com` |
 | "Input should be ..." on `quote_cost` | The job name is not on the list | Use a name from the table above |
 | "Request is too large" | More than 2 MB was sent | Send fewer rows |
-| 401 "api-token-missing" | Connected directly without a token | Use the `mcp.apify.com` link, or pass your Apify token |
-| ChatGPT will not accept a token | Custom connectors there use OAuth only | Use the `mcp.apify.com` link and sign in |
+| 401 "api-token-missing" | Connected directly without a token | Use the setup address, or pass your Apify token |
+| ChatGPT will not accept a token | Custom connectors there use OAuth only | Use the setup address and sign in |
+| The assistant says it has no tool to run data jobs | The connector was added without the run tools | Add the connector again using the setup address |
 
 ## Evidence and freshness
 
-Prices were read from public Actor pricing on 2026-11-07. On 2026-11-07 a 46-case live check of the deployed build passed: good, bad, oversized and hostile inputs, parallel calls and all three ways in (Standby, `/run` and normal runs). That is a release check, not a guarantee of future reliability. The version history is in the changelog.
+Prices were read from public Actor pricing on 2026-11-07. The release checklist covers good, bad, oversized and hostile inputs, parallel calls and all three ways in (Standby, `/run` and normal runs). It is a check, not a guarantee of future reliability. The version history is in the changelog.
 
 ## Frequently asked questions
 

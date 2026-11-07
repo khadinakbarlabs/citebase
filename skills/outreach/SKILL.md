@@ -8,7 +8,7 @@ argument-hint: "<domain> [batch name or prospect type]"
 
 For influencers, YouTubers, podcast hosts and newsletter writers use `creator-outreach` (it reuses this skill for sending). Read `../../references/plain-language.md` for how to talk to the user.
 
-Read `../../references/outreach-playbook.md` fully (hard rules, copy rules, templates, cadence, legal basics). The approval hook denies any send whose exact text was not approved, refuses suppressed recipients, enforces the daily cap and then asks the user to confirm — expected, never work around it. Make sure `seo-workspace/` exists first, because the hook only runs inside it.
+Read `../../references/outreach-playbook.md` fully (hard rules, copy rules, templates, cadence, legal basics). The approval hook denies any send whose exact text was not approved, refuses suppressed recipients, enforces the daily cap and then asks the user to confirm — expected, never work around it. Create `seo-workspace/<domain>/` before drafting anything: the hook only runs inside it, and without it the send guard (suppression list, daily cap, pause switch, exact-text approval) is off.
 
 ## 1. Prospects → contacts
 - Input: rows in `seo-workspace/<domain>/prospects.csv` with `status=to_contact` (from `link-building`, `press-release`, `ai-search-visibility`), or a list the user provides.

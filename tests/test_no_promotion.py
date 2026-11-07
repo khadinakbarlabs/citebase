@@ -4,7 +4,7 @@ import re
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SERVED = ["skills", "references", "agents", ".actor", "connector", "README.md"]
+SERVED = ["skills", "references", "agents", ".actor", "connector", "README.md", "docs"]
 # outside commercial products/services that must not be named, sold or recommended anywhere we ship
 BANNED = [r"reachinbox", r"\binstantly\b", r"smartlead", r"zapmail", r"qwoted", r"featured\.com",
           r"source of sources", r"help a b2b writer", r"\bprnow\b", r"insert\.?link", r"\bmailshake\b", r"\blemlist\b"]

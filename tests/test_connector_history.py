@@ -40,6 +40,32 @@ class Base(unittest.TestCase):
         stg.set_backend(None)
 
 
+class BrandAliasTests(Base):
+    PANEL = [{"prompt_id": "p1", "prompt": "is AcmePay good for invoices", "type": "consideration"}] + PANEL[1:]
+
+    def save(self, brand):
+        return run(hist.save_results("acme-site", [dict(r, prompt_id=r["prompt_id"]) for r in runs("baseline", {"p2"})],
+                                     self.PANEL, brand=brand))
+
+    def test_aliases_are_saved_with_the_project(self):
+        self.save({"name": "Acme", "aliases": ["AcmePay", "Acme Pay"]})
+        meta = run(hist.history("acme-site"))["brand"]
+        self.assertEqual(meta["aliases"], ["AcmePay", "Acme Pay"])
+
+    def test_saved_aliases_trigger_the_brand_name_warning(self):
+        result = self.save({"name": "Acme", "aliases": ["AcmePay"]})
+        self.assertTrue(any("p1" in w or "name" in w.lower() for w in result["warnings"]), result["warnings"])
+
+    def test_without_aliases_the_alias_question_is_not_flagged(self):
+        result = self.save({"name": "Acme"})
+        self.assertEqual(result["warnings"], [])
+
+    def test_alias_list_is_bounded_and_cleaned(self):
+        self.save({"name": "Acme", "aliases": [f"alias{i}" for i in range(50)] + [None]})
+        meta = run(hist.history("acme-site"))["brand"]
+        self.assertLessEqual(len(meta["aliases"]), 20)
+
+
 class SlugTests(unittest.TestCase):
     def test_clean_slug_accepts_normal_names(self):
         self.assertEqual(stg.clean_slug("Acme Site!"), "acme-site")
@@ -299,6 +325,9 @@ class ImporterTests(unittest.TestCase):
     def test_single_mention_goes_to_review(self):
         out = importer.convert(self.ITEMS, PANEL, "baseline")
         self.assertTrue(any(r["prompt_id"] == "p1" for r in out["needs_review"]))
+
+    def test_importer_and_loop_agree_on_the_metric_version(self):
+        self.assertEqual(importer.METRIC_VERSION, tools.cl.METRIC_VERSION)
 
 
 class SchedulePlanTests(unittest.TestCase):

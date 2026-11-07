@@ -47,5 +47,5 @@ Then generate tailored checklists via the `seo-checklists` skill.
 ## Rules
 - Never claim a ranking factor the references grade C as fact; label disputed items (meta descriptions, schema for AI, llms.txt, multiple H1s, nofollow value) as disputed.
 - Don't recommend schema/llms.txt as AI-visibility fixes. Don't recommend disavow without a manual action.
-- Match any traffic drop to the Google update timeline before diagnosing (`checklist-technical.md` § Diagnosing drops).
+- Match any traffic drop to the Google update timeline before diagnosing (`checklist-technical.md` § Diagnosing drops). When a drop matches an update, say what Google stated, not what blogs infer, and label third-party explanations "unconfirmed".
 - Read-only: don't change the site or contact anyone during an audit.

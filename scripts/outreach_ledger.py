@@ -5,6 +5,10 @@
   suppress add ADDRESS_OR_@DOMAIN [--reason TEXT] | list | check ADDRESS   (check exits 1 if suppressed)
   pause [--reason TEXT] | resume | status
 
+Sending a Gmail-style draft by id hides its recipients and text from the gate. To get the do-not-contact and cap
+checks and a readable send prompt, put the reviewed message in `approve --args` together with `"draft_id": "<id>"`
+(plus to, subject, body): the gate then judges `send_draft {draft_id}` by that registration (one per draft id).
+
 `approve` records the hash of the exact message the user just reviewed. The approval gate
 refuses to send anything whose hash was not approved, and each approval works once. This
 catches drift (text edited after review); the human "ask" prompt remains the real gate.
@@ -43,12 +47,19 @@ def cmd_approve(ns: argparse.Namespace) -> int:
     blocked = [a for a in to if st.is_suppressed(a, rules)]
     if blocked:
         raise SystemExit(f"Cannot approve: on the suppression list: {', '.join(blocked)}")
+    ident = st.draft_id(args)
+    record = {"ts": st.now_iso(), "to": to, "subject": st.subject_text(args)[:120]}
+    if ident:  # lets a later send-by-draft-id call be checked against the reviewed recipients and text
+        record.update(st.draft_record(args, ident))
     with st.locked():
         state = st.load_state()
         digest = st.draft_hash(args)
-        state["approvals"][digest] = {"ts": st.now_iso(), "to": to, "subject": st.subject_text(args)[:120]}
+        if ident:
+            st.drop_draft_approvals(state, ident)  # one registration per draft: the newest review wins
+        state["approvals"][digest] = record
         st.save_state(state)
-    print(f"approved {digest[:12]} for {', '.join(to)} (valid {st.APPROVAL_TTL_HOURS}h, one send)")
+    note = f"; registered draft {ident}" if ident else ""
+    print(f"approved {digest[:12]} for {', '.join(to)} (valid {st.APPROVAL_TTL_HOURS}h, one send{note})")
     return 0
 
 

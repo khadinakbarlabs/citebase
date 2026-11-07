@@ -6,6 +6,8 @@ argument-hint: "<domain> [audit|prospect] [topics...]"
 
 # Link building
 
+Talk like `../../references/plain-language.md`: plain words, at most five prospects per message, and end each step with Done / Cost so far / Next, asking for one yes.
+
 Read `../../references/checklist-offpage.md` (criteria, tactics, never-do list) and the run protocol in `../../references/tools-and-apis.md` (quote → cap → run → report cost).
 
 ## 1. Profile audit (always first)

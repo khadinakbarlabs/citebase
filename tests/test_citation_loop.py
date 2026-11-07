@@ -1,4 +1,5 @@
 """Tests for scripts/citation_loop.py (stdlib unittest, synthetic data only)."""
+import csv
 import json
 import os
 import subprocess
@@ -111,6 +112,43 @@ class PanelTests(LoopCase):
             self.assertNotEqual(self.cli("ingest", self.dir, "--snapshot", snap, "--file", path, check=False).returncode, 0)
 
 
+class BrandAndVersionCliTests(LoopCase):
+    def test_panel_add_warns_but_still_adds_when_a_buying_question_names_the_brand(self):
+        self.cli("init", self.dir)
+        proc = self.cli("panel", "add", self.dir, "--prompt", "best alternatives to Acme", "--type", "consideration",
+                        "--brand", "Acme")
+        self.assertIn("WARNING", proc.stderr)
+        self.assertIn("p001", proc.stderr)
+        self.assertIn("added p001", proc.stdout)
+
+    def test_brand_type_questions_do_not_warn(self):
+        self.cli("init", self.dir)
+        proc = self.cli("panel", "add", self.dir, "--prompt", "is Acme legit", "--type", "brand", "--brand", "Acme")
+        self.assertNotIn("WARNING", proc.stderr)
+
+    def test_ingested_rows_are_stamped_with_the_metric_version(self):
+        self.build_panel(consideration=2, controls=1)
+        self.runs({"p001"}, "base", total=3)
+        with open(os.path.join(self.dir, "runs.csv"), newline="") as fh:
+            first = next(csv.DictReader(fh))
+        self.assertEqual(first["metric_version"], str(cl.METRIC_VERSION))
+
+    def test_report_leads_with_the_plain_buying_question_sentence(self):
+        self.build_panel()
+        self.runs({"p001", "p002"}, "base")
+        out = self.cli("report", self.dir).stdout
+        self.assertIn("of buying questions", out)
+
+    def test_experiment_dated_after_the_latest_round_is_not_scored_in_the_cli_report(self):
+        self.build_panel()
+        self.runs(set(), "base")
+        self.runs({"p001"}, "after")
+        self.cli("experiment", "add", self.dir, "--action-text", "Later change", "--mechanism", "onpage",
+                 "--targets", "p001", "--date", "2027-03-01")
+        out = self.cli("report", self.dir, "--baseline", "base", "--current", "after").stdout
+        self.assertIn("Not scored", out)
+
+
 class ReportTests(LoopCase):
     def test_share_and_ci_for_single_snapshot(self):
         self.build_panel()
@@ -129,7 +167,7 @@ class ReportTests(LoopCase):
         self.runs(before, "base")
         self.runs(before | set(targets), "after")
         self.cli("experiment", "add", self.dir, "--action-text", "Added to two listicles", "--mechanism", "listicle",
-                 "--targets", ",".join(targets), "--recheck-after", "2026-11-02")
+                 "--targets", ",".join(targets), "--date", "2026-11-15", "--recheck-after", "2026-11-02")
         rep = self.report("--baseline", "base", "--current", "after")
         change = rep["change"]["all"]
         self.assertGreater(change["delta"], 0.2)
@@ -139,7 +177,7 @@ class ReportTests(LoopCase):
         self.assertEqual(exp["verdict"], "supported")
         self.assertAlmostEqual(exp["target_delta"], 1.0)
         self.assertAlmostEqual(exp["other_delta"], 0.0)
-        self.assertEqual(len(rep["due"]), 1)
+        self.assertEqual(rep["due"], [])  # the current round was measured after the recheck date: already re-measured
 
     def test_engine_drift_without_real_change_is_not_called_an_improvement_of_targets(self):
         self.build_panel()
@@ -147,7 +185,7 @@ class ReportTests(LoopCase):
         self.runs(set(), "base")
         self.runs(everything, "after")
         self.cli("experiment", "add", self.dir, "--action-text", "Rewrote pages", "--mechanism", "onpage",
-                 "--targets", "p001,p002,p003,p004")
+                 "--targets", "p001,p002,p003,p004", "--date", "2026-11-15")
         res = self.report("--baseline", "base", "--current", "after")["experiments"][0]["result"]
         self.assertEqual(res["verdict"], "inconclusive")
 

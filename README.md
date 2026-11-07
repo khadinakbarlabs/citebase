@@ -6,7 +6,7 @@
 
 When someone asks an AI "what's the best X for Y?", it answers from what it finds said about brands across the web: search results, press, review sites, creator content, podcasts, community threads. Citebase measures where AI stands on your brand today, finds the gaps on live data, plans the pages, press, partnerships and outreach emails that close them, and then re-measures to see whether it worked. It works inside the AI assistant you already use.
 
-One sign-in with Apify. Every data call shows its price first, runs under a spending cap, and you pay only per result. No subscriptions, no five API keys.
+One sign-in with Apify. Every data call shows its price first, and you pay only per result. In Claude Code each run also has a spending cap that Apify enforces; on the web your assistant asks you before it runs anything. No subscriptions, no five API keys.
 
 ```
 /citebase:start https://yourbrand.com
@@ -16,27 +16,29 @@ One sign-in with Apify. Every data call shows its price first, runs under a spen
 
 Citebase is also an MCP server, so it works in assistants without plugins. Add it once, sign in once, then ask for help in plain words.
 
-**You need:** an Apify account and an assistant that supports MCP connectors (Claude, ChatGPT, Cursor and others). The account you sign in with pays the small run cost and any data jobs you approve.
+**You need:** an Apify account and an assistant that supports MCP connectors (Claude, ChatGPT, Cursor and others). Create an Apify account at apify.com if you do not have one. The account you sign in with pays the small run cost and any data jobs you approve.
 
-**Server address (use this everywhere):**
+**Setup address (use this everywhere):**
 
 ```text
-https://mcp.apify.com/?actors=khadinakbar/citebase
+https://mcp.apify.com/?actors=khadinakbar/citebase&tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,get-key-value-store-record,abort-actor-run
 ```
+
+The extra tools in this address let your assistant run the paid data jobs you approve. On the web nothing but your assistant's own confirmation prompt stops a run, so approve only the Actor and the cost it quoted. If your assistant cannot run data jobs, add the connector again using the setup address.
 
 | Way to sign in | Use it when | What you do |
 |---|---|---|
-| Apify sign-in (OAuth), recommended | Your assistant has a "Connect" or "Sign in" button. ChatGPT only supports this way. | Add the address, press Connect, sign in to Apify, press Allow. No token to copy. |
+| Apify sign-in (OAuth), recommended | Your assistant has a "Connect" or "Sign in" button. ChatGPT only supports this way. | Add the setup address, press Connect, sign in to Apify, press Allow. No token to copy. |
 | Apify API token | Your assistant or script cannot do OAuth | Send the header `Authorization: Bearer YOUR_APIFY_TOKEN`. Find the token in Apify Console under Settings, then API and integrations. |
 
 Steps per assistant (menu names can differ a little by plan and app version):
 
-- **Claude (claude.ai and Claude Desktop):** Settings, then Connectors, then Add custom connector. Name it `Citebase`, paste the address, press Connect and sign in to Apify.
-- **ChatGPT:** Settings, then Connectors, turn on Developer mode, create a new connector, paste the address, choose OAuth, then sign in to Apify.
+- **Claude (claude.ai and Claude Desktop):** Settings, then Connectors, then Add custom connector. Name it `Citebase`, paste the setup address, press Connect and sign in to Apify.
+- **ChatGPT:** Settings, then Connectors, turn on Developer mode, create a new connector, paste the setup address, choose OAuth, then sign in to Apify.
 - **Claude Code:** run the command below, then type `/mcp` inside Claude Code, pick `citebase` and sign in. To use a token instead, add `--header "Authorization: Bearer YOUR_APIFY_TOKEN"`.
 
   ```bash
-  claude mcp add --transport http citebase "https://mcp.apify.com/?actors=khadinakbar/citebase"
+  claude mcp add --transport http citebase "https://mcp.apify.com/?actors=khadinakbar/citebase&tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,get-key-value-store-record,abort-actor-run"
   ```
 - **Cursor and other apps with a JSON settings file:** add this block. Leave out `headers` to sign in with OAuth when the app supports it. Field names can differ slightly by app.
 
@@ -44,7 +46,7 @@ Steps per assistant (menu names can differ a little by plan and app version):
   {
     "mcpServers": {
       "citebase": {
-        "url": "https://mcp.apify.com/?actors=khadinakbar/citebase",
+        "url": "https://mcp.apify.com/?actors=khadinakbar/citebase&tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,get-key-value-store-record,abort-actor-run",
         "headers": { "Authorization": "Bearer YOUR_APIFY_TOKEN" }
       }
     }
@@ -52,7 +54,7 @@ Steps per assistant (menu names can differ a little by plan and app version):
   ```
 - **Direct connection (advanced):** `https://khadinakbar--citebase.apify.actor/mcp`. It needs the token header and has no sign-in button.
 
-**Check that it works.** Ask: "Use Citebase to help me get my brand recommended by AI. Start with the start playbook." Your assistant should list 11 Citebase tools and read the start playbook.
+**Check that it works.** Paste your website address and ask for a quick health check. Your assistant should come back with a score in words and a short list of fixes. Citebase adds no fee for this; Apify's small run cost applies.
 
 **Keep your token safe.** Prefer the sign-in route, because a token gives access to your whole Apify account. Never type a token into a chat or a tool field. If one leaks, delete it in Apify Console and make a new one.
 
@@ -60,11 +62,11 @@ Steps per assistant (menu names can differ a little by plan and app version):
 
 | | Typical SEO plugins | SEO / GEO SaaS suites | Citebase |
 |---|---|---|---|
-| Setup | 3–5 API keys | Account + $100–500/mo | One "Sign in with Apify"; free mode needs nothing |
+| Setup | 3–5 API keys | Account + a monthly subscription | One "Sign in with Apify"; the site check and checklists need no account |
 | Goal | Rankings | Dashboards | **Getting cited and recommended by AI**; Google rankings support it |
 | Data | Whatever keys you pay for | Their index | Live: SERPs, keywords, backlinks, server-HTML audits, AI answers |
 | AI search | Checklists | Paid add-on | A frozen prompt panel run repeatedly across ChatGPT, Perplexity, Gemini, Claude and Google AI, reported as Recommendation Share with confidence intervals and control prompts |
-| Cost control | Unknown until the bill | Fixed plan | Quote before every call, a cap that Apify enforces per run, a daily ceiling, a ledger per site |
+| Cost control | Unknown until the bill | Fixed plan | Quote before every call; in Claude Code also a cap that Apify enforces per run, a daily ceiling and a ledger per site; on the web your assistant's own confirmation prompt |
 | After the audit | "Here are your issues" | Reports | Page plan, vetted link and PR targets, pitches, approval-gated outreach, experiments you can re-measure |
 | Advice quality | Generic | Generic | Every tactic graded A/B/C from ~600 expert videos; disputed ones labelled |
 
@@ -94,17 +96,17 @@ Creator, podcast and platform presence, the third leg of getting cited:
 
 ## What it costs
 
-Free without an account: the local crawler (30+ checks), all checklists, writing (page briefs, releases, emails), analysis of your own exports (Search Console, GA4, or exports from any SEO tool you already use).
+Needs no account: the local crawler (30+ checks), all checklists, writing (page briefs, releases, emails), analysis of your own exports (Search Console, GA4, or exports from any SEO tool you already use).
 
-Live data runs on your Apify account at each Actor's published price (read 2026-11-06; the agent re-checks before quoting):
+Live data runs on your Apify account at each Actor's published price (read 2026-11-07; the agent re-checks before quoting):
 
 | Workflow | ≈ Cost |
 |---|---|
 | Quick audit (server-HTML audit + 15 SERPs) | $0.13 |
 | Full audit (audit, SERPs, keywords, backlinks vs 3 competitors, link prospects, small AI check) | $7 |
 | Competitor research | $5 |
-| AI-visibility pilot (20 prompts × 3 engines × 1 run + 20 AI Overviews) | $5.10 |
-| AI-visibility baseline (same, 3 runs each) | $14.70 |
+| AI-visibility pilot (30 prompts × 3 engines × 1 run + 20 AI Overviews) | $7.50 |
+| AI-visibility baseline (same, 3 runs each) | $21.90 |
 | 100 link prospects with verified contacts | $0.63 |
 
 AI answers are the expensive part: brand checks cost $0.08 per prompt × engine × run, and the page-citation tracker $0.09 per keyword × query × engine (about $1 per keyword with defaults). Keyword and backlink Actors charge a per-request fee on top of per-row prices, so runs are batched. The agent quotes each run before starting. New Apify accounts include free monthly credit.
@@ -134,7 +136,7 @@ Settings (`/plugin configure citebase@citebase`):
 
 For assistants without plugins (ChatGPT, claude.ai, Cursor, any MCP client) this repo also contains an open-source MCP server in `connector/`, published as the Apify Actor `khadinakbar/citebase`.
 
-Connect it with the steps near the top of this page, then say: "Use Citebase to help me get my brand recommended by AI. Start with the start playbook."
+Connect it with the steps near the top of this page, then paste your website address and ask for a quick health check.
 
 | Tool | Returns |
 |---|---|
@@ -163,8 +165,9 @@ It reads server HTML only (it does not run JavaScript) and refuses private or lo
 
 ## Safety
 - Audits are read-only. Editing your site, spending, or contacting anyone needs your explicit go-ahead.
-- **Guardrails (Claude Code, inside a project that has `seo-workspace/`):**
-  - Apify runs are denied without `callOptions.maxTotalChargeUsd` (the only cap Apify enforces), for Actors outside `khadinakbar/*`, or past the daily ceiling.
+- **Guardrails (Claude Code):**
+  - The plugin's own Apify tools are gated in every folder. Apify runs are denied without `callOptions.maxTotalChargeUsd` (the only cap Apify enforces), for Actors outside `khadinakbar/*`, or past the daily ceiling.
+  - Email sends, campaign starts and purchases are checked only inside a project that has `seo-workspace/`. Outside one there is no suppression list, daily cap, pause switch or exact-text approval, so create `seo-workspace/<domain>/` before drafting outreach.
   - Emails are denied unless that exact text was approved, to a recipient not on the suppression list, within the daily cap and while sending is not paused; then you still confirm every send. Campaign starts ask for confirmation.
   - If the gate cannot read its input or state, it blocks instead of allowing.
 - **What these are not:** a security boundary. They do not run in hosts without hooks, a person can approve any prompt, campaign tools send on their own schedule (set the campaign's own limit), and two gated calls issued in the same turn can both pass the pre-check before either is recorded. The daily spend ceiling counts run caps, an upper bound, not the final bill.

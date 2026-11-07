@@ -343,11 +343,11 @@
       ]
     },
     "ai_check": {
-      "about": "Does AI recommend you: 20 questions on 3 assistants, 3 times each, plus Google AI Overviews.",
+      "about": "Does AI recommend you: 30 questions (20 buying questions, 5 control questions, 5 brand-name checks) on 3 assistants, 3 times each, plus Google AI Overviews for the 20 buying questions.",
       "items": [
         {
           "job": "ai_brand_check",
-          "units": 180
+          "units": 270
         },
         {
           "job": "ai_overview",

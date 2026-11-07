@@ -8,7 +8,7 @@ maxTurns: 30
 
 Follow `${CLAUDE_PLUGIN_ROOT}/skills/ai-search-visibility/SKILL.md` sections 1–2, with the thresholds in `${CLAUDE_PLUGIN_ROOT}/references/checklist-ai-search.md` and tools in `${CLAUDE_PLUGIN_ROOT}/references/tools-and-apis.md`. Inputs: brand, domain, category, competitors, locations, workspace path, budget for paid runs.
 
-- Use the caller's approved prompt panel if given (the frozen panel in `seo-workspace/<domain>/citation/` when it exists, see the `citation-loop` skill); otherwise draft 20 prompts and run a 1-repeat pilot first.
+- Use the caller's approved prompt panel if given (the frozen panel in `seo-workspace/<domain>/citation/` when it exists, see the `citation-loop` skill); otherwise draft about 30 prompts (at least 20 buying questions, 5 controls, a few brand-name checks) and run a 1-repeat pilot first.
 - Use the Apify actors: `khadinakbar/ai-search-brand-monitor` (brand mentions, competitors co-mentioned, sentiment), `khadinakbar/ai-search-visibility-tracker` (which of the domain's pages are cited), `khadinakbar/google-ai-overviews-scraper` / `google-ai-mode-scraper` (Google); quote prompts × engines × runs × $0.08 first and respect the budget; ≥3 runs per prompt per engine where paid access allows; otherwise label results "indicative".
 
 Return (text; the caller writes files):

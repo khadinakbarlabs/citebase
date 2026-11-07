@@ -29,7 +29,7 @@
       "title": "Tool arguments (JSON)",
       "type": "object",
       "editor": "json",
-      "description": "Inputs for the chosen tool as a JSON object. get_playbook {name?} e.g. {\"name\":\"start\"}. audit_site {url, max_pages?} e.g. {\"url\":\"https://example.com\"}. quote_cost {pack:\"starter\"} or {items:[{job,units,requests?}]}. measure_recommendation_share {panel,runs,...} or {project}. next_steps {audit?,report?,max_steps?}. check_outreach_draft {to,subject,body,...}. save_results {project, runs?, panel?, brand?, audit?}. get_history {project}. make_report {project}. import_ai_results {project, items, snapshot, save?}. schedule_checks {project, url, frequency?}. scheduled_check {project, url, max_pages?}: the site check + report refresh to run from an Apify Schedule. No credentials here. Defaults to {}.",
+      "description": "Inputs for the chosen tool as a JSON object. get_playbook {name?} e.g. {\"name\":\"start\"}. audit_site {url, max_pages?} e.g. {\"url\":\"https://example.com\"}. quote_cost {pack:\"starter\"} or {items:[{job,units,requests?}]}. measure_recommendation_share {panel,runs,brand?,...} or {project}. next_steps {audit?,report?,max_steps?}. check_outreach_draft {to,subject,body,...}. save_results {project, runs?, panel?, brand?, audit?}. get_history {project}. make_report {project}. import_ai_results {project, items, snapshot, save?}. schedule_checks {project, url, frequency?}. scheduled_check {project, url, max_pages?}: the site check + report refresh to run from an Apify Schedule. No credentials here. Defaults to {}.",
       "default": {},
       "prefill": {}
     }

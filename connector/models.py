@@ -52,6 +52,7 @@ class AuditResult(BaseModel):
     passed: list[str] = Field(description="Names of the checks that passed.")
     limits: str = Field(description="What this check can and cannot see. Repeat this to the user when it matters.")
     saved: Optional[dict[str, Any]] = Field(None, description="Set only when a project name was given: {project, saved_on, trend}. trend is {previous_date, previous_score, change} when an earlier check exists, else null. Null when nothing was saved.")
+    next: str = Field(description="One short line on what to offer next, for example asking for next_steps. Say it in your own words.")
 
 
 class QuoteLine(BaseModel):
@@ -78,19 +79,22 @@ class MeasureResult(BaseModel):
     snapshots: list[str] = Field(description="Snapshot names found in the runs, oldest first.")
     baseline: str = Field(description="Snapshot used as the starting point.")
     current: str = Field(description="Snapshot used as the latest.")
-    warnings: list[str] = Field(description="Reasons to be careful with the numbers (too few prompts, no controls...). Always tell the user.")
-    summary: dict[str, dict[str, Any]] = Field(description="Per engine (and 'all'): prompts, recommendation_share, rs_low, rs_high, mentioned_rate, cited_rate, control_false_positive, min_repeats. Rates are 0-1.")
-    change: dict[str, dict[str, Any]] = Field(description="Per engine (and 'all') change since the baseline: delta, low, high, verdict ('improved', 'worsened' or 'no detectable change'), control_drift. Empty when baseline equals current.")
-    experiments: list[dict[str, Any]] = Field(description="One entry per logged change: exp_id, mechanism, action, result (target_delta, other_delta, did, low, high, verdict 'supported'/'inconclusive'/'worse') and confounded.")
+    headline: Optional[str] = Field(None, description="One plain sentence with the headline number: how often AI recommends the brand in buying questions, with a likely range. Lead with it. Null when there are no buying questions.")
+    warnings: list[str] = Field(description="Reasons to be careful with the numbers (too few buying questions or controls, different engines or repeats, older counting, brand name inside a question, zero results...). Always tell the user.")
+    summary: dict[str, dict[str, Any]] = Field(description="Per engine (and 'all') for the latest round. prompts = buying questions (awareness and consideration) only. recommendation_share, rs_low, rs_high = the headline, 0-1. mentioned_rate, cited_rate, control_false_positive, min_repeats. reputation_share, reputation_low, reputation_high, reputation_prompts = the separate check on brand-name questions (null when none): show it apart from the headline. metric_version (2 = current counting) and older_metric (true = counted more loosely, do not compare with newer rounds). Rates are 0-1.")
+    change: dict[str, dict[str, Any]] = Field(description="Per engine (and 'all') change since the baseline: delta, low, high, min_detectable_points (smallest change the panel can reliably see), comparable, control_drift, note (may be empty) and verdict: 'improved', 'worsened', 'no detectable change', 'too early to tell' (the range could hide a real change), 'engines moved' (control questions moved the same way, so it may be the AI engines) or 'not comparable' (different counting versions). Empty when baseline equals current.")
+    smallest_change_points: Optional[int] = Field(None, description="Smallest change in whole percentage points this panel can reliably see, for example 14. Say it with any verdict. Null when unknown.")
+    experiments: list[dict[str, Any]] = Field(description="One entry per logged change: exp_id, mechanism, action, timing ('ok', 'before_baseline', 'after_current', 'undated' or 'rounds_not_separated' when both rounds carry the same dates; only 'ok' is scored), note (why it was not scored, else empty), confounded and confounded_with (ids of overlapping changes) and result (null when not scored; else target_delta, other_delta, did, low, high, others_excluded, engine_wide_likely, min_detectable_points, reading, verdict 'supported', 'inconclusive' or 'worse').")
     due: list[str] = Field(description="Changes old enough to re-measure now.")
     markdown: str = Field(description="Ready-to-show report in Markdown.")
     project: Optional[str] = Field(None, description="Project name the numbers came from. Set only when a saved project was used, else null.")
+    next: str = Field(description="One short line on what to offer next, for example saving results or a 30-day re-check. Say it in your own words.")
 
 
 class Step(BaseModel):
     step: str = Field(description="What to do, in plain words.")
     why: str = Field(description="Why it matters, in one sentence.")
-    who: str = Field(description="Who does it: 'you', 'your web developer', 'Claude'...")
+    who: str = Field(description="Who does it: 'you', 'your site builder or host', 'Claude'...")
     effort: str = Field(description="Rough time needed, for example '1 hour'.")
     urgency: Literal["now", "do first", "soon", "later"] = Field(description="When to do it.")
     based_on: str = Field(description="Which finding this step comes from.")
@@ -119,13 +123,15 @@ class SaveResult(BaseModel):
     brand: dict[str, Any] = Field(description="Brand details saved with the project (name, domain, competitors). Empty if none.")
     stored_in: str = Field(description="Where the data lives. Tell the user it is in their own Apify account.")
     audit_saved: Optional[dict[str, Any]] = Field(None, description="Set only when an audit was saved: {project, saved_on, trend}. trend is {previous_date, previous_score, change} when an earlier check exists, else null. Null when no audit was sent.")
+    warnings: list[str] = Field(default_factory=list, description="Things to fix in the question list, for example a buying question that names the brand. Tell the user. Empty when none.")
+    next: str = Field(description="One short line on what to offer next, for example a 30-day re-check or schedule_checks. Say it in your own words.")
 
 
 class HistoryResult(BaseModel):
     project: str = Field(description="Project name.")
     brand: dict[str, Any] = Field(description="Brand details saved with the project. Empty if none.")
     panel_prompts: int = Field(description="Number of test questions in the project.")
-    snapshots: list[dict[str, Any]] = Field(description="One entry per saved round, oldest first: snapshot, saved_on, prompts, recommendation_share, rs_low, rs_high, mentioned_rate, cited_rate. Rates are 0-1.")
+    snapshots: list[dict[str, Any]] = Field(description="One entry per saved round, oldest first: snapshot, saved_on, prompts (buying questions), recommendation_share, rs_low, rs_high (the headline), mentioned_rate, cited_rate, reputation_share and reputation_prompts (brand-name questions, shown apart), metric_version and older_metric (true = counted more loosely: do not compare with newer rounds). Rates are 0-1.")
     audits: list[dict[str, Any]] = Field(description="One entry per saved site check, oldest first: date, health_score, subscores.")
     experiments: list[dict[str, Any]] = Field(description="Logged changes: exp_id, date, action, mechanism, target_prompt_ids.")
     markdown: str = Field(description="Ready-to-show history tables in Markdown.")
@@ -144,8 +150,8 @@ class ReportLinkResult(BaseModel):
 class ImportResult(BaseModel):
     runs: list[dict[str, Any]] = Field(description="Converted rows, ready for save_results.")
     unmatched_queries: list[str] = Field(description="Questions in the results that are not in the project's list. They were skipped.")
-    needs_review: list[dict[str, Any]] = Field(description="Rows where 'recommended' is a close call, with the sentence around the mention. Read them with the user and fix with save_results replace=true if needed.")
-    summary: dict[str, int] = Field(description="Counts: rows, recommended, mentioned, cited, unmatched.")
+    needs_review: list[dict[str, Any]] = Field(description="Every mention that was not clearly positive, up to 25 (close calls first), each with a reason and the sentence around the mention. None of them is counted as recommended until reviewed. Read them with the user and fix with save_results replace=true if needed.")
+    summary: dict[str, int] = Field(description="Counts: rows, recommended, mentioned, cited, unmatched, and needs_review (the true total, even when only 25 are listed).")
     saved: Optional[dict[str, Any]] = Field(None, description="Result of saving, only when save was true, else null.")
 
 
@@ -164,6 +170,7 @@ class BrandInfo(BaseModel):
     name: str = Field(description="Brand name as people write it, for example 'Acme'.")
     domain: Optional[str] = Field(None, description="Main website domain, for example 'acme.com'. Defaults to none.")
     competitors: Optional[list[str]] = Field(None, max_length=20, description="Competitor brand names, for example ['Rival', 'Other Co']. Up to 20. Defaults to none.")
+    aliases: Optional[list[str]] = Field(None, max_length=20, description="Other ways people write the brand, for example ['AcmePay']. Used to warn when a buying question gives the brand away. Up to 20. Defaults to none.")
 
 
 class QuoteItem(BaseModel):
@@ -189,6 +196,7 @@ class RunRow(BaseModel):
     mentioned: bool = Field(False, description="True if the brand is named at all. Defaults to false.")
     cited: bool = Field(False, description="True if a brand-owned link is among the answer's sources. Defaults to false.")
     date: Optional[str] = Field(None, description="Date of the answer, YYYY-MM-DD, for example '2026-11-06'. Defaults to today.")
+    # metric_version (1 or 2) is also accepted. Leave it out for new answers: Citebase stamps the current version.
 
 
 class Experiment(BaseModel):
@@ -196,5 +204,5 @@ class Experiment(BaseModel):
     action: str = Field(description="What was changed, in plain words, for example 'Added the brand to two best-of lists'.")
     mechanism: Mechanism = Field("other", description="Kind of change, for example 'listicle' or 'onpage'. Defaults to 'other'.")
     target_prompt_ids: str = Field(description="Comma-separated prompt ids the change should help, for example 'p003,p007'.")
-    date: Optional[str] = Field(None, description="Date the change went live, YYYY-MM-DD. Defaults to today.")
-    recheck_after: Optional[str] = Field(None, description="Date to measure again, YYYY-MM-DD. Defaults to none.")
+    date: Optional[str] = Field(None, description="Date the change went live, YYYY-MM-DD. It must fall after the baseline round and on or before the latest round, or the change is not scored. Defaults to today.")
+    recheck_after: Optional[str] = Field(None, description="Date to measure again, YYYY-MM-DD. Defaults to 30 days after the change date.")

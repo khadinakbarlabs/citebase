@@ -19,16 +19,18 @@ SAVED = {"save_results", "get_history", "make_report", "import_ai_results", "sch
 ONE_SHOT_ONLY = {"scheduled_check"}  # meant for Apify Schedules; not offered as an MCP tool
 ALLOWED_ARGS = {
     **tools.ALLOWED_ARGS,
-    "measure_recommendation_share": {"panel", "runs", "baseline", "current", "experiments", "project"},
+    "measure_recommendation_share": {"panel", "runs", "baseline", "current", "experiments", "brand", "project"},
     "save_results": {"project", "runs", "panel", "experiments", "brand", "audit", "replace", "append"},
     "get_history": {"project"},
     "make_report": {"project"},
     "import_ai_results": {"project", "items", "snapshot", "save", "append", "replace"},
-    "schedule_checks": {"project", "url", "frequency", "max_pages", "panel", "brand", "platforms"},
+    "schedule_checks": {"project", "url", "frequency", "max_pages", "platforms"},  # panel and brand come from the project
     "scheduled_check": {"project", "url", "max_pages"},
 }
 TOOL_NAMES = sorted(set(tools.DISPATCH) | SAVED | ONE_SHOT_ONLY)
 AUDIT_SLOTS = asyncio.Semaphore(2)
+SAVE_NEXT_RUNS = "Saved. Re-check in 30 days to see what moved, or offer schedule_checks to run the checks automatically."
+SAVE_NEXT_AUDIT = "Saved. Check the site again in 30 days to see what moved, or offer schedule_checks to automate it."
 
 
 def flag(args: dict, name: str) -> bool:
@@ -55,9 +57,10 @@ async def save(project: str, runs: list[dict] | None, panel: list[dict] | None, 
         data = await hist.load_project(project) if await _exists(project) else None
         out = {"project": stg.clean_slug(project), "snapshots_saved": {}, "panel_prompts": len(data["panel"]) if data else 0,
                "snapshots_in_project": sorted(data["meta"]["snapshots"]) if data else [],
-               "brand": data["meta"].get("brand", {}) if data else {},
+               "brand": data["meta"].get("brand", {}) if data else {}, "warnings": [],
                "stored_in": "your own Apify account (key-value store 'citebase-projects')"}
     out["audit_saved"] = await hist.save_audit(project, audit_result) if audit_result else None
+    out["next"] = SAVE_NEXT_RUNS if runs else SAVE_NEXT_AUDIT
     return out
 
 
@@ -66,14 +69,15 @@ async def _exists(project: str) -> bool:
 
 
 async def measure(project: str | None, panel: list[dict] | None, runs: list[dict] | None, baseline: str = "",
-                  current: str = "", experiments: list[dict] | None = None) -> dict:
+                  current: str = "", experiments: list[dict] | None = None, brand: dict | None = None) -> dict:
     if not project:
-        return await asyncio.to_thread(tools.measure, panel or [], runs or [], baseline, current, experiments)
-    if panel or runs or experiments:
+        return await asyncio.to_thread(tools.measure, panel or [], runs or [], baseline, current, experiments, brand)
+    if panel or runs or experiments or brand:
         raise ValueError("With a project name, measure reads the saved results. Save new ones first with save_results, "
                          "or leave project empty to measure the data you send.")
     result = await hist.measure_project(project, baseline, current)
     result["project"] = stg.clean_slug(project)
+    result["next"] = tools.measure_next(result, saved=True)
     return result
 
 
@@ -116,12 +120,13 @@ async def run_tool(tool: str, arguments: dict | None) -> dict[str, Any]:
     extra = sorted(set(args) - ALLOWED_ARGS[tool])
     if extra:
         raise ValueError(f"'{tool}' does not take {', '.join(extra)}. It takes: {', '.join(sorted(ALLOWED_ARGS[tool]))}.")
+    tools.reject_non_finite(args)
     try:
         if tool == "audit_site":
             return await audit(args.get("url", ""), args.get("max_pages", 15))
         if tool == "measure_recommendation_share":
             return await measure(args.get("project"), args.get("panel"), args.get("runs"), args.get("baseline", ""),
-                                 args.get("current", ""), args.get("experiments"))
+                                 args.get("current", ""), args.get("experiments"), args.get("brand"))
         if tool == "save_results":
             return await save(args.get("project", ""), args.get("runs"), args.get("panel"), args.get("experiments"),
                               args.get("brand"), args.get("audit"), flag(args, "replace"), flag(args, "append"))
@@ -134,10 +139,12 @@ async def run_tool(tool: str, arguments: dict | None) -> dict[str, Any]:
                                         flag(args, "save"), flag(args, "append"), flag(args, "replace"))
         if tool == "schedule_checks":
             return await schedule(args.get("project", ""), args.get("url", ""), args.get("frequency", "weekly"),
-                                  args.get("max_pages", 15), args.get("panel"), args.get("brand"), args.get("platforms"))
+                                  args.get("max_pages", 15), None, None, args.get("platforms"))
         if tool == "scheduled_check":
             return await scheduled_check(args.get("project", ""), args.get("url", ""), args.get("max_pages", 15))
         return await asyncio.to_thread(tools.dispatch, tool, args)
+    except ArithmeticError as err:
+        raise ValueError(tools.NOT_FINITE_MESSAGE) from err
     except (TypeError, AttributeError, KeyError) as err:
         raise ValueError(f"The inputs for '{tool}' are the wrong shape ({type(err).__name__}). "
                          f"It takes: {', '.join(sorted(ALLOWED_ARGS[tool]))}.") from err

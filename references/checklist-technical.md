@@ -4,7 +4,7 @@
 
 ## Crawl and access
 - [auto] **robots.txt reachable, not over-broad.** `Disallow: /category` also blocks `/category-1` and `/category.html`.
-- [auto] **Googlebot, Bingbot and AI crawlers allowed** (GPTBot, OAI-SearchBot, ChatGPT-User, ClaudeBot, PerplexityBot, Google-Extended). ~5.9% of 140M sites block GPTBot; Cloudflare's managed robots.txt / AI-bot toggle can add blocks silently — check the CDN settings too. (A)
+- [auto] **Answer bots allowed; training bots are your choice.** Allow the bots that read pages to answer people: Googlebot, Bingbot, OAI-SearchBot, ChatGPT-User, PerplexityBot, Perplexity-User, Claude-SearchBot, Claude-User. Training-only bots (GPTBot, ClaudeBot, Google-Extended, CCBot, Applebot-Extended) are your choice: blocking them does not remove a site from search or AI answers and has no effect on being cited. Google-Extended is a robots.txt token, not a crawler. Check the CDN or bot-protection layer too: Cloudflare's managed robots.txt and AI-bot toggle can add blocks silently. (Each provider's own crawler documentation.)
 - [auto] **Content in server HTML.** H1, body, internal links and reviews must exist without JavaScript. ChatGPT's crawler does not render JS; Google renders late; JS review widgets are invisible to LLMs. Fix: SSR/SSG/prerendering. (B)
 - [agent] **Bing indexed + Bing Webmaster Tools + IndexNow.** ChatGPT search has used Bing's index and is reported to be building its own, so don't rely on Bing alone; Bing WMT's AI Performance report shows Copilot citations and grounding queries. (B)
 - [agent] **LLM fetch test**: ask an LLM with browsing to fetch the URL and describe it; a wrong summary = retrievability problem. (B)
@@ -44,7 +44,9 @@
 Freeze content ~1 month before; crawl before/after; preserve titles, canonicals, internal links and anchors; HTML sitemap; settle trailing slash; prioritise the 80/20 pages; re-check noindex after launch.
 
 ## Diagnosing drops: match the date to the update first
-2025–26 updates targeted scaled content abuse (AI or programmatic), thin affiliate, site-reputation abuse (Cointelegraph ~4M → ~75k clicks/mo after casino directories), expired-domain abuse, keyword stuffing, doorway pages, self-promotional listicles; directories lost "near me" in the May 2026 core update. Spam-update phases in March and September 2026 (reported in the analysed videos; verify dates in Google's status page) target AI-written scaled pages. Google's "Preferred Sources" setting became a global signal on 1 May 2026 as reported: being a source people choose to follow helps. Spam updates can hit a whole domain and every site in one GSC account. Rank-tracker data is distorted since Google removed `num=100` and added `goto` redirects — use GSC as ground truth.
+Check the dates in Google's Search Status Dashboard first, and say what Google stated, not what blogs infer. Dated fact: the September 2026 spam update ran 24 September to 8 October 2026; Google did not name a targeted technique and announced no new policies. Google's spam policies name scaled content abuse ("no matter how it's created"), site reputation abuse, expired domain abuse, doorway pages, link spam and keyword stuffing. A spam update can hit a whole domain and every site in one GSC account. Rank-tracker data is distorted since Google removed `num=100` and added `goto` redirects: use GSC as ground truth.
+
+**Reported, unconfirmed (C):** third-party blogs say the 2026 spam-update phases targeted AI-written scaled pages, and that directories lost "near me" results in the May 2026 core update. Neither is a Google statement. Preferred Sources is a setting readers control; Google says it applies to Top Stories and, per its May 2026 announcement, to AI surfaces too, and it is not a documented ranking factor. Never tell a user "your AI content was caught" unless Google said so.
 
 ---
 
@@ -55,7 +57,7 @@ Freeze content ~1 month before; crawl before/after; preserve titles, canonicals,
 4. **Reviews**: ask every customer; request descriptive reviews; drip via CRM/payment events (~10 min after service); reply to 100% with name/brand/service/location. Recency (#11 factor) beats count; customer-written keywords matter; diversify to Yelp (Gemini and ChatGPT cite Yelp/Angi/Thumbtack — ChatGPT largely ignores GBP), Facebook, niche directories. No gating, no incentives.
 5. **Geo-grid rank map** weekly at a fixed time; size so leaders show 60–90% top-3; track your top-3%.
 6. **Real address** (sub-lease with signage OK; PO box/virtual office violates guidelines). Service areas don't expand radius; prominence and real locations do.
-7. **Local links**: sponsorships (~$350–500, dofollow, ≥12 months), chambers ($100–300), local news, .edu sponsor tiers; close a ~10-link gap vs the top 3. Keep exact-match anchors to "five or so".
+7. **Local links**: earn them through sponsorships, chambers, local news and associations; close a ~10-link gap vs the top 3. Anything paid gets `rel="sponsored"` or `nofollow`, and if the publisher refuses that, don't buy it. Ask for a mention and a link, but never ask for a particular link type and don't tune anchors.
 8. **GBP upkeep**: weekly 250–300-char post + image, ≥10 real photos + 1/month, holiday hours, change alerts. GBP landing page usually the homepage.
 9. **City pages**: single-location sites with >20 city pages rarely rank; each needs unique local content.
 10. **Competitor watch**: monthly competitor list; keyword-stuffed GBP names can be reported with evidence.

@@ -6,6 +6,8 @@ argument-hint: "<domain> [release|pitch|reactive] [news/angle]"
 
 # Press releases and digital PR
 
+Talk like `../../references/plain-language.md`: plain words, and end each step with Done / Cost so far / Next, asking for one yes.
+
 Read `../../references/outreach-playbook.md` (§ Press releases, templates 1 and 9, hard rules) and `../../references/checklist-offpage.md` §C1–C2. Paid data runs follow the protocol in `../../references/tools-and-apis.md`.
 
 ## A. Press release

@@ -65,6 +65,31 @@ class ServerTests(unittest.TestCase):
             self.assertGreater(len(t["description"]), 100, t["name"])
             self.assertTrue(t["description"].rstrip().endswith("."), t["name"])
 
+    def test_served_arguments_match_what_run_accepts(self):
+        import runner
+        for t in self.rpc("tools/list")["result"]["tools"]:
+            self.assertEqual(set(t["inputSchema"].get("properties", {})), runner.ALLOWED_ARGS[t["name"]], t["name"])
+
+    def test_instructions_carry_the_fixed_safety_and_setup_sentences(self):
+        import server
+        import tools
+        self.assertIn(tools.DATA_NOT_INSTRUCTIONS, server.INSTRUCTIONS)
+        self.assertIn(tools.WEB_FALLBACK, server.INSTRUCTIONS)
+        self.assertIn(tools.SETUP_URL, server.INSTRUCTIONS)
+
+    def test_measure_over_mcp_returns_headline_next_and_brand_warning(self):
+        panel = [{"prompt_id": f"p{n:02d}", "prompt": f"best tool {n}", "type": "consideration"} for n in range(1, 21)]
+        panel[0]["prompt"] = "is Acme the best tool"
+        panel += [{"prompt_id": f"c{n}", "prompt": f"control {n}", "type": "control"} for n in range(1, 6)]
+        runs = [{"snapshot": "baseline", "prompt_id": p["prompt_id"], "platform": "chatgpt", "repeat": r,
+                 "recommended": p["prompt_id"] == "p02"} for p in panel for r in (1, 2, 3)]
+        out = self.call("measure_recommendation_share", {"panel": panel, "runs": runs, "brand": {"name": "Acme"}})
+        self.assertFalse(out.get("isError"), out)
+        data = out["structuredContent"]
+        self.assertTrue(data["headline"])
+        self.assertTrue(data["next"])
+        self.assertTrue(any("name the brand" in w for w in data["warnings"]), data["warnings"])
+
     def test_quote_cost_over_http(self):
         result = self.call("quote_cost", {"items": [{"job": "serp_page", "units": 15}]})
         self.assertFalse(result.get("isError"))

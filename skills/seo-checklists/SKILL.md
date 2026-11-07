@@ -6,6 +6,8 @@ argument-hint: "<site URL or domain> [onpage|offpage|technical|ai|all]"
 
 # Tailored SEO checklists
 
+Talk like `../../references/plain-language.md`: plain words, and end each step with Done / Cost so far / Next, asking for one yes.
+
 Sources of truth (read the relevant ones fully before writing):
 - `../../references/checklist-onpage.md`
 - `../../references/checklist-offpage.md`
