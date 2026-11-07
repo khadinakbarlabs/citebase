@@ -1,3 +1,56 @@
+## Connect Citebase to your AI assistant (MCP setup and sign-in)
+
+Citebase is an MCP server. Add it once, sign in once, then ask for help in plain words.
+
+**You need:** an Apify account and an assistant that supports MCP connectors (Claude, ChatGPT, Cursor and others). The account you sign in with pays the small run cost and any data jobs you approve.
+
+**Server address (use this everywhere):**
+
+```text
+https://mcp.apify.com/?actors=khadinakbar/citebase
+```
+
+**Two ways to sign in**
+
+| Way | Use it when | What you do |
+|---|---|---|
+| Apify sign-in (OAuth), recommended | Your assistant has a "Connect" or "Sign in" button. ChatGPT only supports this way. | Add the address, press Connect, sign in to Apify, press Allow. No token to copy. |
+| Apify API token | Your assistant or script cannot do OAuth | Send the header `Authorization: Bearer YOUR_APIFY_TOKEN`. Find the token in Apify Console under Settings, then API and integrations. |
+
+**Steps for each assistant** (menu names can differ a little by plan and app version)
+
+- **Claude (claude.ai and Claude Desktop):** open Settings, then Connectors, then Add custom connector. Name it `Citebase`, paste the address, press Connect and sign in to Apify.
+- **ChatGPT:** open Settings, then Connectors, turn on Developer mode, create a new connector, paste the address, choose OAuth, then sign in to Apify.
+- **Claude Code:** run this in your terminal, then type `/mcp` inside Claude Code, pick `citebase` and sign in.
+
+  ```bash
+  claude mcp add --transport http citebase "https://mcp.apify.com/?actors=khadinakbar/citebase"
+  ```
+
+  To use a token instead, add `--header "Authorization: Bearer YOUR_APIFY_TOKEN"` to that command.
+- **Cursor and other apps that use a JSON settings file:** add this block. Leave out `headers` to sign in with OAuth when the app supports it. Field names can differ slightly by app.
+
+  ```json
+  {
+    "mcpServers": {
+      "citebase": {
+        "url": "https://mcp.apify.com/?actors=khadinakbar/citebase",
+        "headers": { "Authorization": "Bearer YOUR_APIFY_TOKEN" }
+      }
+    }
+  }
+  ```
+- **Direct connection (advanced):** use this Actor's own Standby address (the one ending in `/mcp`, shown on this Actor's API tab in Apify Console). It needs the token header and does not offer a sign-in button.
+
+**Check that it works.** Ask: "Use Citebase to help me get my brand recommended by AI. Start with the start playbook." Your assistant should list 11 Citebase tools and read the start playbook. Nothing is charged for that first call apart from Apify's small run cost.
+
+**Keep your token safe.**
+- Prefer the sign-in route. A token gives access to your whole Apify account.
+- Never type a token into a chat or into a tool field. Citebase never asks for passwords or keys.
+- If a token leaks, delete it in Apify Console and make a new one.
+
+If sign-in fails, see the troubleshooting table near the end of this page.
+
 ## What is Citebase?
 
 Citebase is a connector that helps a brand get **recommended and cited by AI assistants** such as ChatGPT, Claude, Gemini and Perplexity. You connect it to your own AI assistant and ask for help in plain words. It returns step-by-step guidelines, a website health check, price quotes for paid data jobs, "how often does AI recommend me" results, a short to-do list, a check for outreach emails, saved history, a shareable report and a plan for automatic re-checks. Citebase itself adds no fee; the data jobs cost money and come from separate Actors listed below, always with a price quote and a spending cap first.
@@ -78,7 +131,7 @@ Every tool has a typed output schema, so an assistant can read the exact shape b
 
 ## Quick start and input
 
-1. In your assistant, add `https://mcp.apify.com/?actors=khadinakbar/citebase` as a custom MCP server and sign in with Apify. (Or connect to this Actor's Standby URL ending in `/mcp` with your Apify token.)
+1. Connect your assistant using the steps at the top of this page.
 2. Say: "Use Citebase to help me get my brand recommended by AI. Start with the start playbook."
 
 Plain JSON call, `POST /run` (what an assistant sends through `mcp.apify.com`):
