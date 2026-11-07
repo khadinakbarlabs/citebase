@@ -12,6 +12,50 @@ One sign-in with Apify. Every data call shows its price first, runs under a spen
 /citebase:start https://yourbrand.com
 ```
 
+## Connect Citebase to your AI assistant (MCP setup and sign-in)
+
+Citebase is also an MCP server, so it works in assistants without plugins. Add it once, sign in once, then ask for help in plain words.
+
+**You need:** an Apify account and an assistant that supports MCP connectors (Claude, ChatGPT, Cursor and others). The account you sign in with pays the small run cost and any data jobs you approve.
+
+**Server address (use this everywhere):**
+
+```text
+https://mcp.apify.com/?actors=khadinakbar/citebase
+```
+
+| Way to sign in | Use it when | What you do |
+|---|---|---|
+| Apify sign-in (OAuth), recommended | Your assistant has a "Connect" or "Sign in" button. ChatGPT only supports this way. | Add the address, press Connect, sign in to Apify, press Allow. No token to copy. |
+| Apify API token | Your assistant or script cannot do OAuth | Send the header `Authorization: Bearer YOUR_APIFY_TOKEN`. Find the token in Apify Console under Settings, then API and integrations. |
+
+Steps per assistant (menu names can differ a little by plan and app version):
+
+- **Claude (claude.ai and Claude Desktop):** Settings, then Connectors, then Add custom connector. Name it `Citebase`, paste the address, press Connect and sign in to Apify.
+- **ChatGPT:** Settings, then Connectors, turn on Developer mode, create a new connector, paste the address, choose OAuth, then sign in to Apify.
+- **Claude Code:** run the command below, then type `/mcp` inside Claude Code, pick `citebase` and sign in. To use a token instead, add `--header "Authorization: Bearer YOUR_APIFY_TOKEN"`.
+
+  ```bash
+  claude mcp add --transport http citebase "https://mcp.apify.com/?actors=khadinakbar/citebase"
+  ```
+- **Cursor and other apps with a JSON settings file:** add this block. Leave out `headers` to sign in with OAuth when the app supports it. Field names can differ slightly by app.
+
+  ```json
+  {
+    "mcpServers": {
+      "citebase": {
+        "url": "https://mcp.apify.com/?actors=khadinakbar/citebase",
+        "headers": { "Authorization": "Bearer YOUR_APIFY_TOKEN" }
+      }
+    }
+  }
+  ```
+- **Direct connection (advanced):** `https://khadinakbar--citebase.apify.actor/mcp`. It needs the token header and has no sign-in button.
+
+**Check that it works.** Ask: "Use Citebase to help me get my brand recommended by AI. Start with the start playbook." Your assistant should list 11 Citebase tools and read the start playbook.
+
+**Keep your token safe.** Prefer the sign-in route, because a token gives access to your whole Apify account. Never type a token into a chat or a tool field. If one leaks, delete it in Apify Console and make a new one.
+
 ## Why this one
 
 | | Typical SEO plugins | SEO / GEO SaaS suites | Citebase |
@@ -90,8 +134,7 @@ Settings (`/plugin configure citebase@citebase`):
 
 For assistants without plugins (ChatGPT, claude.ai, Cursor, any MCP client) this repo also contains an open-source MCP server in `connector/`, published as the Apify Actor `khadinakbar/citebase`.
 
-1. Add `https://mcp.apify.com/?actors=khadinakbar/citebase` as a custom MCP server and sign in with Apify (ChatGPT only supports this OAuth route, not a pasted token).
-2. Say: "Use Citebase to help me get my brand recommended by AI. Start with the start playbook."
+Connect it with the steps near the top of this page, then say: "Use Citebase to help me get my brand recommended by AI. Start with the start playbook."
 
 | Tool | Returns |
 |---|---|
