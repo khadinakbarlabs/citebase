@@ -1,0 +1,41 @@
+{
+  "name": "citebase",
+  "version": "0.4.0",
+  "description": "Citebase — Get Cited by AI (GEO & AEO MCP). Measure brand visibility on ChatGPT, Claude, Gemini & Perplexity; close citation gaps with SEO, PR and outreach. Live data; price before every run.",
+  "author": {
+    "name": "Khadin Akbar",
+    "email": "hello@khadinakbar.com"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/khadinakbarlabs/citebase",
+  "repository": "https://github.com/khadinakbarlabs/citebase",
+  "logo": "assets/logo-512.png",
+  "keywords": [
+    "citebase",
+    "get-cited-by-ai",
+    "geo",
+    "aeo",
+    "generative-engine-optimization",
+    "answer-engine-optimization",
+    "ai-seo",
+    "ai-citations",
+    "ai-visibility",
+    "chatgpt-citations",
+    "perplexity",
+    "claude",
+    "gemini",
+    "google-ai-overviews",
+    "seo",
+    "mcp",
+    "mcp-server",
+    "cursor-plugin",
+    "link-building",
+    "digital-pr",
+    "competitor-research",
+    "keyword-research",
+    "open-source"
+  ],
+  "hooks": {
+    "hooks": {}
+  }
+}

@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "apify": {
+    "citebase": {
       "type": "http",
-      "url": "https://mcp.apify.com/?tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,abort-actor-run"
+      "url": "https://mcp.apify.com/?actors=khadinakbar/citebase&tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,get-key-value-store-record,abort-actor-run"
     }
   }
 }
