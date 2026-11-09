@@ -9,7 +9,7 @@
   "license": "MIT",
   "homepage": "https://github.com/khadinakbarlabs/citebase",
   "repository": "https://github.com/khadinakbarlabs/citebase",
-  "logo": "assets/logo-512.png",
+  "logo": "assets/logo.svg",
   "keywords": [
     "citebase",
     "get-cited-by-ai",

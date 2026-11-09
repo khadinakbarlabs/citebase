@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="108" fill="#5856D6"/>
+  <rect x="118" y="128" width="276" height="220" rx="36" fill="#FFFFFF"/>
+  <path d="M190 348 L230 348 L210 390 Z" fill="#FFFFFF"/>
+  <text x="256" y="292" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="200" font-weight="700" fill="#5856D6">C</text>
+  <g transform="translate(360 118)">
+    <path d="M0 -28 L8 -8 L28 0 L8 8 L0 28 L-8 8 L-28 0 L-8 -8 Z" fill="#FFCC00"/>
+  </g>
+</svg>
