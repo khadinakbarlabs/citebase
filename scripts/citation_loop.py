@@ -5,7 +5,8 @@
   panel add DIR --prompt TEXT --type T      T = awareness | consideration | brand | control
                                             (--brand NAME warns if a non-brand question names the brand)
   panel list DIR | panel freeze DIR         freeze locks the panel (edits afterwards are refused)
-  ingest DIR --snapshot NAME --file F       append run results (JSON list or CSV) to runs.csv
+  ingest DIR --snapshot NAME --file F       append run results (JSON list or CSV) to runs.csv; optional columns say where
+                                            an answer came from: engine_version, country, language, device, source, answered_at
   experiment add|list|close DIR ...         log what you changed and when to re-measure
   report DIR [--baseline S] [--current S] [--json] [--brand NAME --domain D]
 
@@ -34,7 +35,8 @@ from collections import defaultdict
 
 PANEL_COLS = ["prompt_id", "prompt", "type", "topic"]
 RUN_COLS = ["run_id", "snapshot", "date", "prompt_id", "platform", "repeat", "mentioned", "cited",
-            "recommended", "position", "competitors", "cited_domains", "metric_version"]
+            "recommended", "position", "competitors", "cited_domains", "metric_version",
+            "engine_version", "country", "language", "device", "source", "answered_at"]
 EXP_COLS = ["exp_id", "date", "action", "mechanism", "target_prompt_ids", "url", "status", "recheck_after", "notes"]
 TYPES = ("awareness", "consideration", "brand", "control")
 MECHANISMS = ("onpage", "fact-page", "listicle", "review-site", "press", "reddit", "youtube", "directory",
@@ -56,6 +58,22 @@ DETECT_FACTOR = 2.8 / 3.92  # 80% power: smallest visible change is about 2.8 SE
 DRIFT_EPS = 0.005  # half a point: below this, movement in other prompts is treated as noise
 MIN_PEERS = 3  # fewest comparison prompts an experiment needs after leaving out other changes' targets
 MIN_TARGETS = 3  # fewer targeted prompts than this cannot separate a real change from noise
+
+# Where an answer came from. Old rows have none of these: they read as '' (unknown) and counting is unchanged.
+PROVENANCE = ("engine_version", "country", "language", "device", "source")
+PROVENANCE_LIMITS = {"engine_version": 80, "country": 40, "language": 40, "device": 40, "source": 40}
+ANSWERED_AT_LIMIT = 40
+FIELD_NOUN = {"engine_version": "model", "country": "country", "language": "language", "device": "device type",
+              "source": "collection method"}
+DIFFERENT = {"engine_version": "came from a different model", "country": "were asked from a different country",
+             "language": "were asked in a different language", "device": "were collected on a different device type",
+             "source": "were collected a different way"}
+MAX_CONTEXT_WARNINGS = 8
+ENGINE_NAMES = {"chatgpt": "ChatGPT", "perplexity": "Perplexity", "gemini": "Gemini", "claude": "Claude",
+                "google-aio": "Google AI Overviews", "google-aimode": "Google AI Mode"}
+# One answer per search, not a chat that varies run to run: the repeat minimum does not apply to these.
+SINGLE_ANSWER_ENGINES = frozenset({"google-aio", "google-aimode", "google-ai-overviews", "google-ai-mode",
+                                   "ai-overviews", "ai-mode", "aio", "aimode"})
 
 
 def path(d: str, name: str) -> str:
@@ -254,6 +272,25 @@ def cmd_panel(a) -> int:
     return 0
 
 
+def is_single_answer(engine) -> bool:
+    """True for single-answer search surfaces (Google AI Overviews, AI Mode): they are not held to MIN_REPEATS."""
+    return str(engine or "").strip().lower().replace("_", "-") in SINGLE_ANSWER_ENGINES
+
+
+def engine_name(engine: str) -> str:
+    return ENGINE_NAMES.get(str(engine).strip().lower(), str(engine))
+
+
+def clean_prov(field: str, value) -> str:
+    """One provenance value as short, comparable text: 'us' and 'US' are the same country, 'GPT-4o' and 'gpt-4o' the same model."""
+    if value is None or isinstance(value, (dict, list, tuple, set)):
+        return ""
+    text = " ".join(str(value).split())[:PROVENANCE_LIMITS[field]]
+    if field == "country":
+        return text.upper() if len(text) == 2 else text.title()
+    return text.lower()
+
+
 def normalise_run(raw: dict, panel: dict[str, dict], snapshot: str, n: int) -> dict:
     row = {ALIASES.get(k, k): v for k, v in raw.items()}
     pid = str(row.get("prompt_id", "")).strip()
@@ -266,12 +303,18 @@ def normalise_run(raw: dict, panel: dict[str, dict], snapshot: str, n: int) -> d
     version = int(row.get("metric_version") or METRIC_VERSION)
     if version < 1:
         raise ValueError("metric_version must be 1 or higher")
-    return {"run_id": f"r{n:05d}", "snapshot": snapshot, "date": row.get("date") or dt.date.today().isoformat(),
-            "prompt_id": pid, "platform": platform, "repeat": int(row.get("repeat") or 1),
-            "mentioned": max(to_bool(row.get("mentioned", 0)), rec), "cited": to_bool(row.get("cited", 0)),
-            "recommended": rec, "position": row.get("position", ""),
-            "competitors": row.get("competitors", ""), "cited_domains": row.get("cited_domains", ""),
-            "metric_version": version}
+    answered_at = " ".join(str(row.get("answered_at") or "").split())[:ANSWERED_AT_LIMIT]
+    day = parse_date(answered_at)
+    out = {"run_id": f"r{n:05d}", "snapshot": snapshot,
+           "date": row.get("date") or (day.isoformat() if day else dt.date.today().isoformat()),
+           "prompt_id": pid, "platform": platform, "repeat": int(row.get("repeat") or 1),
+           "mentioned": max(to_bool(row.get("mentioned", 0)), rec), "cited": to_bool(row.get("cited", 0)),
+           "recommended": rec, "position": row.get("position", ""),
+           "competitors": row.get("competitors", ""), "cited_domains": row.get("cited_domains", ""),
+           "metric_version": version}
+    out.update({field: clean_prov(field, row.get(field)) for field in PROVENANCE})
+    out["answered_at"] = answered_at
+    return out
 
 
 def cmd_ingest(a) -> int:
@@ -399,6 +442,9 @@ def snapshot_summary(runs, panel, snapshot, platform) -> dict | None:
         if r["snapshot"] == snapshot and on_platform(r, platform):
             reps[(r["prompt_id"], r["platform"])] += 1
     out["min_repeats"] = min(reps.values()) if reps else 0
+    # the 3-repeat rule looks only at assistants whose answers vary; None when there are none in scope
+    checked = [n for (_, engine), n in reps.items() if not is_single_answer(engine)]
+    out["min_repeats_checked"] = min(checked) if checked else None
     return out
 
 
@@ -528,8 +574,10 @@ def build_report(a) -> dict:
     elif overall.get("prompts", 0) < MIN_PROMPTS:
         rep["warnings"].append(f"Fewer than {MIN_PROMPTS} buying questions (awareness and consideration): "
                                "treat results as directional.")
-    if overall.get("min_repeats", 0) < MIN_REPEATS:
-        rep["warnings"].append(f"Some prompt/engine pairs have fewer than {MIN_REPEATS} repeats: answers vary run to run.")
+    short = short_repeat_engines(runs, cur)
+    if short:
+        rep["warnings"].append(f"Some prompt/engine pairs have fewer than {MIN_REPEATS} repeats ({', '.join(short)}): "
+                               "answers vary run to run.")
     n_controls = types.count("control")
     if n_controls == 0:
         rep["warnings"].append("No control prompts: you cannot separate real change from engine drift.")
@@ -549,14 +597,24 @@ def build_report(a) -> dict:
                                "mention as a recommendation, so the share may be overstated. Compare it only with "
                                "other older rounds.")
     if base != cur and base_engines != cur_engines:
-        rep["warnings"].append("The two rounds used different engines (baseline: " + ", ".join(sorted(base_engines)) +
-                               "; now: " + ", ".join(sorted(cur_engines)) + "). The 'all' change uses only the "
-                               "engines both rounds share.")
+        apart = base_engines ^ cur_engines
+        if apart and all(is_single_answer(e) for e in apart):
+            names = ", ".join(sorted(engine_name(e) for e in apart))
+            rep["warnings"].append(f"{names} ran in only one of the two rounds ({'baseline' if apart & base_engines else 'current'}"
+                                   " round). The 'all' change leaves it out and compares only the engines both rounds share.")
+        else:
+            rep["warnings"].append("The two rounds used different engines (baseline: " + ", ".join(sorted(base_engines)) +
+                                   "; now: " + ", ".join(sorted(cur_engines)) + "). The 'all' change uses only the "
+                                   "engines both rounds share.")
     if base != cur:
         rb, rc = (summary_repeats(runs, base), summary_repeats(runs, cur))
-        if rb != rc:
+        if rb is not None and rc is not None and rb != rc:
             rep["warnings"].append(f"The rounds used different numbers of repeats (baseline {rb}, now {rc}): "
                                    "the noise level differs, so read small changes with care.")
+    ctx_base, ctx_cur = round_context(runs, base), round_context(runs, cur)
+    rep["context"] = {"baseline": compact_context(ctx_base), "current": compact_context(ctx_cur)}
+    if base != cur:
+        rep["warnings"] += context_warnings(ctx_base, ctx_cur)
     rep["warnings"] += panel_warnings(panel, getattr(a, "brand_info", None) or brand_from_args(a))
     rep["headline"] = overall.get("headline", "")
     visible = [c["min_detectable_points"] for c in rep["change"].values() if c.get("min_detectable_points")]
@@ -566,13 +624,111 @@ def build_report(a) -> dict:
     return rep
 
 
-def summary_repeats(runs: list[dict], snapshot: str) -> int:
-    """Fewest repeats any prompt/engine pair has in a round."""
+def pair_repeats(runs: list[dict], snapshot: str) -> dict[tuple[str, str], int]:
+    """Answers per (prompt, engine) pair in a round."""
     reps: dict[tuple[str, str], int] = defaultdict(int)
     for r in runs:
         if r["snapshot"] == snapshot:
             reps[(r["prompt_id"], r["platform"])] += 1
-    return min(reps.values()) if reps else 0
+    return reps
+
+
+def summary_repeats(runs: list[dict], snapshot: str) -> int | None:
+    """Fewest repeats any prompt/assistant pair has in a round (single-answer engines are left out).
+    None when the round has no assistants."""
+    counts = [n for (_, engine), n in pair_repeats(runs, snapshot).items() if not is_single_answer(engine)]
+    return min(counts) if counts else None
+
+
+def short_repeat_engines(runs: list[dict], snapshot: str) -> list[str]:
+    """Assistants (not single-answer engines) that have a prompt with fewer than MIN_REPEATS answers in a round."""
+    short = {engine for (_, engine), n in pair_repeats(runs, snapshot).items()
+             if n < MIN_REPEATS and not is_single_answer(engine)}
+    return sorted(short)
+
+
+def round_context(runs: list[dict], snapshot: str) -> dict[str, dict]:
+    """What one round recorded about where its answers came from, per engine.
+
+    {engine: {"rows": n, "fields": {field: {"values": [recorded values, sorted], "blank": rows without it}}}}.
+    Rows saved before these fields existed count as blank."""
+    acc: dict[str, dict] = {}
+    for r in runs:
+        if r.get("snapshot") != snapshot:
+            continue
+        entry = acc.setdefault(str(r.get("platform") or ""), {"rows": 0, "values": {f: set() for f in PROVENANCE},
+                                                             "blank": dict.fromkeys(PROVENANCE, 0)})
+        entry["rows"] += 1
+        for field in PROVENANCE:
+            value = clean_prov(field, r.get(field))
+            if value:
+                entry["values"][field].add(value)
+            else:
+                entry["blank"][field] += 1
+    return {engine: {"rows": e["rows"], "fields": {f: {"values": sorted(e["values"][f]), "blank": e["blank"][f]}
+                                                   for f in PROVENANCE}} for engine, e in acc.items()}
+
+
+def compact_context(ctx: dict[str, dict]) -> dict[str, dict]:
+    """Short form of round_context for reports: {engine: {"answers": n, field: [values]}} with recorded fields only."""
+    out = {}
+    for engine, entry in ctx.items():
+        short = {"answers": entry["rows"]}
+        short.update({f: entry["fields"][f]["values"] for f in PROVENANCE if entry["fields"][f]["values"]})
+        out[engine] = short
+    return out
+
+
+def describe_context(compact: dict[str, dict]) -> str:
+    """'ChatGPT (gpt-4o, US), Perplexity' for a round's compact context."""
+    parts = []
+    for engine in sorted(compact):
+        shown = [v for f in PROVENANCE for v in compact[engine].get(f, [])]
+        parts.append(f"{engine_name(engine)} ({', '.join(shown)})" if shown else engine_name(engine))
+    return ", ".join(parts)
+
+
+def _nouns(fields: list[str]) -> str:
+    names = [FIELD_NOUN[f] for f in fields]
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def context_warnings(first: dict[str, dict], second: dict[str, dict], first_label: str = "baseline",
+                     second_label: str = "now", between: str = "between rounds", first_name: str = "the baseline",
+                     second_name: str = "the current round", limit: int = MAX_CONTEXT_WARNINGS) -> list[str]:
+    """Plain warnings for engines present in both contexts whose answers were not asked under the same conditions.
+
+    Says when a value differs, when a field is recorded on one side only, and when one side mixes values or records
+    a field for only some answers. Never refuses or relabels a comparison: these are cautions only."""
+    out: list[str] = []
+    for engine in sorted(set(first) & set(second)):
+        name = engine_name(engine)
+        missing = {first_name: [], second_name: []}
+        for field in PROVENANCE:
+            a, b = first[engine]["fields"][field], second[engine]["fields"][field]
+            noun = FIELD_NOUN[field]
+            if not a["values"] and not b["values"]:
+                continue
+            for side, label in ((a, first_name), (b, second_name)):
+                if not side["values"]:
+                    missing[label].append(field)
+                    continue
+                if len(side["values"]) > 1:
+                    out.append(f"{name} answers in {label} mix more than one {noun} ({', '.join(side['values'])}).")
+                if side["blank"]:
+                    out.append(f"{name}: only some of the answers in {label} record the {noun}, so a change in {noun} "
+                               "cannot be ruled out.")
+            if a["values"] and b["values"] and len(a["values"]) == 1 and len(b["values"]) == 1 and a["values"] != b["values"]:
+                out.append(f"{name} answers {DIFFERENT[field]} {between} ({first_label}: {a['values'][0]}; "
+                           f"{second_label}: {b['values'][0]}).")
+        for label, fields in missing.items():
+            if fields:
+                verb = "is" if len(fields) == 1 else "are"
+                out.append(f"{name}: the {_nouns(fields)} {verb} not recorded in {label}, so a change in "
+                           f"{'it' if len(fields) == 1 else 'them'} cannot be ruled out.")
+    if len(out) > limit:
+        out = out[:limit] + [f"{len(out) - limit} more differences in where the answers came from were left out of this list."]
+    return out
 
 
 def round_dates(runs: list[dict], snapshot: str) -> tuple[dt.date | None, dt.date | None]:
@@ -664,6 +820,13 @@ def render(rep: dict) -> str:
         lines += [""] + [f"- {n}" for n in notes]
         if rep.get("smallest_change_points"):
             lines += ["", f"Smallest change this panel can reliably see: about {rep['smallest_change_points']} points."]
+    context = rep.get("context") or {}
+    recorded = {k: describe_context(v) for k, v in context.items() if any(len(e) > 1 for e in v.values())}
+    if recorded:
+        lines += ["", "## Where the answers came from", ""]
+        if rep["baseline"] != rep["current"]:
+            lines.append(f"- {rep['baseline']}: {recorded.get('baseline') or 'not recorded'}")
+        lines.append(f"- {rep['current']}: {recorded.get('current') or 'not recorded'}")
     if rep["experiments"]:
         lines += ["", "## Experiments (target vs other prompts)"]
         for e in rep["experiments"]:

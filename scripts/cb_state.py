@@ -21,6 +21,7 @@ except ImportError:  # pragma: no cover
     fcntl = None
 
 KEEP_DAYS = 30
+DEFAULT_DAILY_SPEND_USD = 40.0  # must stay above the worst-case cap of the ai_check pack (about $30.82); a test checks it
 APPROVAL_TTL_HOURS = 48
 WORKSPACE_DIR = "seo-workspace"
 MAX_STRINGS = 20000  # bounds work on hostile, deeply nested tool input

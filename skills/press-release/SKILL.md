@@ -10,6 +10,9 @@ Talk like `../../references/plain-language.md`: plain words, and end each step w
 
 Read `../../references/outreach-playbook.md` (§ Press releases, templates 1 and 9, hard rules) and `../../references/checklist-offpage.md` §C1–C2. Paid data runs follow the protocol in `../../references/tools-and-apis.md`.
 
+## Web connector mode
+Keep the release and pitch drafts in chat (no `seo-workspace/pr/`). Paid journalist or news research: `quote_cost` then `call-actor` on `khadinakbar/*` only. Any pitch email goes through `outreach` — call `check_outreach_draft` before asking for a send yes. Nothing is published or wired without the user's explicit approval of plan and price.
+
 ## A. Press release
 Write for readers and journalists. Never write a release only to plant claims for AI to repeat, and never use cheap wire networks for that: it is a gaming tactic that spam updates target.
 

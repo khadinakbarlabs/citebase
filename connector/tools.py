@@ -17,6 +17,7 @@ from types import SimpleNamespace
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+import ai_content_lint as acl  # noqa: E402
 import cb_state as st  # noqa: E402
 import citation_loop as cl  # noqa: E402
 import site_audit as sa  # noqa: E402
@@ -35,17 +36,13 @@ WEB_FALLBACK = ("If there is no call-actor tool, tell the user to add the connec
                 f"the README: {SETUP_URL}")
 RECHECK_DAYS = 30  # same default as the command-line tool and saved projects
 WEB_NOTE = (
-    "WEB MODE. You are using Citebase through a connector, not the Claude Code plugin, so you cannot run local "
-    "scripts or save files. Replace these steps: site_audit.py -> call the audit_site tool. citation_loop.py -> call "
-    "measure_recommendation_share with the panel, runs and experiments as JSON. To keep progress between sessions "
-    "ask for a short project name and use save_results, get_history, make_report, import_ai_results and "
-    "schedule_checks (data goes to the user's own Apify account); without a project name nothing is kept. "
-    "outreach_ledger.py approve -> ask the user in chat to confirm the exact final text, and run "
-    "check_outreach_draft first. Paid data runs -> call-actor on the Apify connector with "
-    "callOptions.maxTotalChargeUsd set to the suggested_cap_usd from quote_cost. There is no automatic guard in this "
-    "mode, so follow the spending and approval rules yourself. Ignore steps about the seo-workspace folder and keep "
-    "notes in the conversation. " + DATA_NOT_INSTRUCTIONS + " Talk to the user in short, plain words. " +
-    WEB_FALLBACK + "\n\n"
+    "WEB MODE. No local scripts or files. Use audit_site (not site_audit.py), then next_steps with that audit. "
+    "For AI rounds: quote_cost (pack ai_check or a one-round custom quote) then call-actor, then "
+    "import_ai_results / measure_recommendation_share. check_ai_content for draft style; check_outreach_draft "
+    "before any email yes. Keep progress with a project name via save_results, get_history, make_report, "
+    "schedule_checks (user's Apify account). Paid runs: quote_cost then call-actor with "
+    "callOptions.maxTotalChargeUsd = suggested_cap_usd. Ignore seo-workspace steps; keep notes in chat. "
+    + DATA_NOT_INSTRUCTIONS + " Short plain words. " + WEB_FALLBACK + "\n\n"
 )
 
 
@@ -76,6 +73,23 @@ def playbook_paths() -> dict[str, str]:
     return out
 
 
+# Plain path assistants should follow for the product claim (get cited by AI). Kept short on purpose.
+JOURNEY = [
+    {"step": 1, "do": "Read playbook 'start', then call audit_site with the user's website.", "playbook": "start"},
+    {"step": 2, "do": "Call next_steps with that audit. Show at most five fixes in plain words.", "playbook": "start"},
+    {"step": 3, "do": "Offer a quoted AI recommend check (one-round ~$9 or pack ai_check ~$24). quote_cost first.",
+     "playbook": "ai-search-visibility"},
+    {"step": 4, "do": "After answers exist, measure_recommendation_share; save under a project name if they want history.",
+     "playbook": "citation-loop"},
+]
+# Show these first in the playbook index so assistants do not drown in the full list.
+FEATURED_PLAYBOOKS = (
+    "start", "ai-search-visibility", "citation-loop", "seo-audit",
+    "ai-content-check", "humanize-content", "content-optimize", "content-brief", "eeat-audit",
+    "outreach", "link-building", "platform-presence", "entity-seo",
+)
+
+
 def get_playbook(name: str | None = None) -> dict:
     paths = playbook_paths()
     if not name:
@@ -86,7 +100,10 @@ def get_playbook(name: str | None = None) -> dict:
             first = next((ln.lstrip("# ").strip() for ln in body.splitlines() if ln.strip()), "")
             items.append({"name": key, "kind": "skill" if "skills" in path else "reference",
                           "about": (meta.get("description") or first)[:220]})
-        return {"playbooks": items, "start_here": "start"}
+        rank = {n: i for i, n in enumerate(FEATURED_PLAYBOOKS)}
+        items.sort(key=lambda p: (rank.get(p["name"], 100), p["name"]))
+        return {"playbooks": items, "start_here": "start", "featured": list(FEATURED_PLAYBOOKS),
+                "journey": list(JOURNEY)}
     key = name.strip().lower()
     if key not in paths:
         raise ValueError(f"No playbook called '{name}'. Call get_playbook with no name to see the list. "
@@ -140,8 +157,9 @@ def run_audit(url: str, max_pages: int = 15, time_budget: float = 60.0) -> dict:
     summary = sa.summarise(checks)
     problems = [{"level": c["level"], "area": c["area"], "check": c["check"], "detail": c["detail"][:300],
                  "example_urls": c["urls"][:3]} for c in checks if c["level"] != "pass"][:25]
-    nxt = ("Ask for next_steps to turn this into a short to-do list, then check again in 30 days." if problems
-           else "Nothing to fix right now. Check again in 30 days to catch new problems.")
+    nxt = ("Call next_steps with this result, then offer a quoted AI recommend check (~$9 or pack ai_check)."
+           if problems else
+           "Site looks fine. Call next_steps, then offer a quoted AI recommend check.")
     return {"site": audit["origin"], "pages_checked": audit["crawled"], "health_score": summary["health_score"],
             "subscores": summary["subscores"],
             "counts": {k: summary[k] for k in ("fail", "warn", "pass")},
@@ -153,20 +171,63 @@ def run_audit(url: str, max_pages: int = 15, time_budget: float = 60.0) -> dict:
 
 
 # ---------------------------------------------------------------- costs
-def quote_cost(items: list[dict] | None = None, pack: str | None = None) -> dict:
+def _money(value: float) -> str:
+    """Whole cents, rounded up, for plain sentences ('$0.05'); never '$0.00' for an amount that is not zero."""
+    return f"${max(math.ceil(round(value * 100, 6)), 1) / 100:.2f}"
+
+
+def _times(event: dict, units: float, runs: int) -> float:
+    return (units if event["basis"] == "per_unit" else runs) * event.get("count", 1)
+
+
+def _job_parts(spec: dict, units: float, requests: int) -> dict:
+    """The parts of one line at its realistic worst case, in dollars.
+
+    Worst case means: every start event at the Actor's default run memory, the fallback rate where an Actor used it
+    in every sampled run, per-run events that are billed even when nothing comes back, and the Apify compute that some
+    Actors bill to the caller. Events that only happen sometimes (optional_events) are kept apart: they are not in the
+    total, but the spending cap covers them. A run that finds nothing (units 0) still pays its start events, its
+    per-run events and its per-run compute, but no per-result price and no per-request fee.
+    """
+    runs = max(requests, 1)
+    start_fee = spec.get("start_fee_usd", PRICES["start_fee_usd"])
+    parts = {
+        "start": runs * spec["start_events"] * start_fee,
+        "extras": sum(e["price_usd"] * _times(e, units, runs) for e in spec.get("extra_events", [])),
+        "optional": sum(e["price_usd"] * _times(e, units, runs) for e in spec.get("optional_events", [])),
+        "compute": runs * spec.get("usage_allowance_per_run", 0.0),
+        "results": 0.0,
+        "request_fees": 0.0,
+    }
+    if units > 0:
+        parts["results"] = units * spec.get("per_unit_worst", spec["per_unit"])
+        parts["request_fees"] = requests * spec["per_request"]
+        parts["compute"] += units * spec.get("usage_allowance_per_unit", 0.0)
+    return parts
+
+
+def _cap(base: float) -> float:
+    """Total x 1.3 rounded up to the cent, with a one-cent floor (rounding first so 0.1 x 1.3 is 13 cents, not 14)."""
+    return max(0.01, math.ceil(round(base * CAP_MULTIPLIER * 100, 6)) / 100)
+
+
+def quote_cost(items: list[dict] | None = None, pack: str | None = None, today: dt.date | None = None) -> dict:
+    today = today or dt.date.today()
     pack_about = None
-    if pack:
-        spec = (PRICES.get("packs") or {}).get(str(pack))
+    name = pack.strip().lower() if isinstance(pack, str) else pack
+    if name is not None and name != "":
+        spec = (PRICES.get("packs") or {}).get(name) if isinstance(name, str) else None
         if not spec:
-            raise ValueError(f"Unknown pack '{pack}'. Valid packs: {', '.join(sorted(PRICES.get('packs', {})))}. "
-                             "Or send items like {\"job\": \"serp_page\", \"units\": 15}.")
+            raise ValueError(f"There is no pack called '{str(pack)[:40]}'. The packs are: "
+                             f"{', '.join(PRICES.get('packs', {}))}. Or send items like {{\"job\": \"serp_page\", \"units\": 15}}.")
         if items:
             raise ValueError("Send either a pack or items, not both.")
         items, pack_about = [dict(i) for i in spec["items"]], spec["about"]
     if not items or len(items) > 50:
         raise ValueError("Send a pack name (for example 'starter') or between 1 and 50 items, each like "
                          "{\"job\": \"serp_page\", \"units\": 15}.")
-    lines, total = [], 0.0
+    lines, warnings = [], []
+    total = compute_total = runnable = runnable_optional = 0.0
     for item in items:
         job = str(item.get("job", ""))
         spec = PRICES["jobs"].get(job)
@@ -179,19 +240,47 @@ def quote_cost(items: list[dict] | None = None, pack: str | None = None) -> dict
             raise ValueError("'units' must be a number and 'requests' a whole number.") from err
         if not (0 <= units <= 1_000_000) or not (0 <= requests <= 1000):
             raise ValueError("'units' must be 0 to 1,000,000 and 'requests' 0 to 1,000.")
-        cost = units * spec["per_unit"] + (requests * spec["per_request"] if units > 0 else 0.0)
-        cost += PRICES["start_fee_usd"]
+        parts = _job_parts(spec, units, requests)
+        cost = parts["start"] + parts["extras"] + parts["compute"] + parts["results"] + parts["request_fees"]
         total += cost
-        lines.append({"job": job, "actor": spec["actor"], "units": units, "unit": spec["unit"], "requests": requests,
-                      "cost_usd": round(cost, 4)})
-    cap = max(0.01, math.ceil(total * CAP_MULTIPLIER * 100) / 100)
-    return {"pack": pack or None, "pack_about": pack_about, "lines": lines, "total_usd": round(total, 4),
-            "suggested_cap_usd": cap,
-            "how_to_run": "Tell the user the total, wait for a yes, then call-actor with "
-                          f"callOptions.maxTotalChargeUsd = {cap}. {WEB_FALLBACK}",
+        compute_total += parts["compute"]
+        line = {"job": job, "actor": spec["actor"], "units": units, "unit": spec["unit"], "requests": requests,
+                "cost_usd": round(cost, 4)}
+        if parts["compute"]:
+            line["compute_usd"] = round(parts["compute"], 4)
+        if units > 0 and spec.get("worst_note"):
+            line["note"] = spec["worst_note"]
+        effective = spec.get("effective_from")
+        if effective and dt.date.fromisoformat(effective) > today:
+            line["not_before"] = effective
+            warnings.append(f"{job.replace('_', ' ').capitalize()} ({spec['actor']}) cannot run until {effective}: "
+                            "Apify's fees for it are not live yet and the Actor refuses to run before then. It is "
+                            "priced for that date but is not included in the spending cap.")
+        else:
+            runnable += cost
+            runnable_optional += parts["optional"]
+        lines.append(line)
+    cannot_run_yet = bool(warnings)
+    cap = _cap(round(runnable, 4) + round(runnable_optional, 4)) if runnable else 0.0
+    if cap:
+        how_to_run = ("Tell the user the total, wait for a yes, then call-actor with "
+                      f"callOptions.maxTotalChargeUsd = {cap}. "
+                      + ("Run only the jobs that can run now; see warnings. " if cannot_run_yet else "") + WEB_FALLBACK)
+    else:
+        how_to_run = ("Do not run these yet: " + " ".join(warnings) + " Tell the user the date, and offer another "
+                      "way to get the same answer meanwhile. " + WEB_FALLBACK)
+    return {"pack": name or None, "pack_about": pack_about, "lines": lines, "total_usd": round(total, 4),
+            "suggested_cap_usd": cap, "how_to_run": how_to_run,
             "prices_read_on": PRICES["read_on"],
-            "heads_up": "Estimates use public prices; Apify may add small platform charges. Re-check prices with "
-                        "fetch-actor-details if more than a few days old."}
+            "includes_compute_usd": round(compute_total, 4) if compute_total else None,
+            "compute_note": (f"This total includes about {_money(compute_total)} of Apify compute, which Apify bills "
+                             "on top of the data prices." if compute_total else None),
+            "warnings": warnings,
+            "runnable_total_usd": round(runnable, 4) if cannot_run_yet else None,
+            "heads_up": (f"Prices are the public prices read on {PRICES['read_on']}, taken at the realistic worst case "
+                         "(every start fee, fallback rates and Apify compute). Whether Apify's spending cap also counts "
+                         "compute is unconfirmed, so the suggested cap is 30% above the total, high enough to cover it. "
+                         "Re-check with fetch-actor-details if these prices are more than a few days old.")}
 
 
 # ---------------------------------------------------------------- measurement
@@ -296,16 +385,151 @@ def clean_brand(brand: dict | None) -> dict | None:
 # ---------------------------------------------------------------- scheduling help
 FREQUENCIES = {"daily": ("0 8 * * *", "every day at 08:00"), "weekly": ("0 8 * * 1", "every Monday at 08:00"),
                "monthly": ("0 8 1 * *", "on the 1st of each month at 08:00")}
+ROUNDS_PER_MONTH = {"daily": 30, "weekly": 4.33, "monthly": 1}
+DEFAULT_REPEATS, MIN_REPEATS_SETTING, MAX_REPEATS_SETTING = 3, 1, 5  # repeats are for the assistants only
+MONITOR_MAX_QUERIES = 20  # the AI Brand Monitor takes at most 20 questions per platform in one run
+# Engines a schedule can plan, in the order a baseline round lists them. The assistants are checked by the AI Brand
+# Monitor (no repeat setting: a repeat is the same run added again); Google AI Overviews and AI Mode are one answer
+# per search, so they are planned once.
+ASSISTANT_ENGINES = ("perplexity", "chatgpt", "gemini", "claude")
+GOOGLE_ENGINES = {"google-aio": ("ai_overview", "Google AI Overviews"), "google-aimode": ("ai_mode", "Google AI Mode")}
+ENGINE_ORDER = (*ASSISTANT_ENGINES, *GOOGLE_ENGINES)
+PACK_ENGINES = ("perplexity", "chatgpt", "gemini", "google-aio")  # what the ai_check pack buys
+ENGINE_SPELLINGS = {"google-ai-overviews": "google-aio", "ai-overviews": "google-aio", "aio": "google-aio",
+                    "google-ai-mode": "google-aimode", "ai-mode": "google-aimode", "aimode": "google-aimode"}
+SEARCH_CONTEXT = {"country": "us", "language": "en", "device": "desktop"}  # the Google Actors' own defaults, written out
+NEED_SITE = ("Give the website address to check (url), for example https://example.com, or save the project's brand "
+             "with its website first.")
 
 
-def schedule_plan(project: str, url: str, frequency: str = "weekly", max_pages: int = 15,
-                  panel: list[dict] | None = None, brand: dict | None = None, platforms: list[str] | None = None) -> dict:
-    """Plain steps and ready-to-paste inputs for Apify Schedules (a run cannot create schedules for you)."""
+def clean_repeats(value: object) -> int:
+    """How many times each assistant answer is asked, 1 to 5. Raises ValueError for anything else."""
+    if value is None:
+        return DEFAULT_REPEATS
+    if isinstance(value, bool) or not isinstance(value, int) or not MIN_REPEATS_SETTING <= value <= MAX_REPEATS_SETTING:
+        raise ValueError(f"repeats must be a whole number from {MIN_REPEATS_SETTING} to {MAX_REPEATS_SETTING}. "
+                         f"Example: {DEFAULT_REPEATS}.")
+    return value
+
+
+def _engine_name(name: object) -> str:
+    key = str(name).strip().lower().replace("_", "-").replace(" ", "-")
+    return ENGINE_SPELLINGS.get(key, key)
+
+
+def plan_engines(platforms: list[str] | None, baseline_engines: list[str] | None) -> tuple[list[str], list[str]]:
+    """The engines a schedule checks, plus plain notes. A choice made by the user wins and is checked; otherwise the
+    engines of the project's first saved round are followed (so the rounds stay comparable); otherwise the pack's."""
+    notes: list[str] = []
+    if platforms:
+        names = [_engine_name(p) for p in platforms]
+        unknown = [str(p) for p, n in zip(platforms, names) if n not in ENGINE_ORDER]
+        if unknown:
+            raise ValueError(f"Unknown AI engine: {', '.join(repr(u[:30]) for u in unknown[:5])}. Choose from: "
+                             f"{', '.join(ENGINE_ORDER)}. Example: ['chatgpt', 'google-aio'].")
+        chosen = list(dict.fromkeys(names))
+    elif baseline_engines:
+        names = [_engine_name(e) for e in baseline_engines]
+        left_out = [str(e) for e, n in zip(baseline_engines, names) if n not in ENGINE_ORDER]
+        if left_out:
+            notes.append(f"Not planned: {', '.join(dict.fromkeys(left_out))}. Citebase cannot set up checks for "
+                         "that engine, so the next round will not include it.")
+        chosen = [e for e in ENGINE_ORDER if e in names]
+    else:
+        chosen = []
+    return (chosen or list(PACK_ENGINES)), notes
+
+
+def _batches(items: list[str], size: int) -> list[list[str]]:
+    """Splits a list into the fewest runs of at most `size`, as even as possible and in order."""
+    runs = math.ceil(len(items) / size)
+    per = math.ceil(len(items) / runs)
+    return [items[i:i + per] for i in range(0, len(items), per)]
+
+
+def _brand_domain(brand: dict) -> str:
+    domain = str(brand.get("domain") or "").strip()
+    if not domain and brand.get("site"):
+        domain = re.sub(r"^https?://", "", str(brand["site"]).strip(), flags=re.I).split("/")[0]
+    return domain[4:] if domain.lower().startswith("www.") else domain
+
+
+def _buying_questions(panel: list[dict]) -> list[str]:
+    """The questions Google AI Overviews and AI Mode are asked: the buying questions, like the ai_check pack.
+    A list without question types is sent whole."""
+    if not any(p.get("type") for p in panel):
+        return [p["prompt"] for p in panel if p.get("prompt")]
+    return [p["prompt"] for p in panel if p.get("prompt") and p.get("type") in cl.DISCOVERY_TYPES]
+
+
+def _planned_run(name: str, job: str, checks: int, times: int, run_input: dict) -> dict:
+    priced = quote_cost([{"job": job, "units": checks, "requests": 1}])
+    return {"name": name, "job": job, "actor": PRICES["jobs"][job]["actor"], "times": times, "input": run_input,
+            "checks_per_run": checks, "cost_per_run_usd": round(priced["total_usd"], 4),
+            "suggested_max_cost_usd": priced["suggested_cap_usd"]}
+
+
+def _ai_check_plan(panel: list[dict], brand: dict, engines: list[str], notes: list[str], repeats: int,
+                   frequency: str) -> dict:
+    prompts = [p["prompt"] for p in panel if p.get("prompt")]
+    domain = _brand_domain(brand)
+    runs = []
+    assistants = [e for e in engines if e in ASSISTANT_ENGINES]
+    if assistants:
+        batches = _batches(prompts, MONITOR_MAX_QUERIES)
+        for number, batch in enumerate(batches, 1):
+            where = f", questions {number} of {len(batches)}" if len(batches) > 1 else ""
+            run_input = {"brandName": brand["name"], "brandDomain": domain}
+            if brand.get("aliases"):
+                run_input["brandAliases"] = list(brand["aliases"])
+            run_input.update({"competitors": brand.get("competitors") or [], "platforms": assistants,
+                              "customQueries": batch, "querySelectionMode": "custom_only",
+                              "maxQueriesPerPlatform": len(batch)})
+            runs.append(_planned_run(f"AI assistants{where}", "ai_brand_check", len(batch) * len(assistants), repeats,
+                                     run_input))
+    buying = _buying_questions(panel)
+    for engine, (job, label) in GOOGLE_ENGINES.items():
+        if engine in engines and buying:
+            run_input = {"queries": buying, **({"targetDomain": domain} if engine == "google-aio" and domain else {}),
+                         "countryCode": SEARCH_CONTEXT["country"], "languageCode": SEARCH_CONTEXT["language"],
+                         "device": SEARCH_CONTEXT["device"]}
+            runs.append(_planned_run(label, job, len(buying), 1, run_input))
+    per_month = ROUNDS_PER_MONTH[frequency]
+    per_round = round(sum(r["cost_per_run_usd"] * r["times"] for r in runs), 4)
+    caps = sum(r["suggested_max_cost_usd"] * r["times"] for r in runs)
+    monthly, most = round(per_round * per_month, 2), round(caps * per_month, 2)
+    return {
+        "repeats": repeats, "engines": engines, "runs": runs,
+        "checks_per_round": sum(r["checks_per_run"] * r["times"] for r in runs),
+        "cost_per_round_usd": per_round, "estimated_cost_per_month_usd": monthly, "max_cost_per_month_usd": most,
+        "cost_note": (f"About {_money(monthly)} a month, worst case: it counts the highest prices seen so far and "
+                      f"Apify's own running costs. Each run's max cost stops that run going over; with all of them "
+                      f"set, the most a month can reach is {_money(most)}. Prices read on {PRICES['read_on']}."),
+        "import_context": dict(SEARCH_CONTEXT),
+        "notes": notes,
+        "after_it_runs": "In chat, say: 'import the latest scheduled AI results for this project'. Citebase converts "
+                         "them and adds them to your history. Put the results of all the runs of one round together "
+                         "in one import, under one round name, so every answer is counted."}
+
+
+def schedule_plan(project: str, url: str | None, frequency: str = "weekly", max_pages: int = 15,
+                  panel: list[dict] | None = None, brand: dict | None = None, platforms: list[str] | None = None,
+                  repeats: int | None = DEFAULT_REPEATS, baseline_engines: list[str] | None = None) -> dict:
+    """Plain steps and ready-to-paste inputs for Apify Schedules (a run cannot create schedules for you).
+
+    The AI checks are planned so that the round they produce is one the next measurement accepts without warnings:
+    the assistants run `repeats` times (the Brand Monitor has no repeat setting, so the run is added several times),
+    Google AI Overviews and AI Mode once, and the engines follow the project's first round unless the user chose."""
     if frequency not in FREQUENCIES:
         raise ValueError(f"frequency must be one of: {', '.join(FREQUENCIES)}. Example: 'weekly'.")
+    repeats = clean_repeats(repeats)
+    engines, notes = plan_engines(platforms, baseline_engines)
+    brand = brand if isinstance(brand, dict) else {}
+    site = str(url or "").strip() or str(brand.get("site") or "").strip() or str(brand.get("domain") or "").strip()
+    if not site:
+        raise ValueError(NEED_SITE)
     cron, when = FREQUENCIES[frequency]
-    checks_per_month = {"daily": 30, "weekly": 4.33, "monthly": 1}[frequency]
-    site_input = {"tool": "scheduled_check", "arguments": {"project": project, "url": _clean_url(url),
+    site_input = {"tool": "scheduled_check", "arguments": {"project": project, "url": _clean_url(site),
                                                            "max_pages": clamp_pages(max_pages)}}
     plan = {"frequency": frequency, "cron": cron, "when": when,
             "free_site_check": {"actor": "khadinakbar/citebase", "input": site_input,
@@ -317,20 +541,22 @@ def schedule_plan(project: str, url: str, frequency: str = "weekly", max_pages: 
                       "Add an Actor run for each Actor below: pick the Actor, paste its input, set the max cost "
                       "(Run options), and save.",
                       "Turn the schedule on. Results appear in your Apify account."]}
-    prompts = [p["prompt"] for p in (panel or []) if p.get("prompt")]
-    if prompts and brand and brand.get("name"):
-        engines = platforms or ["perplexity", "chatgpt", "gemini"]
-        checks = len(prompts) * len(engines)
-        per_run = round(checks * PRICES["jobs"]["ai_brand_check"]["per_unit"] + PRICES["start_fee_usd"], 4)
-        plan["ai_checks"] = {
-            "actor": "khadinakbar/ai-search-brand-monitor",
-            "input": {"brandName": brand["name"], "brandDomain": brand.get("domain") or "",
-                      "competitors": brand.get("competitors") or [], "platforms": engines, "customQueries": prompts,
-                      "querySelectionMode": "custom_only", "maxQueriesPerPlatform": len(prompts)},
-            "checks_per_run": checks, "cost_per_run_usd": per_run, "suggested_max_cost_usd": math.ceil(per_run * 1.3 * 100) / 100,
-            "estimated_cost_per_month_usd": round(per_run * checks_per_month, 2),
-            "after_it_runs": "In chat, say: 'import the latest scheduled AI results for this project'. Citebase "
-                             "converts them and adds them to your history."}
+    clean_panel = [p for p in (panel or []) if p.get("prompt")]
+    if clean_panel and brand.get("name"):
+        ai = _ai_check_plan(clean_panel, brand, engines, notes, repeats, frequency)
+        plan["ai_checks"] = ai
+        times = "once" if repeats == 1 else f"{repeats} times"
+        steps = plan["steps"]
+        steps[2:3] = [
+            "Add the site check (free_site_check) and then every entry of ai_checks.runs as its own Actor run: paste "
+            "its input and set its max cost (Run options).",
+            f"Add each entry as many times as its `times` says. The assistants run {times}, so every question is "
+            "asked that often; Google AI Overviews and Google AI Mode give one answer per search, so they run once."]
+        context = ai["import_context"]
+        steps.append("When you import a round, pass the run's country, language and device to import_ai_results as "
+                     f"`context` (this plan uses country {context['country']}, language {context['language']}, device "
+                     f"{context['device']}; Google AI Mode does not report them). If you change them in an input, pass "
+                     "what you used.")
     else:
         plan["ai_checks"] = None
         plan["note"] = ("AI-answer checks need the project's question list and brand details. Save results once with "
@@ -375,6 +601,16 @@ def _rule_for(check: str):
     return next((r for r in STEP_RULES if check.startswith(r[0])), None)
 
 
+def _ai_recommend_step(problems: list | None = None) -> dict:
+    """The product-claim step: always offered after a site check (quote before spend)."""
+    return {"step": "See whether ChatGPT and other AI assistants recommend you",
+            "why": "Citebase's main job is AI recommendations, not only site health. A small one-round test "
+                   "is about $9; a full baseline about $24. Always quote_cost first and wait for a yes.",
+            "who": "Claude, with your yes on the quote", "effort": "about 15 minutes once approved",
+            "urgency": "soon" if problems else "do first",
+            "based_on": "product goal: get cited by AI"}
+
+
 def next_steps(audit: dict | None = None, report: dict | None = None, max_steps: int = 5) -> dict:
     try:
         max_steps = max(1, min(int(max_steps), 10))
@@ -410,12 +646,84 @@ def next_steps(audit: dict | None = None, report: dict | None = None, max_steps:
         for due in report.get("due", []):
             steps.append({"step": f"Re-measure: {due}", "why": "Enough time has passed to see if the change worked.",
                           "who": "Claude", "effort": "about 15 minutes", "urgency": "now", "based_on": "experiment log"})
+    # First-time / empty call: point at the two front-door moves instead of only a 30-day habit.
+    if not audit and not report:
+        steps.extend([
+            {"step": "Check the website for search and AI-readiness problems",
+             "why": "A free site check finds blockers that stop AI tools from reading the brand.",
+             "who": "Claude", "effort": "about one minute", "urgency": "do first",
+             "based_on": "getting started"},
+            _ai_recommend_step(problems=None),
+        ])
+    # Product claim: after a site check, always keep one slot for the AI-recommend path even when
+    # the site has many problems (otherwise max_steps would crowd it out).
+    reserved: dict | None = None
+    if audit and not report:
+        reserved = _ai_recommend_step(audit.get("problems") or [])
     rank = {"now": 0, "do first": 1, "soon": 2}
     steps.sort(key=lambda s: rank.get(s["urgency"], 3))
-    steps = steps[:max_steps]
+    if reserved:
+        room = max(0, max_steps - 1)
+        steps = steps[:room] + [reserved]
+        steps.sort(key=lambda s: rank.get(s["urgency"], 3))
+        steps = steps[:max_steps]
+    else:
+        steps = steps[:max_steps]
     steps.append({"step": "Check again in 30 days", "why": "Changes take weeks to show up. A repeat check tells you what worked.",
                   "who": "Claude", "effort": "about 15 minutes", "urgency": "later", "based_on": "habit"})
-    return {"steps": steps, "tip": "Do the first one or two before anything else. Ask Claude to explain any step in simpler words."}
+    tip = ("Do the first one or two before anything else. Ask Claude to explain any step in simpler words.")
+    if not audit and not report:
+        tip = ("Start with a free site check when you have a URL, then a quoted AI recommend check. "
+               "Always show the quote and wait for a yes before paid runs.")
+    elif audit and not report:
+        tip = ("Fix blockers first if any, then check whether AI assistants recommend the brand. "
+               "Always show the quote and wait for a yes before paid runs.")
+    return {"steps": steps, "tip": tip}
+
+
+# ---------------------------------------------------------------- AI content lint
+MAX_AI_CONTENT_CHARS = 200_000
+DEFAULT_AI_THRESHOLD = acl.DEFAULT_THRESHOLD
+
+
+def check_ai_content(text: str, threshold: float = DEFAULT_AI_THRESHOLD) -> dict:
+    """Local style lint for AI-writing patterns. No network; not a commercial detector."""
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError("Paste the draft text to check, for example the body of an article.")
+    if len(text) > MAX_AI_CONTENT_CHARS:
+        raise ValueError(f"Text is too long (limit {MAX_AI_CONTENT_CHARS:,} characters). Send a shorter draft.")
+    try:
+        thr = float(threshold)
+    except (TypeError, ValueError, OverflowError) as err:
+        raise ValueError("threshold must be a number, for example 5.") from err
+    if not (0 < thr <= 100):
+        raise ValueError("threshold must be greater than 0 and at most 100 (hits per 1,000 words).")
+    hits, words = acl.lint_text(text, name="<draft>")
+    if words == 0:
+        return {"words": 0, "hit_count": 0, "density_per_1000_words": 0.0, "threshold": thr, "pass": False,
+                "hits": [], "by_pattern": [],
+                "limits": "Local style lint only. Finds known AI-writing patterns; not a commercial detector and "
+                          "does not call any API. No Citebase fee; no Apify spend.",
+                "next": "No prose to score (empty after skipping code fences). Paste article body text and retry."}
+    density = len(hits) / words * 1000
+    passed = density < thr
+    counts: dict[str, int] = {}
+    for hit in hits:
+        counts[hit["pattern"]] = counts.get(hit["pattern"], 0) + 1
+    by_pattern = [{"pattern": pid, "count": n} for pid, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
+    clean_hits = [{"line": h["line"], "pattern": h["pattern"], "name": h["name"], "match": h["match"]}
+                  for h in hits[:100]]
+    if passed:
+        nxt = ("Style looks fine under this threshold. Offer eeat-audit or content-optimize if they want a "
+               "trust or SEO pass next.")
+    else:
+        nxt = ("Density is over the threshold. Hand off to humanize-content (or rewrite the worst patterns "
+               "from by_pattern), then call check_ai_content again.")
+    return {"words": words, "hit_count": len(hits), "density_per_1000_words": round(density, 2),
+            "threshold": thr, "pass": passed, "hits": clean_hits, "by_pattern": by_pattern,
+            "limits": "Local style lint only. Finds known AI-writing patterns; not a commercial detector and "
+                      "does not call any API. No Citebase fee; no Apify spend.",
+            "next": nxt}
 
 
 # ---------------------------------------------------------------- outreach checks
@@ -501,12 +809,14 @@ DISPATCH = {
     "check_outreach_draft": lambda a: check_outreach_draft(a.get("to", []), a.get("subject", ""), a.get("body", ""),
                                                            a.get("suppressed"), a.get("sent_today", 0),
                                                            a.get("daily_cap", 20)),
+    "check_ai_content": lambda a: check_ai_content(a.get("text", ""), a.get("threshold", DEFAULT_AI_THRESHOLD)),
 }
 ALLOWED_ARGS = {
     "get_playbook": {"name"}, "audit_site": {"url", "max_pages"}, "quote_cost": {"items", "pack"},
     "measure_recommendation_share": {"panel", "runs", "baseline", "current", "experiments", "brand"},
     "next_steps": {"audit", "report", "max_steps"},
     "check_outreach_draft": {"to", "subject", "body", "suppressed", "sent_today", "daily_cap"},
+    "check_ai_content": {"text", "threshold"},
 }
 
 

@@ -14,7 +14,7 @@ class DispatchTests(unittest.TestCase):
     def test_every_tool_runs_by_name(self):
         self.assertIn("playbooks", tools.dispatch("get_playbook", {}))
         self.assertIn("text", tools.dispatch("get_playbook", {"name": "start"}))
-        self.assertEqual(tools.dispatch("quote_cost", {"items": [{"job": "serp_page", "units": 15}]})["suggested_cap_usd"], 0.04)
+        self.assertEqual(tools.dispatch("quote_cost", {"items": [{"job": "serp_page", "units": 15}]})["suggested_cap_usd"], 0.1)
         self.assertEqual(tools.dispatch("next_steps", {})["steps"][-1]["step"], "Check again in 30 days")
         out = tools.dispatch("check_outreach_draft", {"to": "a@b.com", "subject": "Hi there", "body": "short"})
         self.assertIn("ready", out)
@@ -37,7 +37,7 @@ class DispatchTests(unittest.TestCase):
                          tools.ALLOWED_ARGS["measure_recommendation_share"] | {"project"})
 
     def test_schedule_checks_takes_only_what_the_mcp_tool_takes(self):
-        self.assertEqual(runner.ALLOWED_ARGS["schedule_checks"], {"project", "url", "frequency", "max_pages", "platforms"})
+        self.assertEqual(runner.ALLOWED_ARGS["schedule_checks"], {"project", "url", "frequency", "max_pages", "platforms", "repeats"})
 
     def test_missing_arguments_default_to_empty(self):
         self.assertIn("playbooks", tools.dispatch("get_playbook", None))

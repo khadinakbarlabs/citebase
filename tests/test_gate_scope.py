@@ -50,7 +50,7 @@ class ToolNameTests(unittest.TestCase):
         url = load(".mcp.json")["mcpServers"]["apify"]["url"]
         tools = set(url.split("tools=")[1].split(","))
         self.assertEqual(tools, {"fetch-actor-details", "call-actor", "get-actor-run", "get-dataset-items",
-                                 "abort-actor-run"})
+                                 "get-key-value-store-record", "abort-actor-run"})
 
 
 class OutsideWorkspaceCase(GateCase):

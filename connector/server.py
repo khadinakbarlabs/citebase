@@ -30,16 +30,18 @@ import models as m  # noqa: E402
 import runner  # noqa: E402
 import tools  # noqa: E402
 
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 MAX_BODY = 2 * 1024 * 1024
 log = logging.getLogger("citebase")
 INSTRUCTIONS = (
     "Citebase helps a brand get recommended and cited by AI assistants such as ChatGPT, Claude, Gemini and Perplexity. "
-    "Start by calling get_playbook with name 'start', then follow it. Talk to the user in short, plain words. "
-    "Never spend money or send email without the user's clear yes. Paid data comes from the separate Apify connector; "
-    "use quote_cost first and pass its suggested cap to call-actor as callOptions.maxTotalChargeUsd. To keep progress "
-    "between sessions, ask the user for a project name and use save_results, get_history and make_report. "
-    "When showing Recommendation Share, lead with the headline and show the brand-name check separately. "
+    "Default path (one yes at a time): (1) get_playbook name='start', (2) audit_site when you have a URL, "
+    "(3) next_steps with that audit, (4) offer a quoted AI recommend check — one-round about $9 or pack ai_check "
+    "about $24 — only after quote_cost and a clear yes. Talk in short, plain words. Never spend money or send email "
+    "without the user's clear yes. Paid data uses the Apify connector: quote_cost first, then call-actor with "
+    "callOptions.maxTotalChargeUsd = suggested_cap_usd. Keep progress with a project name via save_results, "
+    "get_history and make_report. For drafts, check_ai_content is local and has no Citebase fee. When showing "
+    "Recommendation Share, lead with the headline and show the brand-name check separately. "
     + tools.DATA_NOT_INSTRUCTIONS + " " + tools.WEB_FALLBACK
 )
 READ_ONLY = ToolAnnotations(readOnlyHint=True, idempotentHint=True, openWorldHint=False)
@@ -53,7 +55,8 @@ TOOL_TEXT = {
         "Read Citebase's step-by-step guidelines for getting a brand recommended by AI assistants: workflows (start, "
         "seo-audit, citation-loop, outreach, link-building, press-release and more) and checklists. Use first, with "
         "name 'start', and whenever a task needs the exact steps. Not for running audits or prices: use audit_site or "
-        "quote_cost. Returns the list of names, or {name, text}. No Citebase fee."),
+        "quote_cost. Returns the list of names (featured first) plus start_here, featured and journey, or "
+        "{name, text} when a name is given. No Citebase fee."),
     "audit_site": (
         "Check a website",
         "Check one public website for search and AI-readiness problems: crawl rules, secure redirects, sitemap, titles, "
@@ -80,10 +83,10 @@ TOOL_TEXT = {
         "Not a substitute for reading the results first. Returns ranked steps plus a 30-day re-check reminder. No Citebase fee."),
     "save_results": (
         "Save progress",
-        "Save AI-answer results and/or a site check under a project name in the user's own Apify account, so progress "
-        "can be compared next month. Use after collecting a round of answers or running audit_site, once the user "
-        "agrees to a project name. Not for measuring: use measure_recommendation_share. The question list is frozen "
-        "after the first save; a round name that exists needs append or replace. Returns what was stored. No Citebase fee."),
+        "Save AI-answer results, the question list, brand details and/or a site check under a project name in the "
+        "user's own Apify account, so progress can be compared next month. Use after a round of answers or audit_site, "
+        "once the user agrees to a project name; the question list can go in first, alone. Not for measuring: use "
+        "measure_recommendation_share. The list is frozen after the first save. Returns what was stored. No Citebase fee."),
     "get_history": (
         "Show history",
         "Show a saved project's history: Recommendation Share per round with ranges, site health score over time and "
@@ -96,21 +99,28 @@ TOOL_TEXT = {
         "or teammate. Anyone with the link can open it; say so. Not for new measurements. Returns share_url. No Citebase fee."),
     "import_ai_results": (
         "Import AI check results",
-        "Convert results from an AI Brand Monitor run into Citebase rows for a saved project, so nobody has to retype "
-        "them. Use after a paid or scheduled AI-answer check. Not for running the check itself. Only clearly "
-        "positive mentions count as recommended; every other mention is listed in needs_review to read with the user. "
-        "Saves only when save is true. Returns rows, skipped questions and the review list. No Citebase fee."),
+        "Convert results of a paid or scheduled AI-answer check (AI Brand Monitor, Google AI Overviews, Google AI Mode "
+        "or the two tracker Actors) into Citebase rows. Use after the check, even for a first round: send panel and brand "
+        "with save true and the project is created in one step. Not for running the check. Only clearly positive "
+        "wording counts as recommended; other mentions go to needs_review and skipped items are counted. Returns "
+        "rows, the review list and skipped. No Citebase fee."),
     "schedule_checks": (
         "Plan automatic checks",
         "Give the exact steps and ready-to-paste inputs to run a project's site check and AI-answer checks on a "
-        "schedule (daily, weekly or monthly) in Apify Schedules, with the monthly cost. Use when the user wants "
-        "tracking to happen by itself. Not a scheduler: the user creates the schedule. Returns cron, inputs, costs. No Citebase fee."),
+        "schedule (daily, weekly or monthly) in Apify Schedules, so each round can be compared with the last. Use "
+        "when the user wants tracking to happen by itself. Not a scheduler: the user creates the schedule. Returns "
+        "cron, the Actor runs to add, and the worst-case monthly cost. No Citebase fee."),
     "check_outreach_draft": (
         "Check an outreach email",
         "Check one outreach email before sending: valid recipients, do-not-contact list, daily limit, leftover "
         "[brackets], length, spammy wording, opt-out line. Use for every cold email after drafting and before asking "
         "the user to approve. Not a sender: it never sends. Returns ready (true/false), problems to fix, warnings and "
         "a fingerprint of the exact text. No Citebase fee."),
+    "check_ai_content": (
+        "Check AI writing style",
+        "Lint a draft for known AI-writing patterns (stock phrases, filler vocabulary, density per 1,000 words). Use "
+        "before publishing or when the user asks if text sounds AI-generated. Not a commercial detector and never "
+        "calls an API. Returns density, pass/fail vs threshold, hits and counts by pattern. No Citebase fee."),
 }
 
 
@@ -196,7 +206,7 @@ def build_server() -> MCPServer:
     @tool("quote_cost", READ_ONLY)
     @friendly
     def quote_cost(
-            pack: Annotated[Optional[m.PackName], Field(description=(
+            pack: Annotated[Optional[str], Field(json_schema_extra=m.PACK_SCHEMA, description=(
                 "The easy way: a ready-made bundle, for example 'starter' (first look at a site), 'keywords', "
                 "'competitors', 'creators', 'local' or 'ai_check'. Use this unless the user wants something custom. "
                 "Defaults to none. NOT a job name."))] = None,
@@ -283,30 +293,53 @@ def build_server() -> MCPServer:
     @tool("import_ai_results", SAVE)
     @friendly
     async def import_ai_results(
-            project: Annotated[str, Field(description="Name of a saved project with a question list, for example 'acme-site'.")],
+            project: Annotated[str, Field(description=(
+                "Project name, for example 'acme-site'. For a new project also send panel (and brand) and save true."))],
             items: Annotated[list[dict[str, Any]], Field(min_length=1, max_length=5000, description=(
-                "The dataset items of an AI Brand Monitor run, passed as is, for example the list from get-dataset-items. 1 to 5,000 items. NOT a summary."))],
+                "The dataset items of an AI check run, passed as is, for example the list from get-dataset-items. "
+                "1 to 5,000 items. NOT a summary."))],
             snapshot: Annotated[str, Field(description=(
                 "Round name for these results, for example '2026-12' or 'baseline'. Letters, numbers, dashes."))],
             save: Annotated[bool, Field(description=(
                 "True to store the converted rows in the project. Defaults to false: only convert, so you can review "
                 "first."))] = False,
             append: Annotated[bool, Field(description="True to add to an existing round. Defaults to false.")] = False,
-            replace: Annotated[bool, Field(description="True to overwrite an existing round, only with the user's yes. Defaults to false.")] = False
+            replace: Annotated[bool, Field(description="True to overwrite an existing round, only with the user's yes. Defaults to false.")] = False,
+            panel: Annotated[Optional[list[m.PanelPrompt]], Field(max_length=200, description=(
+                "The test question list, exactly as used in the check. Needed only the first time (a project with no "
+                "saved list); after that it is frozen and must be identical or left empty. Up to 200 items. "
+                "Defaults to none."))] = None,
+            brand: Annotated[Optional[m.BrandInfo], Field(description=(
+                "Brand details, for example {\"name\": \"Acme\", \"domain\": \"acme.com\"}. Needed to judge Google AI "
+                "Mode results; saved with the project when save is true. Defaults to the brand already saved."))] = None,
+            context: Annotated[Optional[m.ImportContext], Field(description=(
+                "The country, language and device the check was run for, copied from the Actor's input, for results "
+                "that do not say (Google AI Mode does not). Defaults to none."))] = None
     ) -> m.ImportResult:
-        return m.ImportResult(**await runner.import_results(project, items, snapshot, save, append, replace))
+        brand_dict = brand.model_dump(exclude_none=True) if brand else None
+        context_dict = context.model_dump(exclude_none=True) if context else None
+        return m.ImportResult(**await runner.import_results(project, items, snapshot, save, append, replace, dump(panel),
+                                                            brand_dict, context_dict))
 
     @tool("schedule_checks", READ_ONLY)
     @friendly
     async def schedule_checks(
             project: Annotated[str, Field(description="Name of the project to schedule, for example 'acme-site'.")],
-            url: Annotated[str, Field(description="The site to check on schedule, for example 'https://example.com'.")],
+            url: Annotated[Optional[str], Field(description=(
+                "The site to check on schedule, for example 'https://example.com'. Defaults to the website saved with "
+                "the project; needed only when the project has none."))] = None,
             frequency: Annotated[str, Field(description="'daily', 'weekly' or 'monthly'. Defaults to 'weekly'.")] = "weekly",
             max_pages: Annotated[int, Field(ge=1, le=30, description="Pages per site check, 1 to 30. Defaults to 15.")] = 15,
             platforms: Annotated[Optional[list[str]], Field(max_length=10, description=(
-                "AI engines to check, for example ['perplexity', 'chatgpt', 'gemini']. Defaults to those three."))] = None
+                "AI engines to check, for example ['perplexity', 'chatgpt', 'gemini', 'google-aio', 'google-aimode']. "
+                "Defaults to the engines of the project's first saved round, or ChatGPT, Perplexity, Gemini and Google "
+                "AI Overviews."))] = None,
+            repeats: Annotated[int, Field(ge=1, le=5, description=(
+                "How many times each question is asked of the AI assistants (ChatGPT, Perplexity, Gemini), for example "
+                "3. Between 1 and 5. Google AI Overviews and AI Mode are asked once. Defaults to 3."))] = 3
     ) -> m.SchedulePlanResult:
-        return m.SchedulePlanResult(**await runner.schedule(project, url, frequency, max_pages, None, None, platforms))
+        return m.SchedulePlanResult(**await runner.schedule(project, url, frequency, max_pages, None, None, platforms,
+                                                            repeats))
 
     @tool("next_steps", READ_ONLY)
     @friendly
@@ -342,6 +375,17 @@ def build_server() -> MCPServer:
             daily_cap: Annotated[int, Field(ge=1, le=100000, description=(
                 "Most emails allowed per day, for example 20. Defaults to 20."))] = 20) -> m.OutreachResult:
         return m.OutreachResult(**tools.check_outreach_draft(to, subject, body, suppressed, sent_today, daily_cap))
+
+    @tool("check_ai_content", READ_ONLY)
+    @friendly
+    def check_ai_content(
+            text: Annotated[str, Field(max_length=200000, description=(
+                "The draft to lint, for example the full article body pasted as plain text or Markdown. "
+                "Code fences are skipped. NOT a file path and NOT a URL."))],
+            threshold: Annotated[float, Field(gt=0, le=100, description=(
+                "Max hits per 1,000 words before fail, for example 5. Between 0 exclusive and 100. "
+                "Defaults to 5."))] = 5.0) -> m.AiContentResult:
+        return m.AiContentResult(**tools.check_ai_content(text, threshold))
 
     @mcp.custom_route("/run", methods=["POST"])
     async def run(request):

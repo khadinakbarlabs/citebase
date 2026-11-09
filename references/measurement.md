@@ -15,6 +15,8 @@ Used by `skills/citation-loop`. The aim is a number you can trust enough to deci
 
 **What counts as recommended when answers are imported automatically:** only positive wording, and never negative wording. A mention position score says where the brand appeared in the answer, not whether it was recommended, so it never counts by itself. Every other mention goes to a review list with the sentence around it, because being named is not the same as being recommended.
 
+**Results from other checks.** Google AI Overviews, Google AI Mode and the two tracker Actors report sources and answer text but no wording to judge. Their results are read, with these rules: a listed source on the brand's site counts as *cited*; the brand named in the answer text counts as *mentioned*; neither is ever *recommended* by itself, and a position or rank never changes that. Each such row goes to the review list. Items that cannot be used (diagnostic rows, shapes that are not recognised, questions not in the panel, an AI that is not named, a brand that is needed but not known) are counted with a reason, not dropped quietly.
+
 **`metric_version`.** Every saved row carries the version of this counting rule (currently 2). A round saved without it (version 1) counted any non-negative mention as a recommendation and had brand-name questions in the headline. Version 1 and version 2 rounds are never compared with each other; the report says so and the change reads "not comparable".
 
 ## Why the design looks like this
@@ -29,12 +31,17 @@ Used by `skills/citation-loop`. The aim is a number you can trust enough to deci
 - **Zero and near-zero results.** When every prompt is at 0% the interval is a rule-of-three upper bound (about 3 divided by the number of prompts, so 15% for 20 prompts); at 100% it is a lower bound; when every prompt changed by exactly the same amount (including no change at all) the interval reaches about 3 divided by the number of prompts to either side. The report never prints a zero-width interval such as "0.0% (0.0% to 0.0%)". Read a zero as "below about X%".
 - **What this panel can see.** The report prints "smallest change this panel can reliably see: about N points", worked out from the width of the interval. When the interval includes zero but is wide enough to hide a change of 10 points or more, the verdict is "too early to tell" rather than "no detectable change".
 
+## Where an answer came from
+Each row can carry the model that answered (`engine_version`), `country`, `language`, `device`, how it was collected (`source`) and the full time (`answered_at`). They are copied from the results when the Actor reports them, and settings an Actor does not echo (Google AI Mode does not) can be passed once as `context`. Old rows have none of this and read as "not recorded". Counting does not change (`metric_version` stays 2).
+
+Two rounds are only really alike if they were asked under the same conditions. The report therefore warns, per engine, in plain words, when the model, country, language, device or collection method differs between the baseline and the current round ("ChatGPT answers came from a different model between rounds"), when one round records a field and the other does not ("not recorded in the baseline"), and when a round mixes values. It only warns: the verdict is never forced to "not comparable" for this, but read a small change with care. Saving more repeats into an existing round warns when they were collected under different conditions from the ones already saved.
+
 ## Minimums
-- 3 repeats per prompt and engine before quoting a number; below that the report warns that answers vary run to run.
+- 3 repeats per prompt for each assistant (ChatGPT, Perplexity, Gemini, Claude) before quoting a number; below that the report warns that answers vary run to run. Google AI Overviews and AI Mode are one answer per search, so one answer per question is normal there and the repeat minimum does not apply to them.
 - At least 20 buying questions (awareness and consideration), not counting brand-name or control questions.
 - At least 5 control prompts; fewer than 5 triggers a warning.
 - An experiment needs at least 3 targeted prompts (fewer is always "inconclusive") and at least 3 comparison prompts left after other changes' targets are set aside.
-- The same engines and the same number of repeats in every round. If they differ the report warns, and the overall change uses only the engines both rounds share.
+- The same engines and the same number of repeats (for the assistants) in every round. If they differ the report warns, and the overall change uses only the engines both rounds share.
 - Re-measure no sooner than 30 days after a change; new pages need time to be crawled, indexed and picked up, and some engines refresh slowly.
 
 ## What this cannot tell you

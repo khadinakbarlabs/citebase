@@ -13,7 +13,7 @@ ACTOR = os.path.join(ROOT, ".actor")
 sys.path.insert(0, os.path.join(ROOT, "connector"))
 HAVE_MCP = importlib.util.find_spec("mcp") is not None
 READ_TOOLS = {"get_playbook", "audit_site", "quote_cost", "measure_recommendation_share", "next_steps",
-              "check_outreach_draft", "get_history", "schedule_checks"}
+              "check_outreach_draft", "check_ai_content", "get_history", "schedule_checks"}
 WRITE_TOOLS = {"save_results", "make_report", "import_ai_results"}  # store things in the caller's own account
 TOOLS = READ_TOOLS | WRITE_TOOLS
 ONE_SHOT_ONLY = {"scheduled_check"}  # for Apify Schedules; not an MCP tool
@@ -314,7 +314,7 @@ class ServedSchemaTests(unittest.IsolatedAsyncioTestCase):
                 self.assertLess(len(text), 520, f"{name}.{key} too long")
 
     async def test_front_stays_small_and_simple(self):
-        self.assertLessEqual(len(self.tools), 11)  # new data sources are jobs/packs behind quote_cost, not new tools
+        self.assertLessEqual(len(self.tools), 12)  # new data sources are jobs/packs behind quote_cost, not new tools
         quote = self.dump(self.tools["quote_cost"])["inputSchema"]
         self.assertEqual(quote.get("required", []), [])  # a beginner can say "starter" and nothing else
         self.assertIn("starter", json.dumps(quote))
@@ -331,6 +331,21 @@ class ServedSchemaTests(unittest.IsolatedAsyncioTestCase):
             self.assertGreaterEqual(len(out.get("properties", {})), 2, name)
             for key, spec in out["properties"].items():
                 self.assertTrue(spec.get("description"), f"{name}.{key} output field has no description")
+
+    async def test_the_arguments_help_in_the_actor_files_names_every_served_argument(self):
+        """The two tools whose arguments grew in 0.4 are documented with every argument the server takes ('?' = optional)."""
+        texts = {"input_schema.json": load(".actor", "input_schema.json")["properties"]["arguments"]["description"],
+                 "web_server_openapi.json": load(".actor", "web_server_openapi.json")["paths"]["/run"]["post"]["description"]}
+        for tool in ("import_ai_results", "schedule_checks"):
+            served = set(self.dump(self.tools[tool])["inputSchema"]["properties"])
+            for name, text in texts.items():
+                found = re.search(rf"\b{tool} \{{([^}}]*)\}}", text)
+                self.assertIsNotNone(found, f"{name}: {tool} arguments are not listed")
+                listed = {a.strip().rstrip("?") for a in found.group(1).split(",")}
+                self.assertEqual(listed, served, f"{name}: {tool}")
+                required = set(self.dump(self.tools[tool])["inputSchema"].get("required", []))
+                self.assertEqual({a.strip() for a in found.group(1).split(",") if not a.strip().endswith("?")}, required,
+                                 f"{name}: {tool} optional marks")
 
     async def test_job_names_are_a_closed_list(self):
         schema = json.dumps(self.dump(self.tools["quote_cost"])["inputSchema"])

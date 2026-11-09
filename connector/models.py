@@ -14,7 +14,9 @@ import tools
 JOB_NAMES = tuple(sorted(tools.PRICES["jobs"]))
 JobName = Literal[JOB_NAMES]  # type: ignore[valid-type]
 PACK_NAMES = tuple(sorted(tools.PRICES.get("packs", {})))
-PackName = Literal[PACK_NAMES]  # type: ignore[valid-type]
+# The tool takes the pack name as text and checks it in quote_cost, so a wrong name gets a plain sentence listing the
+# valid ones. The list stays visible to clients through this schema.
+PACK_SCHEMA = {"anyOf": [{"type": "string", "enum": list(PACK_NAMES)}, {"type": "null"}]}
 PromptType = Literal["awareness", "consideration", "brand", "control"]
 Mechanism = Literal["onpage", "fact-page", "listicle", "review-site", "press", "reddit", "youtube", "directory",
                     "podcast", "creator", "schema", "llms-txt", "technical", "other"]
@@ -27,9 +29,17 @@ class PlaybookItem(BaseModel):
     about: str = Field(description="One-line summary of what the playbook is for.")
 
 
+class JourneyStep(BaseModel):
+    step: int = Field(description="Order in the default path, starting at 1.")
+    do: str = Field(description="What the assistant should do at this step, in plain words.")
+    playbook: str = Field(description="Playbook name to read for detail, for example 'start'.")
+
+
 class PlaybookResult(BaseModel):
     playbooks: Optional[list[PlaybookItem]] = Field(None, description="All playbooks. Set only when no name was given, else null.")
     start_here: Optional[str] = Field(None, description="Name of the playbook to read first. Set only when listing, else null.")
+    journey: Optional[list[JourneyStep]] = Field(
+        None, description="Default path to get a brand cited by AI. Set only when listing playbooks, else null.")
     name: Optional[str] = Field(None, description="Name of the playbook returned. Set only when a name was given, else null.")
     text: Optional[str] = Field(None, description="Full playbook text (Markdown). Set only when a name was given, else null.")
 
@@ -52,7 +62,7 @@ class AuditResult(BaseModel):
     passed: list[str] = Field(description="Names of the checks that passed.")
     limits: str = Field(description="What this check can and cannot see. Repeat this to the user when it matters.")
     saved: Optional[dict[str, Any]] = Field(None, description="Set only when a project name was given: {project, saved_on, trend}. trend is {previous_date, previous_score, change} when an earlier check exists, else null. Null when nothing was saved.")
-    next: str = Field(description="One short line on what to offer next, for example asking for next_steps. Say it in your own words.")
+    next: str = Field(description="One short line on what to do next: call next_steps with this result, then offer a quoted AI recommend check. Say it in your own words.")
 
 
 class QuoteLine(BaseModel):
@@ -61,7 +71,10 @@ class QuoteLine(BaseModel):
     units: float = Field(description="How many units were priced.")
     unit: str = Field(description="What one unit is, for example 'SERP page'.")
     requests: int = Field(description="How many separate runs (per-run fees are charged once per run).")
-    cost_usd: float = Field(description="Cost of this line in US dollars, including the tiny start fee.")
+    cost_usd: float = Field(description="Cost of this line in US dollars at its realistic worst case: results, start fees and any Apify compute.")
+    compute_usd: Optional[float] = Field(None, description="The part of cost_usd that is Apify compute billed on top of the data price. Missing when there is none.")
+    note: Optional[str] = Field(None, description="One plain sentence when this line is priced at a fallback rate. Missing otherwise.")
+    not_before: Optional[str] = Field(None, description="Date (YYYY-MM-DD) before which this job cannot run, because Apify's fees for it are not live yet. Missing when it can run now.")
 
 
 class QuoteResult(BaseModel):
@@ -69,10 +82,14 @@ class QuoteResult(BaseModel):
     pack_about: Optional[str] = Field(None, description="One plain sentence about what the pack gets you. Null when single jobs were priced.")
     lines: list[QuoteLine] = Field(description="One entry per priced job.")
     total_usd: float = Field(description="Total estimated cost in US dollars.")
-    suggested_cap_usd: float = Field(description="Spending cap to pass as callOptions.maxTotalChargeUsd (total x 1.3, rounded up to the cent).")
+    suggested_cap_usd: float = Field(description="Spending cap to pass as callOptions.maxTotalChargeUsd (total x 1.3, rounded up to the cent). It covers only the jobs that can run now and is 0 when none can.")
     how_to_run: str = Field(description="Plain instruction for running the jobs with the cap.")
     prices_read_on: str = Field(description="Date the public prices were read, YYYY-MM-DD.")
-    heads_up: str = Field(description="Caveat about estimates. Tell the user.")
+    heads_up: str = Field(description="Caveat about estimates, including that whether Apify's cap counts compute is unconfirmed. Tell the user.")
+    includes_compute_usd: Optional[float] = Field(None, description="Apify compute included in total_usd, in US dollars. Null when none is billed on top of the data prices.")
+    compute_note: Optional[str] = Field(None, description="One plain sentence saying how much of the total is Apify compute, for example 'This total includes about $0.05 of Apify compute...'. Say it to the user. Null when there is none.")
+    warnings: list[str] = Field(default_factory=list, description="Plain warnings, for example that a job cannot run until a date. Empty when there is nothing to warn about. Always tell the user.")
+    runnable_total_usd: Optional[float] = Field(None, description="Total of the jobs that can run now, in US dollars. Set only when some job cannot run yet, otherwise null.")
 
 
 class MeasureResult(BaseModel):
@@ -88,6 +105,7 @@ class MeasureResult(BaseModel):
     due: list[str] = Field(description="Changes old enough to re-measure now.")
     markdown: str = Field(description="Ready-to-show report in Markdown.")
     project: Optional[str] = Field(None, description="Project name the numbers came from. Set only when a saved project was used, else null.")
+    context: Optional[dict[str, Any]] = Field(None, description="Where each round's answers came from, for the baseline and the current round: per engine the number of answers and any recorded model, country, language, device and collection method. Engines with nothing recorded show only the answer count. Null when unknown.")
     next: str = Field(description="One short line on what to offer next, for example saving results or a 30-day re-check. Say it in your own words.")
 
 
@@ -115,6 +133,33 @@ class OutreachResult(BaseModel):
     next: str = Field(description="What to do next: show the user the text and wait for a yes.")
 
 
+class AiContentHit(BaseModel):
+    line: int = Field(description="1-based line number in the draft.")
+    pattern: str = Field(description="Pattern id, for example 'P35' or 'P36'.")
+    name: str = Field(description="Short name of the pattern, for example 'ai-vocabulary'.")
+    match: str = Field(description="The matching excerpt, truncated.")
+
+
+class AiContentPatternCount(BaseModel):
+    pattern: str = Field(description="Pattern id, for example 'P35'.")
+    count: int = Field(description="How many times this pattern fired.")
+
+
+class AiContentResult(BaseModel):
+    """Return shape for check_ai_content. Callers: connector/server.py check_ai_content tool."""
+    words: int = Field(description="Word count of the draft (code fences skipped).")
+    hit_count: int = Field(description="Total pattern hits found.")
+    density_per_1000_words: float = Field(description="Hits per 1,000 words. Lower is better.")
+    threshold: float = Field(description="Fail when density is at or above this number. Default 5.")
+    pass_: bool = Field(alias="pass", description="True when density is under the threshold.")
+    hits: list[AiContentHit] = Field(description="Up to 100 hits, earliest lines first.")
+    by_pattern: list[AiContentPatternCount] = Field(description="Hit counts grouped by pattern id, worst first.")
+    limits: str = Field(description="What this check is and is not. Tell the user in plain words.")
+    next: str = Field(description="What to offer next: rewrite, re-check, or a trust/SEO pass.")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class SaveResult(BaseModel):
     project: str = Field(description="Project name as saved (lower-case, dashes).")
     snapshots_saved: dict[str, int] = Field(description="Rows now stored per round, for example {'baseline': 54}.")
@@ -131,7 +176,7 @@ class HistoryResult(BaseModel):
     project: str = Field(description="Project name.")
     brand: dict[str, Any] = Field(description="Brand details saved with the project. Empty if none.")
     panel_prompts: int = Field(description="Number of test questions in the project.")
-    snapshots: list[dict[str, Any]] = Field(description="One entry per saved round, oldest first: snapshot, saved_on, prompts (buying questions), recommendation_share, rs_low, rs_high (the headline), mentioned_rate, cited_rate, reputation_share and reputation_prompts (brand-name questions, shown apart), metric_version and older_metric (true = counted more loosely: do not compare with newer rounds). Rates are 0-1.")
+    snapshots: list[dict[str, Any]] = Field(description="One entry per saved round, oldest first: snapshot, saved_on, prompts (buying questions), recommendation_share, rs_low, rs_high (the headline), mentioned_rate, cited_rate, reputation_share and reputation_prompts (brand-name questions, shown apart), metric_version and older_metric (true = counted more loosely: do not compare with newer rounds), engines (which AI engines answered) and context (per engine: answers and any recorded model, country, language, device and collection method; empty when nothing was recorded). Rates are 0-1.")
     audits: list[dict[str, Any]] = Field(description="One entry per saved site check, oldest first: date, health_score, subscores.")
     experiments: list[dict[str, Any]] = Field(description="Logged changes: exp_id, date, action, mechanism, target_prompt_ids.")
     markdown: str = Field(description="Ready-to-show history tables in Markdown.")
@@ -150,8 +195,12 @@ class ReportLinkResult(BaseModel):
 class ImportResult(BaseModel):
     runs: list[dict[str, Any]] = Field(description="Converted rows, ready for save_results.")
     unmatched_queries: list[str] = Field(description="Questions in the results that are not in the project's list. They were skipped.")
-    needs_review: list[dict[str, Any]] = Field(description="Every mention that was not clearly positive, up to 25 (close calls first), each with a reason and the sentence around the mention. None of them is counted as recommended until reviewed. Read them with the user and fix with save_results replace=true if needed.")
-    summary: dict[str, int] = Field(description="Counts: rows, recommended, mentioned, cited, unmatched, and needs_review (the true total, even when only 25 are listed).")
+    needs_review: list[dict[str, Any]] = Field(description="Every mention or citation that was not clearly positive, up to 25 (close calls first), each with a reason and the sentence around it. None of them is counted as recommended until reviewed. Read them with the user and fix with save_results replace=true if needed.")
+    summary: dict[str, int] = Field(description="Counts: rows, recommended, mentioned, cited, unmatched, skipped (all items left out, any reason) and needs_review (the true total, even when only 25 are listed).")
+    skipped: list[dict[str, Any]] = Field(default_factory=list, description="Items that were left out, grouped by reason: reason, count, why (plain words) and an example. Reasons: diagnostic (the check could not run for that engine), unknown_shape (not a result this tool reads), no_engine (does not say which AI answered), needs_brand (cannot judge without the brand), no_question_text, no_matching_question (not in the panel), not_an_item. Tell the user when anything was skipped.")
+    detected: dict[str, int] = Field(default_factory=dict, description="How many items were read from each kind of result, for example {'ai-brand-monitor': 90, 'google-ai-overviews': 20}.")
+    notes: list[str] = Field(default_factory=list, description="Plain remarks about this import, for example that Google AI Overviews results carry no wording to judge so they count as cited, not recommended, or that nothing was saved yet. Pass them on.")
+    context: Optional[dict[str, str]] = Field(None, description="The run settings that were used to fill in country, language or device the Actor did not report, or null when none were given.")
     saved: Optional[dict[str, Any]] = Field(None, description="Result of saving, only when save was true, else null.")
 
 
@@ -160,7 +209,7 @@ class SchedulePlanResult(BaseModel):
     cron: str = Field(description="Cron text to paste into the Apify schedule.")
     when: str = Field(description="The same schedule in plain words.")
     free_site_check: dict[str, Any] = Field(description="Actor, ready-to-paste input and cost of the free scheduled site check and report refresh.")
-    ai_checks: Optional[dict[str, Any]] = Field(None, description="Actor, input, cost per run, suggested max cost and monthly estimate for scheduled AI-answer checks. Null when the project has no questions or brand yet.")
+    ai_checks: Optional[dict[str, Any]] = Field(None, description="The scheduled AI-answer checks: repeats, engines, the Actor runs to add (each with its input, how many times to add it, cost and suggested max cost), checks and cost per round, the worst-case monthly estimate, and the country, language and device to pass as context when importing. Null when the project has no questions or brand yet.")
     steps: list[str] = Field(description="Plain steps for creating the schedule in Apify Console.")
     note: Optional[str] = Field(None, description="Why ai_checks is null, when it is. Null otherwise.")
 
@@ -171,6 +220,13 @@ class BrandInfo(BaseModel):
     domain: Optional[str] = Field(None, description="Main website domain, for example 'acme.com'. Defaults to none.")
     competitors: Optional[list[str]] = Field(None, max_length=20, description="Competitor brand names, for example ['Rival', 'Other Co']. Up to 20. Defaults to none.")
     aliases: Optional[list[str]] = Field(None, max_length=20, description="Other ways people write the brand, for example ['AcmePay']. Used to warn when a buying question gives the brand away. Up to 20. Defaults to none.")
+
+
+class ImportContext(BaseModel):
+    country: Optional[str] = Field(None, max_length=40, description="Country the checks were run for (the Actor's country setting), for example 'US'. Used only where the results do not say. Defaults to none.")
+    language: Optional[str] = Field(None, max_length=40, description="Language the checks were run in, for example 'en'. Used only where the results do not say. Defaults to none.")
+    device: Optional[str] = Field(None, max_length=40, description="Device type of the checks, for example 'desktop' or 'mobile'. Used only where the results do not say. Defaults to none.")
+    location: Optional[str] = Field(None, max_length=80, description="Place the checks were run for, for example 'Austin, Texas'. Noted in the import result but not stored on the rows. Defaults to none.")
 
 
 class QuoteItem(BaseModel):
@@ -195,7 +251,13 @@ class RunRow(BaseModel):
     recommended: bool = Field(description="True if the answer offers the brand as an option for the user's need with neutral-to-positive wording. NOT true for a passing mention or a warning.")
     mentioned: bool = Field(False, description="True if the brand is named at all. Defaults to false.")
     cited: bool = Field(False, description="True if a brand-owned link is among the answer's sources. Defaults to false.")
-    date: Optional[str] = Field(None, description="Date of the answer, YYYY-MM-DD, for example '2026-11-06'. Defaults to today.")
+    date: Optional[str] = Field(None, description="Date of the answer, YYYY-MM-DD, for example '2026-11-06'. Defaults to the date in answered_at, else today.")
+    engine_version: Optional[str] = Field(None, max_length=80, description="Which model answered, if known, for example 'gpt-4o'. Lets later rounds warn when the model changed. Defaults to unknown.")
+    country: Optional[str] = Field(None, max_length=40, description="Country the question was asked from, if known, for example 'US'. Defaults to unknown.")
+    language: Optional[str] = Field(None, max_length=40, description="Language the question was asked in, if known, for example 'en'. Defaults to unknown.")
+    device: Optional[str] = Field(None, max_length=40, description="Device type used, if known, for example 'desktop' or 'mobile'. Defaults to unknown.")
+    source: Optional[str] = Field(None, max_length=40, description="How the answer was collected, if the tool says, for example 'serpapi' or 'camoufox'. Defaults to unknown.")
+    answered_at: Optional[str] = Field(None, max_length=40, description="Full time of the answer, for example '2026-11-06T10:00:00Z'. Defaults to unknown.")
     # metric_version (1 or 2) is also accepted. Leave it out for new answers: Citebase stamps the current version.
 
 

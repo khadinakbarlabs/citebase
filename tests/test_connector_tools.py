@@ -18,11 +18,56 @@ class PlaybookTests(unittest.TestCase):
                          "tools-and-apis", "measurement"):
             self.assertIn(expected, names)
 
+    def test_index_includes_the_get_cited_journey(self):
+        out = tools.get_playbook()
+        self.assertEqual(out["start_here"], "start")
+        self.assertGreaterEqual(len(out["journey"]), 3)
+        self.assertEqual(out["journey"][0]["playbook"], "start")
+        self.assertTrue(any("audit_site" in step["do"] for step in out["journey"]))
+        self.assertEqual(out["featured"][0], "start")
+        self.assertEqual(out["playbooks"][0]["name"], "start")
+
     def test_skill_text_has_web_note_and_no_frontmatter(self):
         text = tools.get_playbook("start")["text"]
         self.assertTrue(text.startswith("WEB MODE"))
         self.assertNotIn("\nname: start", text)
         self.assertIn("audit_site", text)
+        self.assertIn("next_steps", text)
+
+    def test_core_skills_name_their_web_tools(self):
+        """Product path skills must tell web agents which connector tools to call (not only Actor IDs)."""
+        required = {
+            "start": ("audit_site", "next_steps", "quote_cost", "ai_check"),
+            "ai-search-visibility": ("quote_cost", "ai_check", "call-actor", "audit_site", "next_steps"),
+            "citation-loop": ("quote_cost", "ai_check", "import_ai_results", "measure_recommendation_share"),
+            "seo-audit": ("audit_site", "next_steps", "quote_cost"),
+            "seo-checklists": ("audit_site", "next_steps"),
+            "outreach": ("check_outreach_draft",),
+            "creator-outreach": ("quote_cost", "creators", "check_outreach_draft"),
+            "link-building": ("quote_cost", "call-actor", "check_outreach_draft"),
+            "press-release": ("quote_cost", "check_outreach_draft"),
+            "competitor-research": ("quote_cost", "competitors", "call-actor"),
+            "keyword-research": ("quote_cost", "keywords", "call-actor"),
+            "ai-content-check": ("check_ai_content",),
+            "humanize-content": ("check_ai_content",),
+            "eeat-audit": ("check_ai_content",),
+            "content-optimize": ("check_ai_content", "quote_cost"),
+            "content-brief": ("quote_cost", "keywords"),
+            "programmatic-seo": ("check_ai_content", "quote_cost"),
+            "entity-seo": ("quote_cost", "audit_site"),
+            "platform-presence": ("quote_cost", "call-actor"),
+            "directory-listings": ("quote_cost", "call-actor"),
+            "social-content": ("quote_cost", "check_ai_content"),
+            "social-listening": ("quote_cost", "call-actor"),
+        }
+        for name, needles in required.items():
+            text = tools.get_playbook(name)["text"]
+            self.assertIn("## Web connector mode", text, name)
+            for needle in needles:
+                self.assertIn(needle, text, f"{name} missing {needle}")
+        self.assertEqual(set(required), {p["name"] for p in tools.get_playbook()["playbooks"] if p["kind"] == "skill"})
+        self.assertIn("next_steps", tools.WEB_NOTE)
+        self.assertIn("ai_check", tools.WEB_NOTE)
 
     def test_reference_text_is_returned_without_web_note(self):
         self.assertFalse(tools.get_playbook("measurement")["text"].startswith("WEB MODE"))
@@ -39,9 +84,9 @@ class PlaybookTests(unittest.TestCase):
 class QuoteTests(unittest.TestCase):
     def test_serp_quote_and_cap(self):
         q = tools.quote_cost([{"job": "serp_page", "units": 15}])
-        self.assertAlmostEqual(q["total_usd"], 0.0271, places=4)
-        self.assertEqual(q["suggested_cap_usd"], 0.04)
-        self.assertIn("maxTotalChargeUsd = 0.04", q["how_to_run"])
+        self.assertAlmostEqual(q["total_usd"], 0.0721, places=4)  # 15 pages x ($0.0018 + about $0.003 of Apify compute) + start fee
+        self.assertEqual(q["suggested_cap_usd"], 0.1)
+        self.assertIn("maxTotalChargeUsd = 0.1", q["how_to_run"])
 
     def test_request_fee_is_counted_once_per_request(self):
         q = tools.quote_cost([{"job": "keyword_ideas", "units": 100, "requests": 1}])
@@ -55,7 +100,7 @@ class QuoteTests(unittest.TestCase):
     def test_cap_is_at_least_thirty_percent_above_total(self):
         q = tools.quote_cost([{"job": "ai_brand_check", "units": 180}, {"job": "ai_overview", "units": 20}])
         self.assertGreaterEqual(q["suggested_cap_usd"], q["total_usd"] * 1.3)
-        self.assertAlmostEqual(q["total_usd"], 14.7001, places=3)
+        self.assertAlmostEqual(q["total_usd"], 16.4002, places=3)  # 180 x $0.08 + 20 x $0.10 fallback rate + start fees
 
     def test_ai_check_pack_is_big_enough_for_the_measurement_minimums(self):
         """A user who buys the pack must not get 'fewer than 20 buying questions' on the first report."""
@@ -163,6 +208,24 @@ class NextStepsTests(unittest.TestCase):
 
     def test_always_ends_with_a_recheck_reminder(self):
         self.assertEqual(tools.next_steps(None)["steps"][-1]["step"], "Check again in 30 days")
+
+    def test_empty_call_offers_site_check_and_ai_path(self):
+        steps = tools.next_steps(None)["steps"]
+        texts = [s["step"] for s in steps]
+        self.assertTrue(any("website" in t.lower() for t in texts))
+        self.assertTrue(any("AI assistants recommend" in t for t in texts))
+        self.assertIn("quote", tools.next_steps(None)["tip"].lower())
+
+    def test_audit_without_report_offers_an_ai_recommend_check(self):
+        steps = tools.next_steps(self.audit)["steps"]
+        self.assertTrue(any("AI assistants recommend" in s["step"] for s in steps))
+        self.assertIn("quote", tools.next_steps(self.audit)["tip"].lower())
+
+    def test_ai_recommend_survives_many_site_problems(self):
+        audit = {"problems": [{"level": "warn", "check": f"x{i}", "detail": ""} for i in range(20)]}
+        steps = tools.next_steps(audit, max_steps=5)["steps"]
+        self.assertTrue(any("AI assistants recommend" in s["step"] for s in steps))
+        self.assertTrue(any(s["based_on"] == "product goal: get cited by AI" for s in steps))
 
     def test_low_recommendation_share_adds_a_step(self):
         report = {"summary": {"all": {"recommendation_share": 0.05, "control_false_positive": None}}, "due": []}

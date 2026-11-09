@@ -81,6 +81,17 @@ Steps per assistant (menu names can differ a little by plan and app version):
 | `competitor-research` | Real SERP competitors, keyword + backlink gaps, weak pages you can outrank, page plan |
 | `ai-search-visibility` | What AI says about you, cited domains, wrong facts, and a plan to get cited |
 | `citation-loop` | Frozen prompt panel → repeat runs → Recommendation Share → logged experiments → re-measure |
+| `ai-content-check` | Local AI-writing pattern lint (density score); web tool `check_ai_content` |
+| `humanize-content` | Rewrite drafts to read human while keeping facts, quotes and numbers |
+| `eeat-audit` | Score Experience / Expertise / Authoritativeness / Trust; white-hat fixes only |
+| `content-optimize` | Refresh a page for SEO + AI citation readiness with human voice |
+| `content-brief` | Entity-aware brief with outline, snippet answer and do-not-fabricate list |
+| `entity-seo` | Entity map, multi-entity JSON-LD, profile reinforcement, relationship checks |
+| `programmatic-seo` | Safe pSEO templates with data-sufficiency and anti-spam gates |
+| `platform-presence` | Genuine high-authority profiles (white-hat alternative to parasite SEO) |
+| `directory-listings` | Relevant directory / listing plan with consistent NAP and blurbs |
+| `social-content` | Organic LinkedIn / YouTube / Reddit / newsletter copy and short calendars |
+| `social-listening` | Reddit, YouTube and newsletter research → themes, questions, outreach leads |
 | `link-building` | Backlink audit, gap vs competitors, vetted prospects (listicles, resource pages, broken links, mentions) |
 | `press-release` | News angle → wire-ready release, journalists who covered the topic recently, data-led pitches |
 | `creator-outreach` | Influencers, YouTubers, podcasts, newsletters: find, vet with a score, honest disclosure, tracking |
@@ -89,27 +100,26 @@ Steps per assistant (menu names can differ a little by plan and app version):
 Specialist agents run in parallel with restricted tools: `technical-auditor`, `backlink-analyst`, `competitor-analyst`, `geo-analyst`, `outreach-writer` (drafts only, cannot send).
 
 ## Coming next
-Creator, podcast and platform presence, the third leg of getting cited:
-- `creator-outreach`: find and vet Instagram, TikTok and YouTube creators, draft pitches, track mentions.
-- `podcast-outreach`: find shows and hosts for guest spots.
-- `platform-presence`: your own brand pages on the high-authority platforms AI engines read (LinkedIn, YouTube, Reddit answers, Medium, review sites). Genuine presence only: no rented subfolders or bought placements on unrelated sites.
+- Cheaper AI-check tiers, alerts after scheduled runs, more engines, sentiment / share-of-voice.
+- Deeper crawls (JS rendering) through owned Apify Actors already in the price table.
+- Optional interoperability with open dashboards (Elmo / Ansvisor) as a planning layer — still Apify auth for Citebase.
 
 ## What it costs
 
 Needs no account: the local crawler (30+ checks), all checklists, writing (page briefs, releases, emails), analysis of your own exports (Search Console, GA4, or exports from any SEO tool you already use).
 
-Live data runs on your Apify account at each Actor's published price (read 2026-11-07; the agent re-checks before quoting):
+Live data runs on your Apify account at each Actor's published price (read 2026-11-08; the agent re-checks before quoting):
 
 | Workflow | ≈ Cost |
 |---|---|
-| Quick audit (server-HTML audit + 15 SERPs) | $0.13 |
-| Full audit (audit, SERPs, keywords, backlinks vs 3 competitors, link prospects, small AI check) | $7 |
-| Competitor research | $5 |
-| AI-visibility pilot (30 prompts × 3 engines × 1 run + 20 AI Overviews) | $7.50 |
-| AI-visibility baseline (same, 3 runs each) | $21.90 |
-| 100 link prospects with verified contacts | $0.63 |
+| Quick audit (server-HTML audit + 15 SERPs) | $0.17 |
+| Full audit (audit, SERPs, keywords, backlinks vs 3 competitors, link prospects, small AI check) | $8.70 |
+| Competitor research | $5.10 |
+| AI-visibility pilot (30 prompts × 3 engines × 1 run + 20 AI Overviews) | $9.20 |
+| AI-visibility baseline (same, 3 runs each) | $23.60 |
+| 100 link prospects with verified contacts | $0.94 |
 
-AI answers are the expensive part: brand checks cost $0.08 per prompt × engine × run, and the page-citation tracker $0.09 per keyword × query × engine (about $1 per keyword with defaults). Keyword and backlink Actors charge a per-request fee on top of per-row prices, so runs are batched. The agent quotes each run before starting. New Apify accounts include free monthly credit.
+AI answers are the expensive part: brand checks cost $0.08 per prompt × engine × run, Google AI Overviews $0.10 per query (the price Google's fallback route charged in every test run), and the page-citation tracker $0.09 per keyword × query × engine (about $1 per keyword with defaults). Apify also bills a small amount of compute on some jobs; it is included in the quote. Keyword and backlink Actors charge a per-request fee on top of per-row prices, so runs are batched. The agent quotes each run before starting. New Apify accounts include free monthly credit.
 
 ## Install
 
@@ -128,7 +138,7 @@ Settings (`/plugin configure citebase@citebase`):
 | Setting | Default | Meaning |
 |---|---|---|
 | `max_run_usd` | 2 | A run whose cap is higher asks you first |
-| `daily_spend_usd` | 25 | New runs are denied once today's caps add up to this |
+| `daily_spend_usd` | 40 | New runs are denied once today's caps add up to this |
 | `daily_send_cap` | 20 | Maximum recipients per day (to + cc + bcc) |
 | `allowed_actors` | empty | Extra `owner/name` Actors besides `khadinakbar/*` |
 
@@ -146,13 +156,14 @@ Connect it with the steps near the top of this page, then paste your website add
 | `measure_recommendation_share` | Recommendation Share with ranges, controls and experiment verdicts |
 | `next_steps` | A plain-language, ranked to-do list |
 | `check_outreach_draft` | Whether an email is ready to send, with fixes |
+| `check_ai_content` | AI-writing pattern density for a draft (local lint, not a commercial detector) |
 | `save_results` | Saves rounds and site checks under a project name in your own Apify account |
 | `get_history` | Progress over time: Recommendation Share, site score, logged changes |
 | `make_report` | One-page shareable report with a trend chart |
-| `import_ai_results` | Converts AI Brand Monitor output into saved rows |
-| `schedule_checks` | Steps and inputs for automatic re-checks in Apify Schedules |
+| `import_ai_results` | Converts results of AI Brand Monitor, Google AI Overviews, Google AI Mode and the tracker Actors into saved rows; a first round goes in with one call |
+| `schedule_checks` | Steps, the Actor runs to add (assistants repeated 1 to 5 times, Google answers once) and the worst-case monthly cost for automatic re-checks in Apify Schedules; the website comes from the saved project |
 
-All eleven add no fee of their own. Nothing is stored unless you give a project name; then it goes into a named store in your own Apify account. Each has described inputs, a typed output schema and tool annotations. Paid data comes from the author's public Apify Actors, listed with prices in `.actor/ACTOR_README.md`; the connector only quotes them and never runs them. Run your own copy with `apify push` from the repo root (`.actor/` holds the Actor settings, `connector/` the server). Tests: `python3 -m unittest discover tests` (install `mcp`, `pydantic`, `uvicorn` and `httpx` to include the server tests).
+All twelve add no fee of their own. Nothing is stored unless you give a project name; then it goes into a named store in your own Apify account. Each has described inputs, a typed output schema and tool annotations. Paid data comes from the author's public Apify Actors, listed with prices in `.actor/ACTOR_README.md`; the connector only quotes them and never runs them. Run your own copy with `apify push` from the repo root (`.actor/` holds the Actor settings, `connector/` the server). Tests: `python3 -m unittest discover tests` (install `mcp`, `pydantic`, `uvicorn` and `httpx` to include the server tests).
 
 ## Your workspace
 Everything is saved in your project under `seo-workspace/<domain>/`: `context.md`, `audit.json`, `report.md`, checklists, `competitors.md`, `keyword-opportunities.csv`, `ai-visibility.md`, `citation/` (panel, runs, experiments), `prospects.csv`, `drafts/`, `outreach-log.csv`, `offpage-log.csv`, `suppression.txt`, `pr/`, `ledger.json` (every paid run with quote, cap and actual cost). Add `seo-workspace/` to your `.gitignore` if your project is public: it holds contact lists and audit data.

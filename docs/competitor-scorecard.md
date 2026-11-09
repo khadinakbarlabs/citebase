@@ -31,7 +31,7 @@ Arithmetic from the prices above. Assumption: one "check" = one prompt on one en
 |---|---|---|
 | 60 checks a week (20 prompts, 3 engines, weekly) = about 260 a month | about **$21/mo** | Otterly Lite $29/mo |
 | Daily tracking, 20 prompts x 3 engines = 1,800 a month | about **$144/mo** | Otterly Lite $29/mo (15 prompts x 4 engines daily is 1,800), Peec Starter $95/mo (4,500 answers stated) |
-| A one-off baseline, 270 checks + 20 AI Overviews | **$21.90, once** | A month of any plan |
+| A one-off baseline, 270 checks + 20 AI Overviews | **$23.60, once** | A month of any plan |
 
 Reading it honestly:
 - At steady daily volume, subscriptions cost roughly **4 to 9 times less per check** than Citebase today (about $0.016 to $0.021 per check against $0.08).
@@ -55,10 +55,13 @@ Status: **Covered** = works today. **Partial** = works with limits. **Not yet** 
 | Statistical honesty (repeat runs, control questions, confidence ranges, change verdicts) | **Covered**, and a real differentiator | Not stated on the pages read |
 | Plain-language recommended actions | **Covered** (playbooks and `next_steps`) | Content or action recommendations on many plans |
 | Technical site audit | **Partial** (30+ checks, up to 30 pages, no JavaScript; larger crawls through the Actors) | Large crawls (for example 250,000 pages a month), JavaScript rendering on some |
-| Keyword research | **Covered** through the `keywords` pack (about $1.37), per row, no history | Large databases with history |
+| Keyword research | **Covered** through the `keywords` pack (about $1.42), per row, no history | Large databases with history |
 | Backlink research | **Covered** through a paid Actor | Own backlink databases |
 | Rank tracking over time | **Partial** (Bing and local rank checks are priced jobs behind `quote_cost`; no stored rank history yet) | Standard |
-| Writing and content optimisation editor | **Not yet** | Surfer, SE Ranking, Semrush |
+| Writing and content optimisation editor | **Partial** (local `content-brief`, `content-optimize`, `humanize-content`, `eeat-audit`, `ai-content-check`; no Surfer-style proprietary content score) | Surfer, Frase, SE Ranking, Semrush, Outrank |
+| Entity / Knowledge graph SEO | **Partial** (`entity-seo` playbook + schema hygiene in audit) | SearchAtlas / SEOmatic-style entity claims (verify on their pages) |
+| Programmatic SEO at scale | **Partial** (`programmatic-seo` with anti-spam gates; no auto-publish farm) | Outrank / proprietary pSEO suites |
+| Platform presence (vs parasite spam) | **Partial** (`platform-presence`; refuses rented-subfolder schemes) | Often sold as gray-hat elsewhere — Citebase will not |
 | Outreach and PR workflow | **Covered** (playbooks, email checker, never sends) | Mostly not included |
 | MCP and API | **Covered** | MCP on many plans (Peec, Otterly Standard+, Semrush Starter, Ahrefs, SE Ranking, Surfer) |
 | Open source | **Covered** (MIT) | Elmo, Ansvisor and GEO/AEO Tracker are also open source |

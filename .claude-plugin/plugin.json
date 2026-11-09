@@ -1,6 +1,6 @@
 {
   "name": "citebase",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "displayName": "Citebase — Get Cited by AI",
   "description": "Citebase — Get Cited by AI (GEO & AEO). Measure brand visibility on ChatGPT, Claude, Gemini & Perplexity; find citation gaps on live data; plan SEO, PR and outreach that close them. Price shown before every run; spending caps and a measurement loop re-check whether AI recommendations moved.",
   "author": {

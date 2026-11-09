@@ -10,12 +10,15 @@ Talk like `../../references/plain-language.md`: plain words, and end each step w
 
 Read `../../references/checklist-ai-search.md` first; it holds the model, thresholds and evidence. Tools per `../../references/tools-and-apis.md`.
 
+## Web connector mode
+No `seo-workspace/` here. Path: `audit_site` when you have a URL → `next_steps` → `quote_cost` with `pack: "ai_check"` (about $23.60; offer a smaller one-round custom quote first, about $9) → wait for a yes → `call-actor` with `callOptions.maxTotalChargeUsd = suggested_cap_usd` → hand the answers to `citation-loop` (`import_ai_results`, then `measure_recommendation_share`). Use this skill to decide *what to change* from those numbers. Auth is Apify OAuth/token only.
+
 ## 1. Prompt panel
 - **Measure with the `citation-loop` skill**: it owns the frozen panel (about 30 prompts: at least 20 buying questions, 5 controls, a few brand-name checks), the repeat runs and the Recommendation Share maths. Use this skill to decide *what to change* from those results. Draft prompts in customers' words: ~20% awareness, ~40% consideration ("best X for Y", "X vs Y", "alternatives to X", "cost of X in [city]"), ~20% brand ("is [brand] legit", "[brand] pricing", "[brand] vs [competitor]"), plus controls.
 - Pick the measurement path, cheapest viable first (all priced per the run protocol in `../../references/tools-and-apis.md`):
-  1. **Brand mentions + recommendations**: `khadinakbar/ai-search-brand-monitor` — `brandName`, `brandDomain`, `brandAliases`, `competitors`, `platforms`, `customQueries` (the panel), `querySelectionMode: custom_only`, `maxQueriesPerPlatform`; **$0.08 per prompt × platform**, so cost = prompts × platforms × repeats × $0.08 (20 × 3 × 3 = $14.40).
+  1. **Brand mentions + recommendations**: `khadinakbar/ai-search-brand-monitor` — `brandName`, `brandDomain`, `brandAliases`, `competitors`, `platforms`, `customQueries` (the panel), `querySelectionMode: custom_only`, `maxQueriesPerPlatform`; **$0.08 per prompt × platform**, so cost = prompts × platforms × repeats × $0.08 (20 × 3 × 3 = $14.40). On the web, prefer `quote_cost` pack `ai_check` instead of hand-pricing.
   2. **Page citations** (which of your URLs get cited): `khadinakbar/ai-search-visibility-tracker` — `targetDomain`, `keywords`, `competitorDomains`, `platforms`, `maxQueriesPerKeyword`; **$0.09 per keyword × query × platform**: with the defaults (3 queries, 4 platforms) that is $1.08 per keyword, so limit it to 5–10 priority keywords or lower `maxQueriesPerKeyword`/`platforms`. Source lists for a prompt: `khadinakbar/ai-citations-tracker` ($0.12 per Perplexity prompt).
-  3. **Google surfaces**: `khadinakbar/google-ai-overviews-scraper` ($0.015/query) and `khadinakbar/google-ai-mode-scraper` ($0.025/query).
+  3. **Google surfaces**: `khadinakbar/google-ai-overviews-scraper` ($0.015/query listed, $0.10 in practice) and `khadinakbar/google-ai-mode-scraper` ($0.025/query).
   4. No paid access: run a small manual sample and label results "indicative, n=small".
 - Run each prompt at least 3 times per engine; one run is an anecdote.
 

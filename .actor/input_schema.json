@@ -15,6 +15,7 @@
         "measure_recommendation_share",
         "next_steps",
         "check_outreach_draft",
+        "check_ai_content",
         "save_results",
         "get_history",
         "make_report",
@@ -29,7 +30,7 @@
       "title": "Tool arguments (JSON)",
       "type": "object",
       "editor": "json",
-      "description": "Inputs for the chosen tool as a JSON object. get_playbook {name?} e.g. {\"name\":\"start\"}. audit_site {url, max_pages?} e.g. {\"url\":\"https://example.com\"}. quote_cost {pack:\"starter\"} or {items:[{job,units,requests?}]}. measure_recommendation_share {panel,runs,brand?,...} or {project}. next_steps {audit?,report?,max_steps?}. check_outreach_draft {to,subject,body,...}. save_results {project, runs?, panel?, brand?, audit?}. get_history {project}. make_report {project}. import_ai_results {project, items, snapshot, save?}. schedule_checks {project, url, frequency?}. scheduled_check {project, url, max_pages?}: the site check + report refresh to run from an Apify Schedule. No credentials here. Defaults to {}.",
+      "description": "Inputs for the chosen tool as a JSON object. get_playbook {name?} e.g. {\"name\":\"start\"}. audit_site {url, max_pages?} e.g. {\"url\":\"https://example.com\"}. quote_cost {pack:\"starter\"} or {items:[{job,units,requests?}]}. measure_recommendation_share {panel,runs,brand?,...} or {project}. next_steps {audit?,report?,max_steps?}. check_outreach_draft {to,subject,body,...}. check_ai_content {text,threshold?}. save_results {project, runs?, panel?, brand?, audit?}. get_history {project}. make_report {project}. import_ai_results {project, items, snapshot, save?, append?, replace?, panel?, brand?, context?} reads results of AI Brand Monitor, Google AI Overviews, Google AI Mode and the tracker Actors (send panel and brand with save true to start a project in one step; context is the country, language and device of the run). schedule_checks {project, url?, frequency?, max_pages?, platforms?, repeats?} gives the Actor runs to add and the worst-case monthly cost; repeats is 1 to 5, default 3. scheduled_check {project, url, max_pages?}: the site check + report refresh to run from an Apify Schedule. No credentials here. Defaults to {}.",
       "default": {},
       "prefill": {}
     }

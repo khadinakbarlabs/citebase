@@ -8,8 +8,9 @@ the typed outputs and the plain-language error wrapper are all exercised. Storag
 check reads a local fixture server (tests/test_site_audit.py) and the paid AI check is a fixture list shaped like the
 AI Brand Monitor dataset items. Nothing touches the network, Apify or a real account.
 
-Links in the chain that do not fit together are kept as `known_gap` tests marked expectedFailure: the healthy parts
-stay green, and when a gap is fixed the test starts passing and the marker must be removed.
+Links in the chain that did not fit together were kept as `known_gap` tests marked expectedFailure while they were
+open; each one is now fixed and the marker is gone. The last one was the scheduled round (fixed in tools.schedule_plan,
+not in the import or measurement code).
 """
 import asyncio
 import importlib.util
@@ -91,6 +92,20 @@ def retyped_rows(items, snapshot, day):
     return rows
 
 
+def scheduled_items(plan, day):
+    """What the Apify Schedule would leave in the datasets for one round of this plan: every planned Actor run, added
+    as many times as the plan says, answered the way each Actor reports (the fixtures use the same shape as the
+    baseline, so only the plan decides whether the round matches)."""
+    items = []
+    for run in plan["ai_checks"]["runs"]:
+        queries = run["input"].get("customQueries") or run["input"]["queries"]
+        engines = run["input"].get("platforms") or [{"ai_overview": "google_ai_overviews", "ai_mode": "google-aimode"}[run["job"]]]
+        for _ in range(run["times"]):
+            items += [{"query": q, "platform": engine, "brand_mentioned": True, "sentiment": "positive",
+                       "scraped_at": day} for q in queries for engine in engines]
+    return items
+
+
 REVIEW_ITEMS = (  # mentions that are not clearly positive must be read by a person, never counted automatically
     {"query": "which invoicing app should a small studio pick 9", "platform": "chatgpt", "brand_mentioned": True,
      "sentiment": "neutral", "brand_mention_count": 1, "mention_context": "Fixturely is also an option.",
@@ -168,12 +183,14 @@ class GoldenJourney(ServerCase):
         self.assertTrue(audit["problems"])
         self.assertEqual(set(audit["counts"]), {"fail", "warn", "pass"})
 
-        # 2. next_steps takes the audit exactly as returned
+        # 2. next_steps takes the audit exactly as returned (plus the reserved AI-recommend step)
         steps = (await web.call("next_steps", audit=audit))["steps"]
         problem_checks = {f"site check: {p['check']}" for p in audit["problems"]}
+        allowed = problem_checks | {"product goal: get cited by AI"}
         self.assertEqual(steps[-1]["step"], "Check again in 30 days")
         self.assertTrue(all(s["why"] and s["who"] and s["effort"] for s in steps))
-        self.assertTrue({s["based_on"] for s in steps[:-1]} <= problem_checks)
+        self.assertTrue({s["based_on"] for s in steps[:-1]} <= allowed)
+        self.assertTrue(any(s["based_on"] == "product goal: get cited by AI" for s in steps))
         self.assertEqual(steps[0]["urgency"], "do first" if audit["counts"]["fail"] else "soon")
 
         # 3. quote the paid AI check; the priced units are exactly what the fixture dataset holds
@@ -245,8 +262,9 @@ class GoldenJourney(ServerCase):
         self.assertEqual(measured["experiments"][0]["result"]["verdict"], "supported")
         self.assertIn("improved", measured["markdown"])
         self.assertTrue(measured["next"])
-        # the only caution allowed is the known pack/repeat one (see test_known_gap_pack_round_...)
-        self.assertTrue(all("fewer than 3 repeats" in w for w in measured["warnings"]), measured["warnings"])
+        # a round bought exactly as the pack quotes it (one AI Overviews answer per question, 3 repeats for the
+        # assistants) carries no caution at all
+        self.assertEqual(measured["warnings"], [])
 
         # 8. next_steps takes the measurement exactly as returned, next to the audit
         combined = (await web.call("next_steps", audit=audit, report=measured))["steps"]
@@ -272,27 +290,30 @@ class GoldenJourney(ServerCase):
         for bad in ("<script", "<link", "<img"):  # self-contained page (problem details may quote the audited address)
             self.assertNotIn(bad, page)
 
-        # 10. the schedule reuses the saved questions and brand; its queries are the exact panel text
+        # 10. the schedule reuses the saved questions and brand; its queries are the exact panel text, the assistants
+        # run 3 times (the Actor has no repeat setting, so the run is added 3 times) and Google AI Overviews once
         plan = await web.call("schedule_checks", project=PROJECT, url=audit["site"], frequency="monthly")
         self.assertEqual(plan["cron"], "0 8 1 * *")
         self.assertEqual(plan["free_site_check"]["input"]["arguments"]["url"], audit["site"])
         ai = plan["ai_checks"]
-        self.assertEqual(ai["actor"], quote["lines"][0]["actor"])  # same Actor that was quoted
-        self.assertEqual(ai["input"]["brandName"], BRAND["name"])
-        self.assertEqual(ai["input"]["competitors"], BRAND["competitors"])
-        self.assertEqual(ai["input"]["customQueries"], [p["prompt"] for p in PANEL])
-        self.assertEqual(ai["checks_per_run"], len(PANEL) * len(ai["input"]["platforms"]))
-        self.assertAlmostEqual(ai["estimated_cost_per_month_usd"], ai["cost_per_run_usd"], places=2)  # monthly = 1 run
+        monitor = [run for run in ai["runs"] if run["job"] == "ai_brand_check"]
+        self.assertEqual(monitor[0]["actor"], quote["lines"][0]["actor"])  # same Actor that was quoted
+        self.assertEqual(monitor[0]["input"]["brandName"], BRAND["name"])
+        self.assertEqual(monitor[0]["input"]["competitors"], BRAND["competitors"])
+        self.assertEqual([q for run in monitor for q in run["input"]["customQueries"]], [p["prompt"] for p in PANEL])
+        self.assertTrue(all(len(run["input"]["customQueries"]) <= 20 for run in monitor))  # the Actor's own limit
+        self.assertEqual({run["times"] for run in monitor}, {REPEATS})
+        self.assertEqual(ai["checks_per_round"], len(items))  # the same 290 answers the quoted pack buys
+        self.assertAlmostEqual(ai["estimated_cost_per_month_usd"], ai["cost_per_round_usd"], places=2)  # monthly = 1 round
+        self.assertGreaterEqual(ai["cost_per_round_usd"], quote["total_usd"] - 0.01)  # at least the quoted pack price
         self.assertIsNone(plan.get("note"))
 
-        # 11. the loop closes: results for the scheduled queries import cleanly into the same project
-        scheduled = [{"query": q, "platform": engine, "brand_mentioned": True, "sentiment": "positive",
-                      "scraped_at": "2027-01-07T08:00:00Z"}
-                     for q in ai["input"]["customQueries"] for engine in ai["input"]["platforms"]]
+        # 11. the loop closes: results for the scheduled runs import cleanly into the same project
+        scheduled = scheduled_items(plan, "2027-01-07T08:00:00Z")
         again = await web.call("import_ai_results", project=PROJECT, items=scheduled, snapshot="2027-01", save=True)
         self.assertEqual(again["unmatched_queries"], [])
-        self.assertEqual(again["summary"]["rows"], ai["checks_per_run"])
-        self.assertEqual(again["saved"]["snapshots_saved"], {"2027-01": ai["checks_per_run"]})
+        self.assertEqual(again["summary"]["rows"], ai["checks_per_round"])
+        self.assertEqual(again["saved"]["snapshots_saved"], {"2027-01": ai["checks_per_round"]})
 
         self.assert_plain()
 
@@ -361,27 +382,55 @@ class GoldenJourney(ServerCase):
             self.assertEqual(len((await web.call("get_history", project=PROJECT))["snapshots"]), 1)  # nothing leaked in
         asyncio.run(go())
 
-    # ------------------------------------------------------------------ known gaps (expected to fail until fixed)
-    @unittest.expectedFailure
-    def test_known_gap_first_round_cannot_be_imported_into_a_new_project(self):
-        """GAP: import_ai_results needs the project's saved question list, but a list can only be saved together with
-        rows (save_results refuses panel-only and silently drops `panel` when only `audit` comes with it). So the
-        paid results of the very first round cannot be imported: the assistant must retype ~290 rows by hand."""
+    # ------------------------------------------------------------------ the scheduled round (formerly a known gap)
+    def test_first_round_is_imported_after_saving_the_questions_with_the_site_check(self):
+        """Fixed gap: the question list used to be dropped when it came with only a site check, so the paid results of
+        the very first round could not be imported and the assistant had to retype ~290 rows by hand."""
         async def go():
             web = self.web
             audit = await web.call("audit_site", url=self.base, max_pages=5)
             saved = await web.call("save_results", project=PROJECT, panel=PANEL, brand=BRAND, audit=audit)
-            self.assertEqual(saved["panel_prompts"], len(PANEL))  # today 0: the panel is dropped without a warning
+            self.assertEqual(saved["panel_prompts"], len(PANEL))
+            self.assertEqual(saved["snapshots_saved"], {})
+            self.assertIn("import_ai_results", saved["next"])
             out = await web.call("import_ai_results", project=PROJECT, snapshot=BASELINE, save=True,
                                  items=brand_monitor_items(BASE_HITS, BASELINE_DAY))
             self.assertEqual(out["saved"]["snapshots_saved"], {BASELINE: 290})
+            self.assert_plain()
         asyncio.run(go())
 
-    @unittest.expectedFailure
-    def test_known_gap_pack_round_does_not_trigger_the_repeat_warning(self):
-        """GAP: the ai_check pack prices one Google AI Overviews item per buying question (20 units), so a round
-        bought exactly as quoted always has 'fewer than 3 repeats' for that engine and the first headline carries a
-        warning that tells the user they under-collected."""
+    def test_first_round_is_imported_in_one_call_with_the_questions_and_the_brand(self):
+        """The shortest path: no separate save of the questions at all."""
+        async def go():
+            web = self.web
+            out = await web.call("import_ai_results", project=PROJECT, snapshot=BASELINE, save=True, panel=PANEL,
+                                 brand=BRAND, items=brand_monitor_items(BASE_HITS, BASELINE_DAY))
+            self.assertEqual(out["saved"]["snapshots_saved"], {BASELINE: 290})
+            self.assertEqual(out["saved"]["panel_prompts"], len(PANEL))
+            self.assertEqual(out["saved"]["brand"]["name"], BRAND["name"])
+            self.assertEqual(out["skipped"], [])
+            self.assertEqual(out["saved"]["warnings"], [])
+            history = await web.call("get_history", project=PROJECT)
+            self.assertAlmostEqual(history["snapshots"][0]["recommendation_share"], 0.15, places=2)
+            measured = await web.call("measure_recommendation_share", project=PROJECT)
+            self.assertEqual(measured["warnings"], [])
+            self.assert_plain()
+        asyncio.run(go())
+
+    def test_a_first_import_without_questions_says_what_is_missing(self):
+        async def go():
+            web = self.web
+            message = await web.fail("import_ai_results", project=PROJECT, snapshot=BASELINE, save=True,
+                                     items=brand_monitor_items(BASE_HITS, BASELINE_DAY))
+            for word in ("question list", "panel", "save_results"):
+                self.assertIn(word, message)
+            self.assertNotIn("matched a question", message)  # the questions are missing; the results are fine
+        asyncio.run(go())
+
+    def test_pack_round_does_not_trigger_the_repeat_warning(self):
+        """Fixed gap: the ai_check pack prices one Google AI Overviews item per buying question (20 units), so a round
+        bought exactly as quoted used to carry 'fewer than 3 repeats' for that engine, which told the user they
+        under-collected. Single-answer search surfaces are no longer held to the repeat minimum."""
         async def go():
             web = self.web
             await first_round(web)
@@ -390,23 +439,63 @@ class GoldenJourney(ServerCase):
             self.assertEqual(measured["warnings"], [])
         asyncio.run(go())
 
-    @unittest.expectedFailure
-    def test_known_gap_scheduled_round_meets_the_repeat_and_engine_rules(self):
-        """GAP: the schedule plan asks for one answer per question and engine (checks_per_run) and leaves out Google
-        AI Overviews, so each scheduled round has 1 repeat (rule: 3) and a different engine set from a pack round.
-        Every measurement after a scheduled import then warns, and the 'all' change drops google-aio."""
+    def test_scheduled_round_meets_the_repeat_and_engine_rules(self):
+        """Fixed gap (in tools.schedule_plan, not in the import or the measurement): the plan used to ask for one answer
+        per question and engine and left out Google AI Overviews, so each scheduled round had 1 repeat for the
+        assistants (rule: 3) and a different engine set from a pack round. Every measurement after a scheduled import
+        then warned. The plan now takes a repeats setting (the Actor has none, so the run is added several times),
+        splits long lists into runs the Actor accepts, plans the single-answer Google engines once, and follows the
+        engines of the first saved round."""
         async def go():
             web = self.web
             await first_round(web)
             await later_round(web)
-            plan = (await web.call("schedule_checks", project=PROJECT, url=self.base))["ai_checks"]
-            scheduled = [{"query": q, "platform": engine, "brand_mentioned": True, "sentiment": "positive",
-                          "scraped_at": "2027-01-07T08:00:00Z"}
-                         for q in plan["input"]["customQueries"] for engine in plan["input"]["platforms"]]
-            out = await web.call("import_ai_results", project=PROJECT, items=scheduled, snapshot="2027-01", save=True)
-            self.assertEqual(out["summary"]["rows"], plan["checks_per_run"])  # the plan and the import agree
+            plan = await web.call("schedule_checks", project=PROJECT)  # no url: the saved brand domain is used
+            self.assertEqual(plan["free_site_check"]["input"]["arguments"]["url"], "https://" + BRAND["domain"])
+            ai = plan["ai_checks"]
+            self.assertEqual(sorted(ai["engines"]), sorted([*ENGINES, "google-aio"]))  # the engines of the first round
+            # the earlier rounds of this project were saved without a country, language or device, so this one is too
+            out = await web.call("import_ai_results", project=PROJECT, items=scheduled_items(plan, "2027-01-07T08:00:00Z"),
+                                 snapshot="2027-01", save=True)
+            self.assertEqual(out["summary"]["rows"], ai["checks_per_round"])  # the plan and the import agree
+            self.assertEqual(out["summary"]["rows"], 290)
+            self.assertEqual(out["unmatched_queries"], [])
             measured = await web.call("measure_recommendation_share", project=PROJECT)
             self.assertEqual(measured["warnings"], [])
+            self.assertEqual(measured["current"], "2027-01")
+            self.assertEqual(measured["summary"]["all"]["min_repeats_checked"], 3)
+            self.assertEqual(set(measured["summary"]) - {"all"}, set(ENGINES) | {"google-aio"})
+            self.assert_plain()
+        asyncio.run(go())
+
+    def test_scheduled_round_imported_with_the_plans_context_matches_a_first_round_imported_the_same_way(self):
+        """The plan tells the user to pass the run's country, language and device as `context`. Doing it from the first
+        round on keeps every round on the same footing, so the measurement has nothing to warn about."""
+        async def go():
+            web = self.web
+            context = {"country": "us", "language": "en", "device": "desktop"}
+            await web.call("import_ai_results", project=PROJECT, snapshot=BASELINE, save=True, panel=PANEL, brand=BRAND,
+                           items=brand_monitor_items(BASE_HITS, BASELINE_DAY), context=context)
+            plan = await web.call("schedule_checks", project=PROJECT)
+            self.assertEqual(plan["ai_checks"]["import_context"], context)  # what the plan says to pass
+            await web.call("import_ai_results", project=PROJECT, snapshot="2027-01", save=True,
+                           items=scheduled_items(plan, "2027-01-07T08:00:00Z"), context=plan["ai_checks"]["import_context"])
+            measured = await web.call("measure_recommendation_share", project=PROJECT)
+            self.assertEqual(measured["warnings"], [])
+            self.assertEqual(measured["current"], "2027-01")
+        asyncio.run(go())
+
+    def test_scheduled_round_with_one_repeat_would_still_warn(self):
+        """The guard that makes the test above mean something: a round built from a plan with repeats 1 is caught."""
+        async def go():
+            web = self.web
+            await first_round(web)
+            await later_round(web)
+            plan = await web.call("schedule_checks", project=PROJECT, repeats=1)
+            await web.call("import_ai_results", project=PROJECT, items=scheduled_items(plan, "2027-01-07T08:00:00Z"),
+                           snapshot="2027-01", save=True)
+            measured = await web.call("measure_recommendation_share", project=PROJECT)
+            self.assertTrue([w for w in measured["warnings"] if "repeats" in w], measured["warnings"])
         asyncio.run(go())
 
 

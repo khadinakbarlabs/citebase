@@ -8,11 +8,17 @@ argument-hint: "<domain> [creators|podcasts|newsletters] [topic]"
 
 Read `../../references/creator-playbook.md` fully (hard rules, vetting score, offers, templates, tracking) and `../../references/plain-language.md` for how to talk to the user. Sending follows `../../references/outreach-playbook.md` and the `outreach` skill: nothing goes out without the user approving the exact text.
 
+## Web connector mode
+`quote_cost` with `pack: "creators"` (about $0.40) → yes → `call-actor` on `khadinakbar/*`. Keep the shortlist in chat. Before any email yes, call `check_outreach_draft`.
+
 ## 1. Set the goal in one question
 Ask: "What should a good result look like: sign-ups, sales, or being talked about by people AI listens to?" Pick the format from the answer (video, podcast, newsletter, community). Keep the first round small: 10 to 20 creators.
 
 ## 2. Find candidates
-Follow "Find the right creators" in the playbook, starting with the sources AI answers already cite (`ai-search-visibility`). Quote the cost of any Apify run first (`quote_cost` with `pack: "creators"` on the web, about $0.39, the run protocol in `../../references/tools-and-apis.md` in Claude Code). Save the list to `seo-workspace/<domain>/prospects.csv` with `type=creator|podcast|newsletter`.
+## Web connector mode
+`quote_cost` with `pack: "creators"` (about $0.40) → yes → `call-actor` on `khadinakbar/*`. Keep the shortlist in chat. Before any email yes, call `check_outreach_draft` (via `outreach` rules).
+
+Follow "Find the right creators" in the playbook, starting with the sources AI answers already cite (`ai-search-visibility`). Quote the cost of any Apify run first (`quote_cost` with `pack: "creators"` on the web, about $0.40, the run protocol in `../../references/tools-and-apis.md` in Claude Code). Before any email yes on the web, call `check_outreach_draft`. Save the list to `seo-workspace/<domain>/prospects.csv` with `type=creator|podcast|newsletter`.
 
 ## 3. Vet
 Score every candidate with the table in the playbook. Drop anyone under 9 of 14 or with a red flag. Show the user the top picks with the score and one line of why. Do not contact anyone yet.

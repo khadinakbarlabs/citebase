@@ -8,11 +8,14 @@ argument-hint: "<site URL> [max pages]"
 
 Input: `$ARGUMENTS` (URL, optional page limit; default 50, max 500). Workspace: `seo-workspace/<domain>/` (see `start`). Load `context.md` if present.
 
+## Web connector mode
+Call `audit_site` (not `site_audit.py`), then `next_steps` with that audit. Paid extras (local pack about $0.15, competitors about $0.34, AI check about $23.60): `quote_cost` → yes → `call-actor`. Keep findings in chat; offer `save_results` / `make_report` under a project name. Skip agent launches that need local workspace files.
+
 ## Step 1 — Crawl (deterministic, always)
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/site_audit.py" "<url>" --max-pages 50 --out "seo-workspace/<domain>/audit.json"
 ```
-It prints pass/warn/fail checks for technical, on-page and AI-search readiness, a weighted health score and sub-scores per area. It blocks private/local addresses (pass `--allow-private` only for the user's own dev server). If "Content present in server HTML (heuristic)" is flagged, say so first and confirm with `curl` or view-source: neither this crawl nor `khadinakbar/complete-seo-audit` ($0.10, an extra server-HTML audit) runs JavaScript, so use a real browser to read the rendered content for the on-page review.
+On the web, call `audit_site` with the URL instead. It prints pass/warn/fail checks for technical, on-page and AI-search readiness, a weighted health score and sub-scores per area. It blocks private/local addresses (pass `--allow-private` only for the user's own dev server). If "Content present in server HTML (heuristic)" is flagged, say so first and confirm with `curl` or view-source: neither this crawl nor `khadinakbar/complete-seo-audit` ($0.10, an extra server-HTML audit) runs JavaScript, so use a real browser to read the rendered content for the on-page review.
 
 ## Step 2 — Parallel specialist research
 Launch these plugin agents in one message (independent work), passing the domain, workspace path and context:

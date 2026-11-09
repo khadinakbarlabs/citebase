@@ -8,7 +8,8 @@ argument-hint: "<your domain> [competitor domains...] [country]"
 
 Tools: Apify Actors per `../../references/tools-and-apis.md` (run protocol: quote → cap → run → report cost). Log paid calls in `ledger.json`.
 
-On the web, price the whole step with one call: `quote_cost` with `pack: "competitors"` (about $0.30), then ask for one yes. Beginners: show five findings, not a data dump (`../../references/plain-language.md`).
+## Web connector mode
+Price the whole step with one call: `quote_cost` with `pack: "competitors"` (about $0.34), wait for a yes, then `call-actor` on `khadinakbar/*` only. Show five findings, not a data dump (`../../references/plain-language.md`). Keep the snapshot in chat; offer `save_results` under a project name if they want history.
 
 ## 1. Identify real competitors (by SERP, not by opinion)
 - Take 5–15 money keywords (from `context.md`, the homepage/money pages, or the user's GSC export).

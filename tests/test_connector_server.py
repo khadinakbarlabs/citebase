@@ -59,7 +59,8 @@ class ServerTests(unittest.TestCase):
         writes = {"save_results", "make_report", "import_ai_results"}
         self.assertEqual({t["name"] for t in tools}, {"get_playbook", "audit_site", "quote_cost",
                                                        "measure_recommendation_share", "next_steps",
-                                                       "check_outreach_draft", "get_history", "schedule_checks"} | writes)
+                                                       "check_outreach_draft", "check_ai_content",
+                                                       "get_history", "schedule_checks"} | writes)
         for t in tools:
             self.assertEqual(t["annotations"]["readOnlyHint"], t["name"] not in writes, t["name"])
             self.assertGreater(len(t["description"]), 100, t["name"])
@@ -94,7 +95,7 @@ class ServerTests(unittest.TestCase):
         result = self.call("quote_cost", {"items": [{"job": "serp_page", "units": 15}]})
         self.assertFalse(result.get("isError"))
         data = result.get("structuredContent") or json.loads(result["content"][0]["text"])
-        self.assertEqual(data["suggested_cap_usd"], 0.04)
+        self.assertEqual(data["suggested_cap_usd"], 0.1)
 
     def test_playbook_over_http(self):
         result = self.call("get_playbook", {"name": "start"})
@@ -117,7 +118,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertTrue(data["ok"])
-        self.assertEqual(data["result"]["suggested_cap_usd"], 0.04)
+        self.assertEqual(data["result"]["suggested_cap_usd"], 0.1)
 
     def test_run_endpoint_errors_say_what_to_fix(self):
         bad_tool = self.post_run({"tool": "nope"})

@@ -23,6 +23,17 @@ CASES = [
     ("Handle the follow-ups for last week's emails", "follow-ups", "outreach"),
     ("Give me an on-page checklist for the homepage", "on-page checklist", "seo-checklists"),
     ("Our traffic dropped, audit the site", "traffic drop", "seo-audit"),
+    ("Does this draft fail an anti-slop audit?", "anti-slop audit", "ai-content-check"),
+    ("Please humanize text that sounds robotic", "humanize text", "humanize-content"),
+    ("Check author credibility and YMYL caution", "ymyl caution", "eeat-audit"),
+    ("SEO-optimize an article we already published", "seo-optimize an article", "content-optimize"),
+    ("Give me a Frase/Surfer-style brief before drafting", "frase/surfer-style brief", "content-brief"),
+    ("Google doesn't connect me — Knowledge Panel readiness", "knowledge panel readiness", "entity-seo"),
+    ("We need programmatic SEO without thin doorway spam", "thin doorway spam", "programmatic-seo"),
+    ("What's the white-hat alternative to parasite SEO?", "parasite seo", "platform-presence"),
+    ("Plan directory submission for our SaaS", "directory submission", "directory-listings"),
+    ("Write LinkedIn posts for our launch", "linkedin posts", "social-content"),
+    ("Do Reddit research and social listening on our topic", "social listening", "social-listening"),
 ]
 
 

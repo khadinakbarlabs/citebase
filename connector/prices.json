@@ -1,247 +1,449 @@
 {
-  "read_on": "2026-11-07",
+  "read_on": "2026-11-08",
   "source": "Public pricing of the khadinakbar/* Actors on Apify. Prices change: re-check with fetch-actor-details before quoting.",
   "start_fee_usd": 5e-05,
+  "usage_note": "usage_allowance_per_unit and usage_allowance_per_run are Apify compute billed to the caller on Actors where isPPEPlatformUsagePaidByUser is true, rounded up from sampled runs.",
   "jobs": {
     "site_audit": {
       "actor": "khadinakbar/complete-seo-audit",
       "unit": "audit",
       "per_unit": 0.1,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "seo-audit-completed",
+      "start_events": 4,
+      "usage_paid_by_caller": true,
+      "usage_allowance_per_unit": 0,
+      "usage_note": "Apify bills compute to the caller on this Actor but it has not been measured yet, so it is not in the quote."
     },
     "serp_page": {
       "actor": "khadinakbar/scrape-google-serp",
       "unit": "SERP page",
       "per_unit": 0.0018,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "scraped-serp-page",
+      "start_events": 1,
+      "usage_paid_by_caller": true,
+      "usage_allowance_per_unit": 0.003,
+      "usage_note": "Measured: about $0.0028 per results page across 8 runs."
     },
     "keyword_ideas": {
       "actor": "khadinakbar/dataforseo-keyword-research",
       "unit": "keyword row",
       "per_unit": 0.01,
-      "per_request": 0.2
+      "per_request": 0.2,
+      "unit_event": "keyword-research-result",
+      "request_event": "keyword-ideas-request",
+      "start_events": 1,
+      "usage_paid_by_caller": false,
+      "effective_from": "2026-11-14",
+      "effective_note": "The per-request fee is not live until this date and the Actor refuses to run before then."
     },
     "keyword_volume": {
       "actor": "khadinakbar/dataforseo-keyword-research",
       "unit": "keyword row",
       "per_unit": 0.01,
-      "per_request": 1.0
+      "per_request": 1.0,
+      "unit_event": "keyword-research-result",
+      "request_event": "google-ads-request",
+      "start_events": 1,
+      "usage_paid_by_caller": false,
+      "effective_from": "2026-11-14",
+      "effective_note": "The per-request fee is not live until this date and the Actor refuses to run before then."
     },
     "backlinks": {
       "actor": "khadinakbar/website-backlink-checker",
       "unit": "backlink or domain row",
       "per_unit": 0.01,
-      "per_request": 0.05
+      "per_request": 0.05,
+      "unit_event": "backlink-found",
+      "request_event": "backlink-api-request",
+      "start_events": 1,
+      "usage_paid_by_caller": true,
+      "usage_allowance_per_unit": 0.0007,
+      "usage_note": "Measured on 2 runs of 1 row: about $0.0006. Larger runs not measured."
     },
     "backlink_prospects": {
       "actor": "khadinakbar/backlink-opportunity-finder",
       "unit": "prospect",
       "per_unit": 0.006,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "apify-default-dataset-item",
+      "start_events": 4,
+      "usage_paid_by_caller": false
     },
     "ai_brand_check": {
       "actor": "khadinakbar/ai-search-brand-monitor",
       "unit": "prompt x engine x run",
       "per_unit": 0.08,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "brand-query-checked",
+      "start_events": 1,
+      "usage_paid_by_caller": false
     },
     "ai_page_citation": {
       "actor": "khadinakbar/ai-search-visibility-tracker",
       "unit": "keyword x query x engine",
       "per_unit": 0.09,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "keyword-visibility-checked",
+      "start_events": 1,
+      "usage_paid_by_caller": true,
+      "usage_allowance_per_unit": 0.0001,
+      "usage_allowance_per_run": 0.0003,
+      "usage_note": "Measured on 2 runs: tiny."
     },
     "ai_citation_scan": {
       "actor": "khadinakbar/ai-citations-tracker",
       "unit": "Perplexity prompt",
       "per_unit": 0.12,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "citation-scan",
+      "start_events": 4,
+      "usage_paid_by_caller": false
     },
     "ai_overview": {
       "actor": "khadinakbar/google-ai-overviews-scraper",
       "unit": "query",
       "per_unit": 0.015,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "ai-overview-query",
+      "start_events": 2,
+      "usage_paid_by_caller": false,
+      "per_unit_worst": 0.1,
+      "worst_event": "ai-overview-query-serpapi",
+      "worst_note": "Every sampled run used the managed fallback rate of $0.10 per query instead of $0.015, so the quote uses $0.10.",
+      "optional_events": [
+        {
+          "event": "brand-match-detected",
+          "price_usd": 0.005,
+          "basis": "per_unit",
+          "why": "Charged when your domain is cited in an answer."
+        }
+      ]
     },
     "ai_mode": {
       "actor": "khadinakbar/google-ai-mode-scraper",
       "unit": "query",
       "per_unit": 0.025,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "ai-mode-query",
+      "start_events": 1,
+      "usage_paid_by_caller": true,
+      "usage_allowance_per_unit": 0.0005,
+      "usage_note": "Measured on 8 runs: about $0.0004 per query."
     },
     "website_contact": {
       "actor": "khadinakbar/bulk-website-contact-extractor",
       "unit": "domain",
       "per_unit": 0.005,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "result-found",
+      "start_events": 1,
+      "usage_paid_by_caller": true,
+      "usage_allowance_per_unit": 0.0025,
+      "usage_note": "Measured: $0.0021 to $0.0023 per domain result across 3 runs."
     },
     "email_verify": {
       "actor": "khadinakbar/email-address-validator",
       "unit": "email",
       "per_unit": 0.0009,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "email-validated",
+      "start_events": 4,
+      "usage_paid_by_caller": true,
+      "usage_allowance_per_unit": 5e-05,
+      "usage_allowance_per_run": 0.0003,
+      "usage_note": "Measured on 10 runs: tiny."
     },
     "news_article": {
       "actor": "khadinakbar/google-news-scraper",
       "unit": "article",
       "per_unit": 0.003,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "article-scraped",
+      "start_events": 1,
+      "usage_paid_by_caller": false,
+      "other_events": [
+        {
+          "event": "article-full-text",
+          "price_usd": 0.005,
+          "why": "Only when full article text is requested."
+        }
+      ]
     },
     "reddit_result": {
       "actor": "khadinakbar/reddit-posts-comments-scraper",
       "unit": "result",
       "per_unit": 0.003,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "result-found",
+      "start_events": 2,
+      "usage_paid_by_caller": false
     },
     "youtube_result": {
       "actor": "khadinakbar/youtube-search-scraper",
       "unit": "result",
       "per_unit": 0.003,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "result",
+      "start_events": 1,
+      "usage_paid_by_caller": false,
+      "other_events": [
+        {
+          "event": "serpapi-fallback-query",
+          "price_usd": 0.01,
+          "why": "Only when the managed fallback is used."
+        }
+      ]
     },
     "review_site": {
       "actor": "khadinakbar/software-reviews-all-in-one-scraper",
       "unit": "review",
       "per_unit": 0.007,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "review-scraped",
+      "start_events": 4,
+      "start_fee_usd": 0.005,
+      "usage_paid_by_caller": true,
+      "usage_allowance_per_unit": 0,
+      "usage_allowance_per_run": 0.09,
+      "usage_note": "Measured on 3 runs that all returned 0 reviews: $0.004 to $0.089 per run. Per-review compute not measured.",
+      "extra_events": [
+        {
+          "event": "product-found",
+          "price_usd": 0.01,
+          "basis": "per_run",
+          "count": 2,
+          "why": "Charged for each product card found, even when no reviews come back."
+        }
+      ],
+      "note": "Start fee is $0.005 per GB of run memory (4 GB in sampled runs)."
     },
     "trustpilot_review": {
       "actor": "khadinakbar/trustpilot-reviews-scraper",
       "unit": "review",
       "per_unit": 0.0025,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "review-scraped",
+      "start_events": 1,
+      "usage_paid_by_caller": false
     },
     "google_trend": {
       "actor": "khadinakbar/google-trends-scraper",
       "unit": "trend item",
       "per_unit": 0.005,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "result-item",
+      "start_events": 1,
+      "usage_paid_by_caller": false
     },
     "search_suggestion": {
       "actor": "khadinakbar/google-autocomplete-api",
       "unit": "lookup",
       "per_unit": 0.005,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "autocomplete-lookup",
+      "start_events": 1,
+      "usage_paid_by_caller": false
     },
     "longtail_keyword": {
       "actor": "khadinakbar/keyword-fanout-longtail",
       "unit": "keyword",
       "per_unit": 0.0015,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "keyword-discovered",
+      "start_events": 0,
+      "usage_paid_by_caller": true,
+      "usage_allowance_per_unit": 0.0005,
+      "usage_note": "Measured on 10 runs: about $0.0003 to $0.0005 per keyword."
     },
     "keyword_difficulty": {
       "actor": "khadinakbar/ahrefs-keyword-difficulty-checker",
       "unit": "batch of keywords",
       "per_unit": 0.3,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "difficulty-batch",
+      "start_events": 0,
+      "usage_paid_by_caller": true,
+      "usage_allowance_per_unit": 0.0006,
+      "usage_note": "Measured: about $0.0005 per batch."
     },
     "keyword_metrics": {
       "actor": "khadinakbar/ahrefs-keyword-explorer",
       "unit": "result",
       "per_unit": 0.01,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "keyword-explorer-result",
+      "start_events": 4,
+      "usage_paid_by_caller": false
     },
     "content_brief": {
       "actor": "khadinakbar/surfer-seo-alternative",
       "unit": "brief",
       "per_unit": 0.005,
-      "per_request": 0.02
+      "per_request": 0.02,
+      "unit_event": "content-brief",
+      "request_event": "serp-request",
+      "start_events": 4,
+      "usage_paid_by_caller": false
     },
     "quora_question": {
       "actor": "khadinakbar/quora-scraper",
       "unit": "item",
       "per_unit": 0.003,
-      "per_request": 0.005
+      "per_request": 0.0,
+      "unit_event": "content-item",
+      "start_events": 4,
+      "start_fee_usd": 0.005,
+      "usage_paid_by_caller": false,
+      "note": "Start fee is $0.005 per GB of run memory, so a run that finds nothing still costs about $0.02 at the default memory."
     },
     "reddit_search": {
       "actor": "khadinakbar/reddit-search-scraper",
       "unit": "result",
       "per_unit": 0.003,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "search-result-found",
+      "start_events": 1,
+      "usage_paid_by_caller": false
     },
     "forum_search": {
       "actor": "khadinakbar/google-forums-search-scraper",
       "unit": "search page",
       "per_unit": 0.065,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "forum-search-page",
+      "start_events": 1,
+      "usage_paid_by_caller": false
     },
     "youtube_trending": {
       "actor": "khadinakbar/youtube-trending-videos-scraper",
       "unit": "video",
       "per_unit": 0.0006,
-      "per_request": 0.03
+      "per_request": 0.03,
+      "unit_event": "trending-video-returned",
+      "request_event": "trending-chart-scanned",
+      "start_events": 4,
+      "usage_paid_by_caller": true,
+      "usage_allowance_per_unit": 0,
+      "usage_note": "Apify bills compute to the caller on this Actor but it has not been measured yet, so it is not in the quote."
     },
     "youtube_transcript": {
       "actor": "khadinakbar/youtube-transcript-extractor",
       "unit": "transcript",
       "per_unit": 0.005,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "transcript-extracted",
+      "start_events": 0,
+      "usage_paid_by_caller": true,
+      "usage_allowance_per_unit": 0.0046,
+      "usage_note": "Measured: $0.0036 to $0.0045 per transcript across 6 runs."
     },
     "youtube_channel_stats": {
       "actor": "khadinakbar/youtube-channel-statistics-scraper",
       "unit": "channel",
       "per_unit": 0.0035,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "channel-stats",
+      "start_events": 1,
+      "usage_paid_by_caller": true,
+      "usage_allowance_per_unit": 0,
+      "usage_note": "Apify bills compute to the caller on this Actor but it has not been measured yet, so it is not in the quote."
     },
     "youtube_comment": {
       "actor": "khadinakbar/youtube-comments-scraper",
       "unit": "comment",
       "per_unit": 0.001,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "scraped-comment",
+      "start_events": 2,
+      "usage_paid_by_caller": true,
+      "usage_allowance_per_unit": 0.0004,
+      "usage_allowance_per_run": 0.0025,
+      "usage_note": "Measured on 8 runs: about $0.0004 per comment plus about $0.0025 per run."
     },
     "creator_report": {
       "actor": "khadinakbar/influencer-marketing-intelligence-scraper",
       "unit": "creator report",
       "per_unit": 0.05,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "creator-intelligence-report",
+      "start_events": 1,
+      "usage_paid_by_caller": false
     },
     "newsletter_post": {
       "actor": "khadinakbar/substack-posts-scraper",
       "unit": "post",
       "per_unit": 0.005,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "post-scraped",
+      "start_events": 4,
+      "usage_paid_by_caller": false
     },
     "traffic_rank": {
       "actor": "khadinakbar/similarweb-traffic-rank-scraper",
       "unit": "domain",
       "per_unit": 0.08,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "domain-overview",
+      "start_events": 4,
+      "usage_paid_by_caller": false
     },
     "tech_stack": {
       "actor": "khadinakbar/website-tech-stack-detector",
       "unit": "site",
       "per_unit": 0.01,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "tech-stack-detected",
+      "start_events": 1,
+      "usage_paid_by_caller": false
     },
     "bing_rank": {
       "actor": "khadinakbar/bing-rank-tracker",
       "unit": "rank check",
       "per_unit": 0.008,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "bing-rank-check",
+      "start_events": 4,
+      "usage_paid_by_caller": true,
+      "usage_allowance_per_unit": 0,
+      "usage_note": "Apify bills compute to the caller on this Actor but it has not been measured yet, so it is not in the quote."
     },
     "crawl_page": {
       "actor": "khadinakbar/website-seo-spider",
       "unit": "page",
       "per_unit": 0.01,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "page-crawled",
+      "start_events": 1,
+      "usage_paid_by_caller": false
     },
     "local_rank": {
       "actor": "khadinakbar/local-rank-tracker",
       "unit": "local check",
       "per_unit": 0.06,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "local-rank-check",
+      "start_events": 1,
+      "usage_paid_by_caller": false
     },
     "local_pack": {
       "actor": "khadinakbar/google-local-pack-api",
       "unit": "snapshot",
       "per_unit": 0.03,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "local-pack-snapshot",
+      "start_events": 1,
+      "usage_paid_by_caller": false
     },
     "agency_listing": {
       "actor": "khadinakbar/clutch-listings-scraper",
       "unit": "listing",
       "per_unit": 0.004,
-      "per_request": 0.0
+      "per_request": 0.0,
+      "unit_event": "scraped-listing",
+      "start_events": 4,
+      "usage_paid_by_caller": false
     }
   },
   "packs": {

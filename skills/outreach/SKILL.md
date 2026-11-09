@@ -10,6 +10,9 @@ For influencers, YouTubers, podcast hosts and newsletter writers use `creator-ou
 
 Read `../../references/outreach-playbook.md` fully (hard rules, copy rules, templates, cadence, legal basics). The approval hook denies any send whose exact text was not approved, refuses suppressed recipients, enforces the daily cap and then asks the user to confirm — expected, never work around it. Create `seo-workspace/<domain>/` before drafting anything: the hook only runs inside it, and without it the send guard (suppression list, daily cap, pause switch, exact-text approval) is off.
 
+## Web connector mode
+No local ledger or hook here. Before asking for any email yes, call `check_outreach_draft` with the exact `to`, `subject` and `body`. Only show a send-ready draft when `ready` is true; fix every `problems` entry first. Paid contact/enrichment runs: `quote_cost` then only `khadinakbar/*` via `call-actor`. Keep notes in chat (or a project name via `save_results` if they want history).
+
 ## 1. Prospects → contacts
 - Input: rows in `seo-workspace/<domain>/prospects.csv` with `status=to_contact` (from `link-building`, `press-release`, `ai-search-visibility`), or a list the user provides.
 - For each prospect find the right person (author of the specific page > editor > site owner; never a generic support inbox for editorial asks): byline on the page, author/about/contact pages (WebFetch), Apify `khadinakbar/contact-details-scraper` or `bulk-website-contact-extractor` for batches.

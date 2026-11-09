@@ -16,6 +16,7 @@
           "measure_recommendation_share",
           "next_steps",
           "check_outreach_draft",
+          "check_ai_content",
           "save_results",
           "get_history",
           "make_report",
@@ -38,8 +39,8 @@
         "title": "Result",
         "description": "The tool's result object. Its fields depend on the tool and match that tool's MCP output schema. Null when ok is false.",
         "example": {
-          "total_usd": 0.0271,
-          "suggested_cap_usd": 0.04
+          "total_usd": 0.0721,
+          "suggested_cap_usd": 0.1
         }
       },
       "error": {

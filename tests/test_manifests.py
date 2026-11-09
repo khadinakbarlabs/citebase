@@ -36,10 +36,12 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(set(cfg), {"max_run_usd", "daily_send_cap", "daily_spend_usd", "allowed_actors"})
 
     def test_mcp_exposes_only_generic_apify_tools(self):
+        # Plugin MCP server must stay named "apify" so approval_gate.OWN_APIFY_PREFIX matches.
         url = load(".mcp.json")["mcpServers"]["apify"]["url"]
         tools = parse_qs(urlparse(url).query)["tools"][0].split(",")
         self.assertEqual(sorted(tools), sorted(
-            ["fetch-actor-details", "call-actor", "get-actor-run", "get-dataset-items", "abort-actor-run"]))
+            ["fetch-actor-details", "call-actor", "get-actor-run", "get-dataset-items",
+             "get-key-value-store-record", "abort-actor-run"]))
 
     def test_hook_matchers_are_anchored_and_precise(self):
         hooks = load("hooks", "hooks.json")["hooks"]

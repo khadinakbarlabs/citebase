@@ -340,9 +340,13 @@ class SchedulePlanTests(unittest.TestCase):
     def test_ai_checks_cost_and_cap(self):
         plan = tools.schedule_plan("acme-site", "acme.com", "daily", panel=PANEL, brand={"name": "Acme"})
         ai = plan["ai_checks"]
-        self.assertEqual(ai["checks_per_run"], 18)
-        self.assertGreaterEqual(ai["suggested_max_cost_usd"], ai["cost_per_run_usd"])
-        self.assertAlmostEqual(ai["estimated_cost_per_month_usd"], round(ai["cost_per_run_usd"] * 30, 2))
+        self.assertEqual(ai["repeats"], 3)
+        monitor = [e for e in ai["runs"] if e["job"] == "ai_brand_check"]
+        self.assertEqual(sum(e["checks_per_run"] for e in monitor), 18)  # 6 questions x 3 assistants, per repeat
+        self.assertEqual(ai["checks_per_round"], 18 * 3 + 4)  # 3 repeats, plus one Google AI Overviews answer per buying question
+        for entry in ai["runs"]:
+            self.assertGreaterEqual(entry["suggested_max_cost_usd"], entry["cost_per_run_usd"])
+        self.assertAlmostEqual(ai["estimated_cost_per_month_usd"], round(ai["cost_per_round_usd"] * 30, 2))
 
     def test_bad_frequency(self):
         with self.assertRaises(ValueError):
@@ -415,7 +419,7 @@ class RunnerTests(Base):
     def test_schedule_uses_saved_panel_and_brand(self):
         run(hist.save_results("acme-site", runs("baseline", {"p1"}), PANEL, brand={"name": "Acme", "domain": "acme.com"}))
         plan = run(runner.run_tool("schedule_checks", {"project": "acme-site", "url": "acme.com"}))
-        self.assertEqual(plan["ai_checks"]["input"]["brandName"], "Acme")
+        self.assertEqual(plan["ai_checks"]["runs"][0]["input"]["brandName"], "Acme")
 
     def test_scheduled_check_saves_audit_and_report(self):
         fake = {"site": "https://acme.com", "health_score": 66, "subscores": {}, "counts": {}, "pages_checked": 3,

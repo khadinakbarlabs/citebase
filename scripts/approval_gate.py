@@ -46,7 +46,7 @@ OWNER_ALLOWLIST = ("khadinakbar/",)
 # Plugin "citebase" + server "apify" (.mcp.json) gives this prefix; tests/test_gate_scope.py ties it to the manifests.
 OWN_APIFY_PREFIX = "mcp__plugin_citebase_apify__"
 DEFAULT_MAX_RUN_USD = 2.0
-DEFAULT_DAILY_SPEND_USD = 25.0
+DEFAULT_DAILY_SPEND_USD = st.DEFAULT_DAILY_SPEND_USD
 DEFAULT_SEND_CAP = 20
 SHOWN_ITEMS = 8
 LEDGER = "${CLAUDE_PLUGIN_ROOT}/scripts/outreach_ledger.py"

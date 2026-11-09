@@ -23,14 +23,16 @@ ALLOWED_ARGS = {
     "save_results": {"project", "runs", "panel", "experiments", "brand", "audit", "replace", "append"},
     "get_history": {"project"},
     "make_report": {"project"},
-    "import_ai_results": {"project", "items", "snapshot", "save", "append", "replace"},
-    "schedule_checks": {"project", "url", "frequency", "max_pages", "platforms"},  # panel and brand come from the project
+    "import_ai_results": {"project", "items", "snapshot", "save", "append", "replace", "panel", "brand", "context"},
+    "schedule_checks": {"project", "url", "frequency", "max_pages", "platforms", "repeats"},  # panel and brand come from the project
     "scheduled_check": {"project", "url", "max_pages"},
 }
 TOOL_NAMES = sorted(set(tools.DISPATCH) | SAVED | ONE_SHOT_ONLY)
 AUDIT_SLOTS = asyncio.Semaphore(2)
 SAVE_NEXT_RUNS = "Saved. Re-check in 30 days to see what moved, or offer schedule_checks to run the checks automatically."
 SAVE_NEXT_AUDIT = "Saved. Check the site again in 30 days to see what moved, or offer schedule_checks to automate it."
+SAVE_NEXT_PANEL = ("Saved the question list. Next, run the AI check with exactly these questions, then call "
+                   "import_ai_results with save=true to bring the first round in (no retyping).")
 
 
 def flag(args: dict, name: str) -> bool:
@@ -48,11 +50,12 @@ async def audit(url: str, max_pages: int = 15) -> dict:
 
 async def save(project: str, runs: list[dict] | None, panel: list[dict] | None, experiments: list[dict] | None,
                brand: dict | None, audit_result: dict | None, replace: bool = False, append: bool = False) -> dict:
-    """Saves AI-answer results and/or one site check into the project."""
-    if not runs and not audit_result:
-        raise ValueError("Send runs (AI answers), an audit (the result of audit_site), or both.")
-    if runs:
-        out = await hist.save_results(project, runs, panel, experiments, brand, replace, append)
+    """Saves AI-answer results, the question list, brand details, logged changes and/or one site check."""
+    if not (runs or panel or experiments or brand or audit_result):
+        raise ValueError("Send runs (AI answers), the question list (panel), an audit (the result of audit_site), "
+                         "brand details or logged changes. Nothing was saved.")
+    if runs or panel or experiments or brand:
+        out = await hist.save_results(project, runs or [], panel, experiments, brand, replace, append)
     else:
         data = await hist.load_project(project) if await _exists(project) else None
         out = {"project": stg.clean_slug(project), "snapshots_saved": {}, "panel_prompts": len(data["panel"]) if data else 0,
@@ -60,7 +63,7 @@ async def save(project: str, runs: list[dict] | None, panel: list[dict] | None, 
                "brand": data["meta"].get("brand", {}) if data else {}, "warnings": [],
                "stored_in": "your own Apify account (key-value store 'citebase-projects')"}
     out["audit_saved"] = await hist.save_audit(project, audit_result) if audit_result else None
-    out["next"] = SAVE_NEXT_RUNS if runs else SAVE_NEXT_AUDIT
+    out["next"] = SAVE_NEXT_RUNS if runs else SAVE_NEXT_PANEL if panel else SAVE_NEXT_AUDIT
     return out
 
 
@@ -82,24 +85,56 @@ async def measure(project: str | None, panel: list[dict] | None, runs: list[dict
 
 
 async def import_results(project: str, items: list[dict], snapshot: str, save: bool = False, append: bool = False,
-                         replace: bool = False) -> dict:
-    data = await hist.load_project(project)
+                         replace: bool = False, panel: list[dict] | None = None, brand: dict | None = None,
+                         context: dict | None = None) -> dict:
+    """Converts AI-check results into rows. A new project can be created in the same step: send the question list
+    (panel) and the brand with save=true. Nothing is stored unless save is true."""
+    slug = stg.clean_slug(project)
+    settings = importer.clean_context(context)
+    data = await hist.load_project(slug) if await _exists(slug) else None
+    stored = data["panel"] if data else []
+    if panel:
+        rows = tools.normalise_panel(panel)
+        hist.check_frozen(stored, rows)
+        questions = list(rows.values())
+    elif stored:
+        questions = stored
+    elif data is None:
+        raise ValueError(f"There is no saved project called '{slug}' yet and no question list was sent. Send the question "
+                         "list as `panel` (and the brand as `brand`) with this import and save=true, or save the question "
+                         "list first with save_results (panel only).")
+    else:
+        raise ValueError(f"Project '{slug}' has no question list yet: save the question list first (save_results with "
+                         "panel), or send it as `panel` with this import.")
     snap = stg.clean_part(snapshot)
-    converted = importer.convert(items, data["panel"], snap)
+    known_brand = {**(data["meta"].get("brand") or {}), **(brand or {})} if data else brand
+    converted = importer.convert(items, questions, snap, known_brand, settings)
+    converted["saved"] = None
     if save:
-        converted["saved"] = await hist.save_results(project, converted["runs"], None, None, None, replace, append)
+        converted["saved"] = await hist.save_results(slug, converted["runs"], panel or None, None, brand or None,
+                                                     replace, append)
+    elif panel or brand:
+        converted["notes"].append("The question list and brand you sent were not saved (save is false): nothing has been "
+                                  "stored yet. Call again with save=true to keep this round.")
     return converted
 
 
-async def schedule(project: str, url: str, frequency: str = "weekly", max_pages: int = 15,
-                   panel: list[dict] | None = None, brand: dict | None = None, platforms: list[str] | None = None) -> dict:
+async def schedule(project: str, url: str | None = None, frequency: str = "weekly", max_pages: int = 15,
+                   panel: list[dict] | None = None, brand: dict | None = None, platforms: list[str] | None = None,
+                   repeats: int | None = tools.DEFAULT_REPEATS) -> dict:
+    """The plan reads the project's questions, brand, site and the engines of its first round, so the round the schedule
+    produces is comparable with the ones already saved."""
+    baseline_engines = None
     try:
         data = await hist.load_project(project)
         panel = panel or data["panel"]
         brand = brand or data["meta"].get("brand")
+        rounds = await asyncio.to_thread(hist.snapshot_trend, data)
+        baseline_engines = rounds[0]["engines"] if rounds else None
     except ValueError:
-        pass  # a brand-new project is fine: the plan then covers the free site check only
-    return tools.schedule_plan(stg.clean_slug(project), url, frequency, max_pages, panel, brand, platforms)
+        pass  # a brand-new project is fine: the plan then covers the site check only (it needs the url typed)
+    return tools.schedule_plan(stg.clean_slug(project), url, frequency, max_pages, panel, brand, platforms, repeats,
+                               baseline_engines)
 
 
 async def scheduled_check(project: str, url: str, max_pages: int = 15) -> dict:
@@ -136,10 +171,11 @@ async def run_tool(tool: str, arguments: dict | None) -> dict[str, Any]:
             return await report.make_report(args.get("project", ""))
         if tool == "import_ai_results":
             return await import_results(args.get("project", ""), args.get("items") or [], args.get("snapshot", ""),
-                                        flag(args, "save"), flag(args, "append"), flag(args, "replace"))
+                                        flag(args, "save"), flag(args, "append"), flag(args, "replace"),
+                                        args.get("panel"), args.get("brand"), args.get("context"))
         if tool == "schedule_checks":
-            return await schedule(args.get("project", ""), args.get("url", ""), args.get("frequency", "weekly"),
-                                  args.get("max_pages", 15), None, None, args.get("platforms"))
+            return await schedule(args.get("project", ""), args.get("url"), args.get("frequency", "weekly"),
+                                  args.get("max_pages", 15), None, None, args.get("platforms"), args.get("repeats"))
         if tool == "scheduled_check":
             return await scheduled_check(args.get("project", ""), args.get("url", ""), args.get("max_pages", 15))
         return await asyncio.to_thread(tools.dispatch, tool, args)

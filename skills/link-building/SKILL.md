@@ -10,6 +10,9 @@ Talk like `../../references/plain-language.md`: plain words, at most five prospe
 
 Read `../../references/checklist-offpage.md` (criteria, tactics, never-do list) and the run protocol in `../../references/tools-and-apis.md` (quote → cap → run → report cost).
 
+## Web connector mode
+No `seo-workspace/` or `prospects.csv` here — keep the shortlist in chat (or `save_results` under a project name if they want history). Price research with `quote_cost` (often pack `competitors`, about $0.34, or custom backlink/opportunity jobs), wait for a yes, then `call-actor` on `khadinakbar/*` only. Show at most five prospects per message. Hand outreach drafts to the `outreach` skill; on the web that means `check_outreach_draft` before any email yes.
+
 ## 1. Profile audit (always first)
 - `khadinakbar/website-backlink-checker`: `mode: summary` for the client and the top 3 competitors, then `referring_domains` and `anchors` for the client (`maxResults` ≤100; ≈$0.05/request + $0.01/row). Or delegate to the `backlink-analyst` agent.
 - Compare referring domains, anchor mix and dofollow share to the competitors. Flag over-optimised exact-match anchors, bursts, toxic neighbourhoods, and backlinks pointing at 404/redirected URLs (reclaim with 301s).

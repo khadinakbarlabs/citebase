@@ -50,7 +50,7 @@ class NonFiniteNumbers(unittest.TestCase):
 
     def test_normal_numbers_still_work(self):
         self.assertEqual(tools.dispatch("quote_cost", {"items": [{"job": "serp_page", "units": 15, "requests": 1}]})
-                         ["suggested_cap_usd"], 0.04)
+                         ["suggested_cap_usd"], 0.1)
 
     def test_arithmetic_errors_become_plain_errors(self):
         original = tools.DISPATCH["next_steps"]
@@ -164,7 +164,7 @@ class FixedSafetySentences(unittest.TestCase):
 
     def test_quote_still_gives_the_cap(self):
         q = tools.quote_cost([{"job": "serp_page", "units": 15}])
-        self.assertIn("maxTotalChargeUsd = 0.04", q["how_to_run"])
+        self.assertIn("maxTotalChargeUsd = 0.1", q["how_to_run"])
 
 
 if __name__ == "__main__":

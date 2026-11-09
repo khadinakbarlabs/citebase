@@ -7,6 +7,7 @@ priced job against it (and every table row whose Actor is priced against the job
 import json
 import os
 import re
+import sys
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -105,6 +106,79 @@ class PricesMatchTheDocs(unittest.TestCase):
             text = fh.read()
         self.assertEqual(self.prices["start_fee_usd"], 0.00005)
         self.assertIn("$0.00005", text)
+
+
+def read(*parts: str) -> str:
+    with open(os.path.join(ROOT, *parts), encoding="utf-8") as fh:
+        return fh.read()
+
+
+class DocNumbersFollowTheQuote(unittest.TestCase):
+    """Every pack total written in the docs is the total quote_cost gives today, so a price change cannot leave old numbers behind."""
+
+    @classmethod
+    def setUpClass(cls):
+        import datetime as dt
+        sys.path.insert(0, os.path.join(ROOT, "connector"))
+        import tools
+        cls.tools = tools
+        cls.totals = {name: f"${tools.quote_cost(None, name, dt.date(2026, 11, 8))['total_usd']:.2f}"
+                      for name in tools.PRICES["packs"]}
+
+    def test_reference_pack_line(self):
+        text = read("references", "tools-and-apis.md")
+        for name, amount in self.totals.items():
+            self.assertIn(f"`{name}` (about {amount})", text, name)
+
+    def test_store_page_pack_table(self):
+        text = read(".actor", "ACTOR_README.md")
+        for name, amount in self.totals.items():
+            row = next((ln for ln in text.splitlines() if ln.startswith(f"| `{name}` |")), None)
+            self.assertIsNotNone(row, name)
+            self.assertTrue(row.rstrip().endswith(f"| {amount} |"), f"{name}: {row} should end with {amount}")
+
+    def test_the_ai_check_baseline_is_the_same_everywhere(self):
+        amount = self.totals["ai_check"]
+        for parts in (("README.md",), (".actor", "ACTOR_README.md"), ("references", "tools-and-apis.md"),
+                      ("skills", "start", "SKILL.md"), ("docs", "competitor-scorecard.md")):
+            self.assertIn(amount, read(*parts), "/".join(parts))
+
+    def test_the_quick_audit_is_the_starter_pack_everywhere(self):
+        amount = self.totals["starter"]
+        for parts in (("README.md",), (".actor", "ACTOR_README.md"), ("references", "tools-and-apis.md"),
+                      ("skills", "start", "SKILL.md")):
+            self.assertIn(amount, read(*parts), "/".join(parts))
+
+    def test_the_date_the_prices_were_read_matches_the_docs(self):
+        read_on = self.tools.PRICES["read_on"]
+        for parts in (("README.md",), (".actor", "ACTOR_README.md"), ("references", "tools-and-apis.md")):
+            self.assertIn(read_on, read(*parts), "/".join(parts))
+            self.assertNotIn("2026-11-07", read(*parts), "/".join(parts))
+
+    def test_no_doc_calls_the_extra_charges_tiny_or_small_platform_charges(self):
+        for parts in (("README.md",), (".actor", "ACTOR_README.md"), ("references", "tools-and-apis.md"),
+                      ("connector", "tools.py"), ("connector", "models.py")):
+            text = read(*parts).lower()
+            self.assertNotIn("tiny start fee", text, "/".join(parts))
+            self.assertNotIn("small platform charges", text, "/".join(parts))
+            self.assertNotIn("platform usage separately", text, "/".join(parts))
+
+    def test_the_honest_compute_sentence_is_in_the_user_facing_docs(self):
+        sentence = "Apify also bills a small amount of compute on some jobs; it is included in the quote."
+        for parts in (("README.md",), (".actor", "ACTOR_README.md"), ("references", "tools-and-apis.md")):
+            self.assertIn(sentence, read(*parts), "/".join(parts))
+
+    def test_the_cap_is_described_as_thirty_percent_everywhere(self):
+        self.assertEqual(self.tools.CAP_MULTIPLIER, 1.3)
+        for parts in (("README.md",), (".actor", "ACTOR_README.md"), ("references", "tools-and-apis.md"),
+                      ("skills", "start", "SKILL.md")):
+            self.assertNotRegex(read(*parts), r"(?i)\b20 ?(%|percent)\s+(above|more|over|on top)", "/".join(parts))
+
+    def test_jobs_that_cannot_run_yet_say_so_in_the_docs(self):
+        dated = {spec["effective_from"] for spec in load_prices()["jobs"].values() if "effective_from" in spec}
+        for stamp in dated:
+            self.assertIn(stamp, read("references", "tools-and-apis.md"))
+            self.assertIn(stamp, read(".actor", "ACTOR_README.md"))
 
 
 if __name__ == "__main__":

@@ -115,6 +115,13 @@ async def _require_project(slug: str) -> dict:
     return meta
 
 
+def check_frozen(stored_panel: list[dict] | None, panel_rows: dict[str, dict]) -> None:
+    """Refuses a question list that differs from the one already saved for the project."""
+    if stored_panel and cl.panel_hash(_by_id(stored_panel)) != cl.panel_hash(panel_rows):
+        raise ValueError("This project's question list is frozen: results are only comparable while the "
+                         "questions stay identical. Use a new project name for a different list.")
+
+
 async def save_results(project: str, runs: list[dict], panel: list[dict] | None = None,
                        experiments: list[dict] | None = None, brand: dict | None = None,
                        replace: bool = False, append: bool = False) -> dict:
@@ -132,18 +139,21 @@ async def _save_results(slug: str, runs: list[dict], panel: list[dict] | None, e
     stored_panel = await be.get(stg.key(slug, "panel"))
     if panel:
         panel_rows = tools.normalise_panel(panel)
-        if stored_panel and cl.panel_hash(_by_id(stored_panel)) != cl.panel_hash(panel_rows):
-            raise ValueError("This project's question list is frozen: results are only comparable while the "
-                             "questions stay identical. Use a new project name for a different list.")
+        check_frozen(stored_panel, panel_rows)
     elif stored_panel:
         panel_rows = _by_id(stored_panel)
+    elif runs:
+        raise ValueError("Send the question list (panel) the first time you save results for a project. It can also be "
+                         "saved on its own, before any results, so the first round can be imported instead of retyped.")
     else:
-        raise ValueError("Send the question list (panel) the first time you save results for a project.")
+        panel_rows = {}
     # clean round names BEFORE checking for repeats, so '2026 12' and '2026-12' cannot sneak in as two rounds
     cleaned = [{**r, "snapshot": stg.clean_part(r.get("snapshot"))} for r in runs]
-    rows = tools.normalise_runs(cleaned, panel_rows)
+    rows = tools.normalise_runs(cleaned, panel_rows) if runs else []
     new_experiments = clean_experiments(experiments)
     new_brand = clean_brand(brand)
+    if not (rows or panel or new_experiments or new_brand):
+        raise ValueError("Nothing to save: send results (runs), the question list (panel), brand details or logged changes.")
 
     groups: dict[str, list[dict]] = {}
     for r in rows:
@@ -155,6 +165,7 @@ async def _save_results(slug: str, runs: list[dict], panel: list[dict] | None, e
 
     # 1) validate every round and build what will be written; nothing is stored yet
     to_write: dict[str, list[dict]] = {}
+    notes: list[str] = []
     for label, new_rows in groups.items():
         existing = await be.get(stg.key(slug, "runs", label))
         if existing and not (append or replace):
@@ -165,6 +176,9 @@ async def _save_results(slug: str, runs: list[dict], panel: list[dict] | None, e
             for r in existing:
                 k = (r["prompt_id"], r["platform"])
                 top[k] = max(top.get(k, 0), int(r["repeat"]))
+            notes += [f"Round '{label}': {w}" for w in cl.context_warnings(
+                cl.round_context(existing, label), cl.round_context(new_rows, label), "saved", "new",
+                "between the saved answers and these new ones", "the saved answers", "the new answers")]
             new_rows = existing + [{**r, "repeat": int(r["repeat"]) + top.get((r["prompt_id"], r["platform"]), 0)}
                                    for r in new_rows]
         to_write[label] = new_rows
@@ -173,7 +187,7 @@ async def _save_results(slug: str, runs: list[dict], panel: list[dict] | None, e
     for label, new_rows in to_write.items():
         await be.set(stg.key(slug, "runs", label), new_rows)
         meta["snapshots"].setdefault(label, today())  # first save date; appending never moves a round in time
-    if not stored_panel:
+    if not stored_panel and panel_rows:
         await be.set(stg.key(slug, "panel"), list(panel_rows.values()))
     if new_experiments:
         current = await be.get(stg.key(slug, "experiments")) or []
@@ -191,7 +205,7 @@ async def _save_results(slug: str, runs: list[dict], panel: list[dict] | None, e
     return {"project": slug, "snapshots_saved": {k: len(v) for k, v in to_write.items()},
             "panel_prompts": len(panel_rows), "snapshots_in_project": sorted(meta["snapshots"]),
             "brand": meta.get("brand", {}), "stored_in": "your own Apify account (key-value store 'citebase-projects')",
-            "warnings": cl.panel_warnings(panel_rows, meta.get("brand"))}
+            "warnings": [*cl.panel_warnings(panel_rows, meta.get("brand")), *notes]}
 
 
 async def save_audit(project: str, audit: dict) -> dict:
@@ -249,7 +263,10 @@ def snapshot_trend(data: dict) -> list[dict]:
     for label, saved_on in sorted(data["meta"].get("snapshots", {}).items(), key=lambda kv: kv[1]):
         s = cl.snapshot_summary(data["runs"], panel, label, None)
         if s:
+            context = cl.compact_context(cl.round_context(data["runs"], label))
+            recorded = any(len(entry) > 1 for entry in context.values())
             out.append({"snapshot": label, "saved_on": saved_on, "prompts": s["prompts"],
+                        "engines": sorted(context), "context": context if recorded else {},
                         "recommendation_share": s["recommendation_share"], "rs_low": s["rs_low"], "rs_high": s["rs_high"],
                         "mentioned_rate": s["mentioned_rate"], "cited_rate": s["cited_rate"],
                         "reputation_share": s["reputation_share"], "reputation_prompts": s["reputation_prompts"],
@@ -264,11 +281,12 @@ async def history(project: str) -> dict:
               for a in data["audits"]]
     lines = [f"# History: {data['slug']}"]
     if snaps:
-        lines += ["", "| Round | Saved | Recommendation Share, buying questions (95% range) | Brand-name questions |",
-                  "|---|---|---|---|"]
+        lines += ["", "| Round | Saved | Recommendation Share, buying questions (95% range) | Brand-name questions | Answered by |",
+                  "|---|---|---|---|---|"]
         lines += [f"| {s['snapshot']}{' (older counting)' if s['older_metric'] else ''} | {s['saved_on']} | "
                   f"{100 * s['recommendation_share']:.1f}% ({100 * s['rs_low']:.1f} to {100 * s['rs_high']:.1f}) | "
-                  f"{'n/a' if s['reputation_share'] is None else format(100 * s['reputation_share'], '.1f') + '%'} |"
+                  f"{'n/a' if s['reputation_share'] is None else format(100 * s['reputation_share'], '.1f') + '%'} | "
+                  f"{cl.describe_context(s['context']) if s['context'] else ', '.join(cl.engine_name(e) for e in s['engines'])} |"
                   for s in snaps]
         if any(s["older_metric"] for s in snaps):
             lines += ["", "Rounds marked 'older counting' were saved before Citebase stopped counting every plain mention "

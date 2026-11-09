@@ -6,7 +6,10 @@ argument-hint: "<topic or site> [country]"
 
 # Keyword research, made simple
 
-Talk like `../../references/plain-language.md`. The user is usually a beginner: ask one question, do the work, show five results, ask for one yes. Costs and Actors: `../../references/tools-and-apis.md`. Web mode: use `quote_cost` with `pack: "keywords"` (about $1.37) and `call-actor`. Claude Code: follow the run protocol there.
+Talk like `../../references/plain-language.md`. The user is usually a beginner: ask one question, do the work, show five results, ask for one yes. Costs and Actors: `../../references/tools-and-apis.md`.
+
+## Web connector mode
+Use `quote_cost` with `pack: "keywords"` (about $1.42), wait for a yes, then `call-actor` on `khadinakbar/*` only. Free warm-up: `audit_site` when a URL is available. Show five results, not a dump. Claude Code: follow the run protocol in `tools-and-apis.md`.
 
 ## 1. One question
 Ask: "What do you sell, and who to?" Turn the answer into 3 to 5 seed phrases in the customers' own words (not the brand's marketing words). Add the country.

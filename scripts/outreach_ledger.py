@@ -101,7 +101,7 @@ def cmd_status(_: argparse.Namespace) -> int:
     print(f"paused: {state['paused']}" + (f" ({state['pause_reason']})" if state["pause_reason"] else ""))
     print(f"sent today: {day['sent']} / cap {int(st.option_float('DAILY_SEND_CAP', 20, 1))}")
     print(f"apify spend committed today: ${float(day['spend_usd']):.2f} / ceiling "
-          f"${st.option_float('DAILY_SPEND_USD', 25.0, 0.01):.2f}")
+          f"${st.option_float('DAILY_SPEND_USD', st.DEFAULT_DAILY_SPEND_USD, 0.01):.2f}")
     print(f"approved drafts waiting: {len(state['approvals'])}")
     return 0
 

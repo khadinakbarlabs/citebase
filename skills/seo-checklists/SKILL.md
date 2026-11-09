@@ -14,8 +14,11 @@ Sources of truth (read the relevant ones fully before writing):
 - `../../references/checklist-technical.md` (includes local)
 - `../../references/checklist-ai-search.md`
 
+## Web connector mode
+No checklist files to write. Call `audit_site` if there is no audit yet, then `next_steps` with that result. Emit the tailored checklist in chat (top 10 first), using the same pass/fail/warn rows as below. Offer a quoted AI recommend check after blockers.
+
 ## Steps
-1. Load `seo-workspace/<domain>/audit.json` and `context.md`. If there is no audit, run the crawl from `seo-audit` Step 1 first (fast, free) so items can be pre-filled.
+1. Load `seo-workspace/<domain>/audit.json` and `context.md`. If there is no audit, run the crawl from `seo-audit` Step 1 first (fast, free) so items can be pre-filled. On the web, use `audit_site` instead.
 2. For every reference item that applies to this site type (SaaS, local service, e-commerce, publisher, agency), emit one row:
    `- [ ] <action> — status: pass|fail|warn|todo — evidence: <URL/value or "needs GSC"> — owner: user|agent|specialist — effort: S|M|L`
    Mark `[x]` for verified passes. Skip items that don't apply (e.g. local items for a national SaaS) and say why in one line.
