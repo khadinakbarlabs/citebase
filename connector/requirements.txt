@@ -1,4 +1,4 @@
-apify>=4.2,<5
+apify>=4.2.1,<5
 mcp>=2.3,<3
 pydantic>=2.7,<3
 uvicorn>=0.30,<1
