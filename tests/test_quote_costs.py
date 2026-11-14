@@ -203,7 +203,7 @@ class TheHeadsUp(unittest.TestCase):
         q = pack("starter")
         self.assertLessEqual(set(q), {"pack", "pack_about", "lines", "total_usd", "suggested_cap_usd", "how_to_run",
                                       "prices_read_on", "heads_up", "includes_compute_usd", "compute_note", "warnings",
-                                      "runnable_total_usd"})
+                                      "runnable_total_usd", "run_caps"})
         for line in q["lines"]:
             self.assertLessEqual(set(line), {"job", "actor", "units", "unit", "requests", "cost_usd", "compute_usd",
                                              "note", "not_before"})

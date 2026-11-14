@@ -23,7 +23,7 @@ Everything else (packs, projects, reports, schedules) appears only when it helps
 Everything below happens only once the user has seen a first result. Ask for what the site could not tell you, one question at a time, and only what the next step needs.
 
 ## Web connector mode
-Path: `audit_site` → `next_steps` → `quote_cost` (one-round ~$9 or pack `ai_check` ~$23.60) → yes → `call-actor`. Drafts: `check_ai_content`. Emails: `check_outreach_draft` before any yes. Progress: `save_results` / `get_history` / `make_report` / `schedule_checks` under a project name in the user's Apify account.
+Path: `audit_site` → `next_steps` → `quote_cost` (one-round ~$9 or pack `ai_check` ~$23.60) → yes → `call-actor`. The AI check is several separate runs: give each run its own cap (`run_caps[].max_cost_per_run_usd` from `quote_cost`), never the whole total. Start each paid run once: if `call-actor` returns before the run has finished, do not start it again. Check the same run with `get-actor-run` until it ends, then pass its dataset id to `import_ai_results` as `dataset_ids`. In a new chat, call `get_history` with no project first to see what is already saved; pass a project name to `audit_site` and `next_steps` so nothing has to be passed back by hand. Drafts: `check_ai_content`. Emails: `check_outreach_draft` before any yes. Progress: `save_results` / `get_history` / `make_report` / `schedule_checks` under a project name in the user's Apify account.
 
 **Default next offer after a site check:** call `next_steps` with the audit (it always keeps the AI-recommend step, even when the site has many problems), then ask if they want a quoted AI recommend check (one-round about $9 before the full ~$24 baseline). Only after that, open the specialist table below.
 

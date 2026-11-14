@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+- Safer spending: `quote_cost` now returns `run_caps`, the spending cap for each separate Actor run, so a cap meant for a whole job is never set on every run. Every quote and playbook says to start a paid run once and to check a running one with `get-actor-run` instead of starting it again.
+- Results are not counted twice: the same answers sent again to a round are left out, and a dataset already imported into a round is refused.
+- A site that cannot be read (blocked, login, server error) now returns `status: "unreadable"` and no score, and is not saved. A check cut short by the time limit says `status: "partial"`.
+- Projects remember more: `get_history` with no project lists every saved project with its last checks and what is due; `audit_site` takes a `project`, saves the check and returns what was fixed, what is new and what is still open; `next_steps` takes a `project`, reads the saved results and skips steps marked done; `save_results` stores `settings` (country, language, device, frequency) and `todo` updates, which later checks reuse.
+- `import_ai_results` takes `dataset_ids` and reads the finished runs' results itself, so they do not pass through the chat.
+- Misspelt project names: an unknown name suggests the closest saved one, a look-alike new project is flagged, and `schedule_checks` stops instead of planning for the wrong project.
+
 ## 0.4
 - Easier “get cited by AI” path: `get_playbook` lists a short journey and featured playbooks first; `audit_site` points at `next_steps` plus a quoted AI recommend check; `next_steps` always keeps the AI-recommend step even when the site has many problems, and an empty call offers the site check + AI path instead of only a 30-day reminder.
 - Every skill now has a **Web connector mode** that names the exact tools (`audit_site`, `next_steps`, `quote_cost`, `call-actor`, `check_ai_content`, `check_outreach_draft`, …). `WEB_NOTE` includes `next_steps` and pack `ai_check`.

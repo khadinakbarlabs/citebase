@@ -14,7 +14,7 @@ Never ask for an API key or token in chat.
 1. `fetch-actor-details` for the Actor → read the input schema and the current event prices.
 2. Build the smallest input that answers the question (`maxResults`, keyword count, platforms, repeats).
 3. Quote the estimate in one line: `Actor · units × price ≈ $X (cap $Y)`. Include the start events and the Apify compute described under the table; on the web, `quote_cost` adds both. Batch the quotes for a whole workflow into one approval.
-4. Run with **`call-actor`** and **`callOptions.maxTotalChargeUsd`** = estimate × 1.3, rounded up. Example:
+4. Run with **`call-actor`** and **`callOptions.maxTotalChargeUsd`** = estimate × 1.3, rounded up, per run (a job split over several runs gets a cap for each run, never the total on each). Start each paid run once: if `call-actor` returns before the run has finished, do not start it again; check the same run with `get-actor-run` until it ends. Example:
    `{"actor": "khadinakbar/scrape-google-serp", "input": {...}, "callOptions": {"maxTotalChargeUsd": 0.05}}`.
    A cap written inside the Actor's own `input` is **not** enforced by Apify. Dedicated `khadinakbar--…` tools cannot carry a cap, so do not use them for paid runs.
 5. `get-actor-run` / `get-dataset-items` (page with `limit`/`offset`) → report the actual charge and row count, then append to `seo-workspace/<domain>/ledger.json`: `{"budget_usd": 10, "spent_usd": 3.20, "runs": [{"date": "2026-11-06", "actor": "khadinakbar/scrape-google-serp", "est_usd": 0.03, "cap_usd": 0.05, "actual_usd": 0.03, "rows": 15}]}`.

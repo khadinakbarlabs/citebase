@@ -199,7 +199,11 @@ class GoldenJourney(ServerCase):
         self.assertEqual({line["job"] for line in quote["lines"]}, {"ai_brand_check", "ai_overview"})
         self.assertEqual(sum(line["units"] for line in quote["lines"]), len(items))
         self.assertGreaterEqual(quote["suggested_cap_usd"], quote["total_usd"] * 1.3)
-        self.assertIn(f"maxTotalChargeUsd = {quote['suggested_cap_usd']}", quote["how_to_run"])
+        # the AI check is several Actor runs: each gets its own cap, and together they stay under the total cap
+        self.assertIn("max_cost_per_run_usd", quote["how_to_run"])
+        self.assertIn("do not start it again", quote["how_to_run"])
+        self.assertGreater(sum(c["runs"] for c in quote["run_caps"]), 1)
+        self.assertTrue(all(c["max_cost_per_run_usd"] < quote["suggested_cap_usd"] for c in quote["run_caps"]))
 
         # 4. first save: questions + typed baseline rows + the site check + brand details, all in one call
         saved = await first_round(web, audit)

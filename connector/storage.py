@@ -38,11 +38,33 @@ def key(project: str, *parts: str) -> str:
     return KEY_PREFIX + ".".join([project, *parts])
 
 
+MAX_DATASET_ITEMS = 5000
+DATASET_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9~._-]{4,79}$")
+CANNOT_READ_DATASET = ("Citebase could not read the results '{id}' from your Apify account ({why}). Check the dataset "
+                       "id from the finished run, or pass the result items themselves as `items` instead.")
+
+
+def clean_dataset_id(value: Any) -> str:
+    """A dataset id as Apify prints it, for example 'aBcD1234efGh5678'. Raises ValueError for anything else,
+    so text from a web page can never be turned into a request path."""
+    text = str(value or "").strip()
+    if not DATASET_ID.match(text):
+        raise ValueError("A dataset id looks like 'aBcD1234efGh5678' (letters and numbers from the finished run's "
+                         "defaultDatasetId). It is not a web address or a run name.")
+    return text
+
+
 class MemoryBackend:
     """In-memory store for tests and local runs."""
 
     def __init__(self) -> None:
         self.data: dict[str, Any] = {}
+        self.datasets: dict[str, list] = {}  # tests put finished-run results here
+
+    async def dataset_items(self, dataset_id: str, limit: int = MAX_DATASET_ITEMS) -> list:
+        if dataset_id not in self.datasets:
+            raise ValueError(CANNOT_READ_DATASET.format(id=dataset_id, why="no such dataset"))
+        return list(self.datasets[dataset_id][:limit])
 
     async def get(self, k: str) -> Any:
         return self.data.get(k)
@@ -63,8 +85,22 @@ class MemoryBackend:
 class ApifyBackend:
     """Named key-value store in the account that is running this Actor."""
 
-    def __init__(self, kvs) -> None:
+    def __init__(self, kvs, client=None) -> None:
         self.kvs = kvs
+        self.client = client  # Apify API client that carries the running account's own token
+
+    async def dataset_items(self, dataset_id: str, limit: int = MAX_DATASET_ITEMS) -> list:
+        """Reads a finished run's results straight from the caller's account, so the assistant does not have to
+        copy hundreds of items through the chat. Any failure becomes a plain sentence with the way round it."""
+        if self.client is None:
+            raise ValueError(CANNOT_READ_DATASET.format(id=dataset_id, why="reading datasets is not available here"))
+        try:
+            page = await self.client.dataset(dataset_id).list_items(limit=limit, clean=True)
+        except Exception as err:  # not found, no permission, network: all need the same advice
+            raise ValueError(CANNOT_READ_DATASET.format(id=dataset_id, why=type(err).__name__)) from err
+        if page is None:
+            raise ValueError(CANNOT_READ_DATASET.format(id=dataset_id, why="no such dataset"))
+        return list(page.items)
 
     async def get(self, k: str) -> Any:
         return await self.kvs.get_value(k)
@@ -114,7 +150,8 @@ async def get_backend() -> Any:
             if os.environ.get("APIFY_IS_AT_HOME"):
                 from apify import Actor  # imported here so tests and plain tools never need the Apify SDK
 
-                _backend = ApifyBackend(await Actor.open_key_value_store(name=STORE_NAME))
+                _backend = ApifyBackend(await Actor.open_key_value_store(name=STORE_NAME),
+                                        getattr(Actor, "apify_client", None))
             elif os.environ.get("CITEBASE_ALLOW_MEMORY") == "1":
                 _backend = MemoryBackend()  # tests and local trials only: one shared store, lost on restart
             else:

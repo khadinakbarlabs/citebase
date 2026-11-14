@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import difflib
+import re
 from typing import Any
 
 import storage as stg
@@ -18,11 +20,19 @@ import tools
 
 cl = tools.cl  # tools puts the shared scripts folder on the import path
 
-MAX_AUDIT_PROBLEMS = 10
+MAX_AUDIT_PROBLEMS = 25  # every problem a site check returns, so the next check can say what was fixed
 MAX_AUDITS = 90
 MAX_TEXT = 300
 RECHECK_DAYS = 30
 BRAND_KEYS = ("name", "domain", "competitors", "aliases", "site")
+SETTINGS_KEYS = ("country", "language", "device", "frequency")  # asked once, then reused by every later check
+# These values become Actor input and plan text, so only plain codes are accepted (never free text from a page).
+SETTINGS_RULES = {"country": (r"[a-z]{2}", "a two-letter country code, for example 'gb'"),
+                  "language": (r"[a-z]{2,3}(-[a-z0-9]{2,4})?", "a language code, for example 'en' or 'pt-br'"),
+                  "device": (r"desktop|mobile|tablet", "'desktop', 'mobile' or 'tablet'")}
+TODO_STATES = ("open", "done", "skipped")
+MAX_TODO = 40
+MAX_IMPORT_IDS = 40
 _locks: dict[str, asyncio.Lock] = {}
 
 
@@ -53,6 +63,60 @@ def clean_brand(brand: dict | None) -> dict:
         elif value:
             out[key] = _text(value, 200)
     return out
+
+
+def clean_settings(settings: dict | None) -> dict:
+    """Country, language, device and check frequency as short plain text. Unknown keys are dropped."""
+    if not isinstance(settings, dict):
+        return {}
+    out = {key: _text(settings[key], 40).strip().lower() for key in SETTINGS_KEYS if settings.get(key)}
+    for key, (pattern, example) in SETTINGS_RULES.items():
+        if key in out and not re.fullmatch(pattern, out[key]):
+            raise ValueError(f"settings.{key} must look like {example}.")
+    if out.get("frequency") and out["frequency"] not in tools.FREQUENCIES:
+        raise ValueError(f"settings.frequency must be one of: {', '.join(tools.FREQUENCIES)}. Example: 'monthly'.")
+    return out
+
+
+def clean_todo(todo: list[dict] | None) -> list[dict]:
+    """To-do updates: [{step, status}] with status open, done or skipped. Raises ValueError for anything else."""
+    if not todo:
+        return []
+    if not isinstance(todo, list) or len(todo) > MAX_TODO:
+        raise ValueError(f"Send at most {MAX_TODO} to-do items, each like {{\"step\": \"Add a sitemap\", \"status\": \"done\"}}.")
+    out = []
+    for n, raw in enumerate(todo, 1):
+        step = _text((raw or {}).get("step") if isinstance(raw, dict) else "", 200).strip()
+        status = str((raw or {}).get("status") or "open").strip().lower() if isinstance(raw, dict) else ""
+        if not step or status not in TODO_STATES:
+            raise ValueError(f"To-do item {n} needs a 'step' (plain words) and a 'status' of {', '.join(TODO_STATES)}.")
+        out.append({"step": step, "status": status, "updated": today()})
+    return out
+
+
+def merge_todo(current: list[dict], updates: list[dict]) -> list[dict]:
+    """Updates replace the item with the same step text; new steps are added; the newest MAX_TODO are kept."""
+    merged = {item["step"].lower(): item for item in current if isinstance(item, dict) and item.get("step")}
+    for item in updates:
+        merged[item["step"].lower()] = item
+    return list(merged.values())[-MAX_TODO:]
+
+
+def similar_names(slug: str, known: list[str]) -> list[str]:
+    """Saved project names that look like a misspelling of `slug` (never `slug` itself)."""
+    return difflib.get_close_matches(slug, [k for k in known if k != slug], n=3, cutoff=0.8)
+
+
+def has_time(stamp: Any) -> bool:
+    """True for a full timestamp such as '2026-11-06T10:00:00Z'. A bare date is not enough to tell two repeats apart."""
+    text = str(stamp or "")
+    return len(text) > 10 and (":" in text)
+
+
+def answer_key(row: dict) -> tuple:
+    """What makes two saved answers the same answer: question, engine, exact time and where it was asked from."""
+    return (row["prompt_id"], row["platform"], row.get("answered_at"), row.get("country") or "",
+            row.get("language") or "", row.get("device") or "")
 
 
 def clean_experiments(experiments: list[dict] | None) -> list[dict]:
@@ -94,10 +158,35 @@ def clean_audit(audit: Any) -> dict:
             problems.append({"check": _text(p.get("check"), 120), "detail": _text(p.get("detail")),
                              "level": _text(p.get("level"), 10), "area": _text(p.get("area"), 30)})
     pages = audit.get("pages_checked")
+    passed = audit.get("passed") if isinstance(audit.get("passed"), list) else []
     return {"site": _text(audit.get("site"), 200), "health_score": score, "subscores": numbers(audit.get("subscores"), 10),
             "counts": numbers(audit.get("counts"), 5),
             "pages_checked": int(pages) if isinstance(pages, (int, float)) and not isinstance(pages, bool) else None,
-            "problems": problems}
+            "status": _text(audit.get("status") or "ok", 12),
+            "problems": problems, "passed": [_text(name, 120) for name in passed[:80]]}
+
+
+def compare_audits(previous: dict | None, record: dict) -> dict | None:
+    """What changed since the last site check: problems that are gone, new ones, and ones still open.
+
+    A problem counts as fixed only when the newer check ran that check and it passed. A check that simply did not
+    run this time (fewer pages read, or an older record without a pass list) is left out instead of being called fixed."""
+    if not previous:
+        return None
+    before = [p["check"] for p in previous.get("problems") or [] if p.get("check")]
+    now = [p["check"] for p in record.get("problems") or [] if p.get("check")]
+    passed = set(record.get("passed") or [])
+    out = {"since": previous.get("date"),
+           "fixed": [c for c in before if c in passed],
+           "new": [c for c in now if c not in before],
+           "still_open": [c for c in now if c in before]}
+    if "passed" not in previous:
+        # Checks saved by older versions kept only their first ten problems, so a problem missing from that list
+        # may simply not have been stored. Say so instead of calling it new.
+        out["new"] = []
+        out["note"] = ("The earlier check was saved in a shorter form, so new problems cannot be told apart this "
+                       "time. The next check will show them.")
+    return out
 
 
 async def list_projects() -> list[str]:
@@ -105,13 +194,20 @@ async def list_projects() -> list[str]:
     return sorted({k[len(stg.KEY_PREFIX):].split(".", 1)[0] for k in await be.keys(stg.KEY_PREFIX)})
 
 
+def unknown_project(slug: str, known: list[str]) -> str:
+    """One plain sentence for a project name that is not saved, with the closest saved names first."""
+    close = similar_names(slug, known)
+    listed = close + [k for k in known if k not in close]
+    hint = f"Did you mean '{close[0]}'? " if close else ""
+    return (f"No saved project called '{slug}'. {hint}" + (f"Saved projects: {', '.join(listed[:10])}. " if listed else "")
+            + "Save results first with save_results, or check the name.")
+
+
 async def _require_project(slug: str) -> dict:
     be = await stg.get_backend()
     meta = await be.get(stg.key(slug, "meta"))
     if not meta:
-        known = await list_projects()
-        raise ValueError(f"No saved project called '{slug}'. " + (f"Saved projects: {', '.join(known[:10])}. " if known else "")
-                         + "Save results first with save_results, or check the name.")
+        raise ValueError(unknown_project(slug, await list_projects()))
     return meta
 
 
@@ -124,17 +220,22 @@ def check_frozen(stored_panel: list[dict] | None, panel_rows: dict[str, dict]) -
 
 async def save_results(project: str, runs: list[dict], panel: list[dict] | None = None,
                        experiments: list[dict] | None = None, brand: dict | None = None,
-                       replace: bool = False, append: bool = False) -> dict:
+                       replace: bool = False, append: bool = False, settings: dict | None = None,
+                       todo: list[dict] | None = None, source_ids: list[str] | None = None) -> dict:
     slug = stg.clean_slug(project)
     async with lock_for(slug):
-        return await _save_results(slug, runs, panel, experiments, brand, replace, append)
+        return await _save_results(slug, runs, panel, experiments, brand, replace, append, settings, todo,
+                                   source_ids)
 
 
 async def _save_results(slug: str, runs: list[dict], panel: list[dict] | None, experiments: list[dict] | None,
-                        brand: dict | None, replace: bool, append: bool) -> dict:
+                        brand: dict | None, replace: bool, append: bool, settings: dict | None = None,
+                        todo: list[dict] | None = None, source_ids: list[str] | None = None) -> dict:
     be = await stg.get_backend()
     meta = await be.get(stg.key(slug, "meta"))
-    if meta is None and len(await list_projects()) >= stg.MAX_PROJECTS:
+    created = meta is None
+    others = [p for p in await list_projects() if p != slug] if created else []
+    if created and len(others) >= stg.MAX_PROJECTS:
         raise ValueError(f"You already have {stg.MAX_PROJECTS} saved projects. Reuse one of them.")
     stored_panel = await be.get(stg.key(slug, "panel"))
     if panel:
@@ -152,8 +253,11 @@ async def _save_results(slug: str, runs: list[dict], panel: list[dict] | None, e
     rows = tools.normalise_runs(cleaned, panel_rows) if runs else []
     new_experiments = clean_experiments(experiments)
     new_brand = clean_brand(brand)
-    if not (rows or panel or new_experiments or new_brand):
-        raise ValueError("Nothing to save: send results (runs), the question list (panel), brand details or logged changes.")
+    new_settings = clean_settings(settings)
+    new_todo = clean_todo(todo)
+    if not (rows or panel or new_experiments or new_brand or new_settings or new_todo):
+        raise ValueError("Nothing to save: send results (runs), the question list (panel), brand details, settings, "
+                         "to-do updates or logged changes.")
 
     groups: dict[str, list[dict]] = {}
     for r in rows:
@@ -176,17 +280,30 @@ async def _save_results(slug: str, runs: list[dict], panel: list[dict] | None, e
             for r in existing:
                 k = (r["prompt_id"], r["platform"])
                 top[k] = max(top.get(k, 0), int(r["repeat"]))
+            # The same answers sent twice (a retry after a slow save) must not count twice: an answer already saved
+            # for this question and engine at the same moment is left out.
+            seen = {answer_key(r) for r in existing if has_time(r.get("answered_at"))}
+            fresh = [r for r in new_rows if not (has_time(r.get("answered_at")) and answer_key(r) in seen)]
+            if len(fresh) < len(new_rows):
+                notes.append(f"Round '{label}': {len(new_rows) - len(fresh)} answers were already saved and were not "
+                             "added again.")
+            if not fresh:
+                continue
             notes += [f"Round '{label}': {w}" for w in cl.context_warnings(
-                cl.round_context(existing, label), cl.round_context(new_rows, label), "saved", "new",
+                cl.round_context(existing, label), cl.round_context(fresh, label), "saved", "new",
                 "between the saved answers and these new ones", "the saved answers", "the new answers")]
             new_rows = existing + [{**r, "repeat": int(r["repeat"]) + top.get((r["prompt_id"], r["platform"]), 0)}
-                                   for r in new_rows]
+                                   for r in fresh]
         to_write[label] = new_rows
 
     # 2) write rounds, then the question list, then meta last
+    imports = meta.setdefault("imports", {})
     for label, new_rows in to_write.items():
         await be.set(stg.key(slug, "runs", label), new_rows)
         meta["snapshots"].setdefault(label, today())  # first save date; appending never moves a round in time
+        kept = [] if replace else list(imports.get(label) or [])  # a replaced round holds none of its old datasets
+        if source_ids or replace:
+            imports[label] = list(dict.fromkeys([*kept, *(source_ids or [])]))[-MAX_IMPORT_IDS:]
     if not stored_panel and panel_rows:
         await be.set(stg.key(slug, "panel"), list(panel_rows.values()))
     if new_experiments:
@@ -200,21 +317,47 @@ async def _save_results(slug: str, runs: list[dict], panel: list[dict] | None, e
         await be.set(stg.key(slug, "experiments"), current)
     if new_brand:
         meta["brand"] = {**meta.get("brand", {}), **new_brand}
+    if new_settings:
+        meta["settings"] = {**meta.get("settings", {}), **new_settings}
+    if new_todo:
+        meta["todo"] = merge_todo(meta.get("todo") or [], new_todo)
     meta["updated"] = today()
     await be.set(stg.key(slug, "meta"), meta)
     return {"project": slug, "snapshots_saved": {k: len(v) for k, v in to_write.items()},
             "panel_prompts": len(panel_rows), "snapshots_in_project": sorted(meta["snapshots"]),
-            "brand": meta.get("brand", {}), "stored_in": "your own Apify account (key-value store 'citebase-projects')",
-            "warnings": [*cl.panel_warnings(panel_rows, meta.get("brand")), *notes]}
+            "brand": meta.get("brand", {}), "settings": meta.get("settings", {}), "todo": meta.get("todo", []),
+            "created": created, "stored_in": "your own Apify account (key-value store 'citebase-projects')",
+            "warnings": [*new_project_warnings(slug, created, others), *cl.panel_warnings(panel_rows, meta.get("brand")),
+                         *notes]}
+
+
+def new_project_warnings(slug: str, created: bool, others: list[str]) -> list[str]:
+    """Says so when a save started a NEW project whose name looks like a misspelling of a saved one."""
+    close = similar_names(slug, others) if created else []
+    if not close:
+        return []
+    return [f"This started a NEW project called '{slug}'. You already have '{close[0]}'. If you meant that one, say so "
+            "and save again under its name."]
+
+
+def checked_audit(audit: Any) -> dict:
+    """A site check ready to store, dated today. Raises ValueError for a wrong shape or a check that read nothing."""
+    record = {"date": today(), **clean_audit(audit)}
+    if record["health_score"] is None and record["status"] == "unreadable":
+        raise ValueError("That site check could not read the site, so there is nothing to save. Fix the address or let "
+                         "crawlers in, then check again.")
+    return record
 
 
 async def save_audit(project: str, audit: dict) -> dict:
     slug = stg.clean_slug(project)
-    record = {"date": today(), **clean_audit(audit)}  # validate before anything is stored
+    record = checked_audit(audit)  # validate before anything is stored
     async with lock_for(slug):
         be = await stg.get_backend()
         meta = await be.get(stg.key(slug, "meta"))
-        if meta is None and len(await list_projects()) >= stg.MAX_PROJECTS:
+        created = meta is None
+        others = [p for p in await list_projects() if p != slug] if created else []
+        if created and len(others) >= stg.MAX_PROJECTS:
             raise ValueError(f"You already have {stg.MAX_PROJECTS} saved projects. Reuse one of them.")
         meta = meta or {"project": slug, "created": today(), "brand": {}, "snapshots": {}}
         keys = await be.keys(stg.key(slug, "audit") + ".")  # dated keys, oldest first
@@ -226,14 +369,33 @@ async def save_audit(project: str, audit: dict) -> dict:
         if previous and previous.get("health_score") is not None and record["health_score"] is not None:
             trend = {"previous_date": previous.get("date"), "previous_score": previous["health_score"],
                      "change": record["health_score"] - previous["health_score"]}
-        await be.set(stg.key(slug, "audit", record["date"]), record)
-        keys = sorted(set(keys) | {stg.key(slug, "audit", record["date"])})
+        today_key = stg.key(slug, "audit", record["date"])
+        replaced = await be.get(today_key) if today_key in keys else None  # an earlier check from the same day
+        await be.set(today_key, record)
+        keys = sorted(set(keys) | {today_key})
         for old in keys[:-MAX_AUDITS]:  # keep the newest MAX_AUDITS checks
             await be.delete(old)
         meta.setdefault("brand", {}).setdefault("site", record["site"])
+        meta["last_audit"] = {"date": record["date"], "health_score": record["health_score"]}
         meta["updated"] = today()
         await be.set(stg.key(slug, "meta"), meta)
-    return {"project": slug, "saved_on": record["date"], "trend": trend}
+    return {"project": slug, "saved_on": record["date"], "trend": trend, "created": created,
+            "changes": compare_audits(replaced or previous, record),
+            "warnings": new_project_warnings(slug, created, others)}
+
+
+async def load_meta(project: str) -> dict:
+    """A saved project's details (brand, settings, to-dos, round dates). Raises ValueError when it is not saved."""
+    return await _require_project(stg.clean_slug(project))
+
+
+async def latest_audit(project: str) -> dict | None:
+    """The newest saved site check of a project, or None. Raises ValueError when the project is not saved."""
+    slug = stg.clean_slug(project)
+    await _require_project(slug)
+    be = await stg.get_backend()
+    keys = await be.keys(stg.key(slug, "audit") + ".")
+    return await be.get(keys[-1]) if keys else None
 
 
 async def load_project(project: str) -> dict[str, Any]:
@@ -249,9 +411,13 @@ async def load_project(project: str) -> dict[str, Any]:
         be.get(stg.key(slug, "panel")), be.get(stg.key(slug, "experiments")),
         *[be.get(stg.key(slug, "runs", label)) for label in labels], *[be.get(k) for k in audit_keys])
     run_rows: list[dict] = []
-    for rows in fetched[:len(labels)]:
+    answered: dict[str, str] = {}
+    for label, rows in zip(labels, fetched[:len(labels)]):
         run_rows += rows or []
-    snapshots = {label: meta.get("snapshots", {}).get(label) or meta.get("created", "") for label in labels}
+        answered[label] = max((str(r.get("date") or "") for r in rows or []), default="")
+    # A round that `meta` lost track of (a save that stopped half way) is dated by its own answers. Falling back to
+    # the project's creation date would sort the newest round first and make an old one look current.
+    snapshots = {label: meta.get("snapshots", {}).get(label) or answered[label] or today() for label in labels}
     return {"slug": slug, "meta": {**meta, "snapshots": snapshots}, "panel": panel or [], "runs": run_rows,
             "experiments": exps or [], "audits": [a for a in fetched[len(labels):] if a]}
 
@@ -274,7 +440,67 @@ def snapshot_trend(data: dict) -> list[dict]:
     return out
 
 
-async def history(project: str) -> dict:
+def _due(last: str | None, days: int = RECHECK_DAYS) -> str | None:
+    """The date a re-check is due, `days` after the last one, or None when there is no usable date."""
+    then = cl.parse_date(last or "")
+    return (then + dt.timedelta(days=days)).isoformat() if then else None
+
+
+def due_lines(meta: dict) -> list[str]:
+    """Plain lines for checks that are due today or overdue, so a returning user is told what to do first."""
+    out = []
+    audit_due = _due((meta.get("last_audit") or {}).get("date"))
+    if audit_due and audit_due <= today():
+        out.append(f"Site check is due (last one {meta['last_audit']['date']}).")
+    rounds = [d for d in (meta.get("snapshots") or {}).values() if d]
+    round_due = _due(max(rounds)) if rounds else None
+    if round_due and round_due <= today():
+        out.append(f"AI recommendation check is due (last round saved {max(rounds)}).")
+    return out
+
+
+async def overview() -> dict:
+    """Every saved project in one call: what it is, when it was last checked and what is due.
+
+    This is the 'where am I' answer for a user who comes back in a new chat and does not remember the project name."""
+    be = await stg.get_backend()
+    keys = await be.keys(stg.KEY_PREFIX)
+    names = sorted({k[len(stg.KEY_PREFIX):].split(".", 1)[0] for k in keys})
+    metas = await asyncio.gather(*[be.get(stg.key(n, "meta")) for n in names])
+    projects = []
+    for name, meta in zip(names, metas):
+        meta = dict(meta or {})
+        rounds = meta.get("snapshots") or {}
+        if not meta.get("last_audit"):  # projects saved before the last check was kept in meta: read it from the keys
+            prefix = stg.key(name, "audit") + "."
+            dates = sorted(k[len(prefix):] for k in keys if k.startswith(prefix))
+            meta["last_audit"] = {"date": dates[-1]} if dates else {}
+        last_audit = meta["last_audit"]
+        projects.append({"project": name, "site": (meta.get("brand") or {}).get("site") or (meta.get("brand") or {}).get("domain"),
+                         "brand": (meta.get("brand") or {}).get("name"), "rounds": len(rounds),
+                         "last_round_saved": max(rounds.values()) if any(rounds.values()) else None,
+                         "last_site_check": last_audit.get("date"), "health_score": last_audit.get("health_score"),
+                         "open_todos": sum(1 for t in meta.get("todo") or [] if t.get("status") == "open"),
+                         "updated": meta.get("updated") or meta.get("created"), "due": due_lines(meta)})
+    projects.sort(key=lambda p: p["updated"] or "", reverse=True)
+    lines = ["# Your saved projects"]
+    if projects:
+        lines += ["", "| Project | Site | AI rounds | Last AI round | Last site check | Health | Due now |", "|---|---|---|---|---|---|---|"]
+        lines += [f"| {p['project']} | {p['site'] or 'not set'} | {p['rounds']} | {p['last_round_saved'] or 'none'} | "
+                  f"{p['last_site_check'] or 'none'} | {p['health_score'] if p['health_score'] is not None else 'n/a'} | "
+                  f"{' '.join(p['due']) or 'nothing'} |" for p in projects]
+        nxt = ("Ask which project to continue, then call get_history with that name. Mention anything due now.")
+    else:
+        lines += ["", "Nothing saved yet."]
+        nxt = ("No projects yet. Start with audit_site and pass a project name (for example the site's name) so the "
+               "check is saved.")
+    return {"project": None, "brand": {}, "panel_prompts": 0, "snapshots": [], "audits": [], "experiments": [],
+            "projects": projects, "markdown": "\n".join(lines), "next": nxt}
+
+
+async def history(project: str | None = None) -> dict:
+    if not str(project or "").strip():
+        return await overview()
     data = await load_project(project)
     snaps = await asyncio.to_thread(snapshot_trend, data)
     audits = [{"date": a["date"], "health_score": a.get("health_score"), "subscores": a.get("subscores", {})}
@@ -295,8 +521,27 @@ async def history(project: str) -> dict:
         lines += ["", "| Site check | Health score |", "|---|---|"] + [f"| {a['date']} | {a['health_score']} |" for a in audits]
     if not snaps and not audits:
         lines += ["", "Nothing saved yet."]
-    return {"project": data["slug"], "brand": data["meta"].get("brand", {}), "panel_prompts": len(data["panel"]),
-            "snapshots": snaps, "audits": audits, "experiments": data["experiments"], "markdown": "\n".join(lines)}
+    meta = data["meta"]
+    stored = data["audits"]
+    changes = compare_audits(stored[-2], stored[-1]) if len(stored) > 1 else None
+    if changes and (changes["fixed"] or changes["new"]):
+        lines += ["", f"Since the site check on {changes['since']}: {len(changes['fixed'])} fixed, {len(changes['new'])} "
+                      f"new, {len(changes['still_open'])} still open."]
+    todo = meta.get("todo") or []
+    open_items = [t["step"] for t in todo if t.get("status") == "open"]
+    if open_items:
+        lines += ["", "Open to-dos: " + "; ".join(open_items[:10]) + "."]
+    due = due_lines({**meta, "last_audit": meta.get("last_audit") or ({"date": audits[-1]["date"]} if audits else {})})
+    if due:
+        nxt = " ".join(due) + " Offer to run it now, and say what it costs first if it is a paid check."
+    elif not snaps:
+        nxt = "No AI recommendation round saved yet. Offer a quoted AI recommend check (quote_cost first)."
+    else:
+        nxt = "Nothing is due. Offer next_steps with this project name to pick one thing to work on."
+    return {"project": data["slug"], "brand": meta.get("brand", {}), "panel_prompts": len(data["panel"]),
+            "snapshots": snaps, "audits": audits, "experiments": data["experiments"],
+            "settings": meta.get("settings", {}), "todo": todo, "site_changes": changes, "due": due,
+            "projects": None, "markdown": "\n".join(lines), "next": nxt}
 
 
 def measure_loaded(data: dict, baseline: str = "", current: str = "") -> dict:

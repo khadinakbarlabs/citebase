@@ -90,14 +90,14 @@ Built for founders, marketers and small agencies who want to show up when people
 | Tool | What it returns | Price |
 |---|---|---|
 | `get_playbook` | Citebase's guidelines: the list of names, or one playbook's text (22 workflows and 12 guides and checklists) | No Citebase fee |
-| `audit_site` | 0-100 health score, scores per area, the top problems with example pages | No Citebase fee |
+| `audit_site` | 0-100 health score, scores per area, the top problems with example pages. With a project name it is saved and shows what was fixed since the last check | No Citebase fee |
 | `quote_cost` | Cost of each paid job, the total and the spending cap to use | No Citebase fee |
 | `measure_recommendation_share` | How often AI recommends the brand, with ranges, a noise check and a verdict per change | No Citebase fee |
 | `next_steps` | Ranked to-do list: what, why, who, how long | No Citebase fee |
 | `check_outreach_draft` | Ready yes/no, problems to fix, warnings, a fingerprint of the exact text | No Citebase fee |
 | `check_ai_content` | AI-writing pattern density for a draft (local style lint; not a commercial detector) | No Citebase fee |
 | `save_results` | Saves AI-answer rounds and site checks under a project name in your own Apify account | No Citebase fee |
-| `get_history` | Recommendation Share and site score over time, plus logged changes | No Citebase fee |
+| `get_history` | With no project: every saved project and what is due now. With a project: Recommendation Share and site score over time, settings, to-dos and logged changes | No Citebase fee |
 | `make_report` | A one-page report with a trend chart and a link you can share | No Citebase fee |
 | `import_ai_results` | Converts results of AI Brand Monitor, Google AI Overviews, Google AI Mode and the tracker Actors into saved rows; a first round goes in with one call (send the questions and brand with it); flags close calls and rounds that were asked under different conditions | No Citebase fee |
 | `schedule_checks` | Cron text, the Actor runs to add (assistants repeated 1 to 5 times, Google answers once) and the worst-case monthly cost; the website comes from the saved project | No Citebase fee |
@@ -109,13 +109,16 @@ Built for founders, marketers and small agencies who want to show up when people
 | Field | Type | Meaning | Example |
 |---|---|---|---|
 | `site` | text | The site that was checked | `https://example.com` |
+| `headline` | text | The result in one sentence | "https://example.com scores 66 out of 100 from 3 pages" |
+| `status` | text | `ok`, `partial` (stopped at the time limit) or `unreadable` (site could not be read: no score) | `ok` |
 | `pages_checked` | number | Pages read | `3` |
-| `health_score` | number or null | 0-100, higher is better | `66` |
+| `health_score` | number or null | 0-100, higher is better. Null when the site could not be read | `66` |
 | `subscores` | object | 0-100 per area | `{"technical": 70, "on-page": 55}` |
 | `counts` | object | Checks failed, warned, passed | `{"fail": 2, "warn": 5, "pass": 20}` |
 | `problems` | list | Up to 25, worst first: level, area, check, detail, example pages | see below |
 | `passed` | list | Names of checks that passed | `["HTTP redirects to HTTPS"]` |
 | `limits` | text | What the check cannot see | "no JavaScript is run" |
+| `saved` | object or null | With a project name: where it was saved, the score change, and the checks fixed, new and still open since the last check | `{"changes": {"fixed": ["XML sitemap"]}}` |
 
 ```json
 {
@@ -125,6 +128,7 @@ Built for founders, marketers and small agencies who want to show up when people
     "lines": [{"job": "serp_page", "actor": "khadinakbar/scrape-google-serp", "units": 15, "unit": "SERP page", "requests": 1, "cost_usd": 0.0721, "compute_usd": 0.045}],
     "total_usd": 0.0721,
     "suggested_cap_usd": 0.1,
+    "run_caps": [{"job": "serp_page", "actor": "khadinakbar/scrape-google-serp", "runs": 1, "units_per_run": 15, "max_cost_per_run_usd": 0.1}],
     "includes_compute_usd": 0.045,
     "compute_note": "This total includes about $0.05 of Apify compute, which Apify bills on top of the data prices.",
     "prices_read_on": "2026-11-08"

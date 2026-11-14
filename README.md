@@ -151,14 +151,14 @@ Connect it with the steps near the top of this page, then paste your website add
 | Tool | Returns |
 |---|---|
 | `get_playbook` | The skills and references of this plugin, as text |
-| `audit_site` | Health score, scores per area, top problems |
+| `audit_site` | Health score, scores per area, top problems. With a project name: saved, with what was fixed since last time |
 | `quote_cost` | Cost of paid Apify jobs and the cap to use |
 | `measure_recommendation_share` | Recommendation Share with ranges, controls and experiment verdicts |
 | `next_steps` | A plain-language, ranked to-do list |
 | `check_outreach_draft` | Whether an email is ready to send, with fixes |
 | `check_ai_content` | AI-writing pattern density for a draft (local lint, not a commercial detector) |
 | `save_results` | Saves rounds and site checks under a project name in your own Apify account |
-| `get_history` | Progress over time: Recommendation Share, site score, logged changes |
+| `get_history` | With no project: every saved project and what is due. With a project: Recommendation Share, site score, settings, to-dos, logged changes |
 | `make_report` | One-page shareable report with a trend chart |
 | `import_ai_results` | Converts results of AI Brand Monitor, Google AI Overviews, Google AI Mode and the tracker Actors into saved rows; a first round goes in with one call |
 | `schedule_checks` | Steps, the Actor runs to add (assistants repeated 1 to 5 times, Google answers once) and the worst-case monthly cost for automatic re-checks in Apify Schedules; the website comes from the saved project |

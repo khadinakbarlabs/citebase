@@ -519,8 +519,10 @@ def crawl(start: str, max_pages: int, delay: float, time_budget: float | None = 
     inlinks: Counter = Counter()
     start_url = norm(chain[-1])
     queue, queued = deque([(start_url, 0)]), {start_url}
+    stopped_early = False
     while queue and len(pages) < max_pages:
         if time_budget is not None and time.monotonic() - began > time_budget:
+            stopped_early = True  # reported to the caller: the result covers fewer pages than asked for
             break
         url, depth = queue.popleft()
         if url in seen:
@@ -550,7 +552,32 @@ def crawl(start: str, max_pages: int, delay: float, time_budget: float | None = 
     for p in pages:
         p["inlinks"] = inlinks.get(norm(p["url"]), 0)
         p["internal_link_count"] = len(p.pop("internal_links", []))
-    return {"start": start, "origin": origin, "crawled": len(pages), "signals": signals, "pages": pages}
+    return {"start": start, "origin": origin, "crawled": len(pages), "signals": signals, "pages": pages,
+            "stopped_early": stopped_early}
+
+
+def unreadable_reason(audit: dict) -> str | None:
+    """Why no page text could be read, in plain words, or None when at least one page was read.
+
+    A site that answers 403, shows a bot check or forbids crawling gives no page to judge. Scoring it anyway would
+    turn 'we saw nothing' into a confident number, so callers must report this instead of a score."""
+    pages = audit.get("pages") or []
+    if any("word_count" in p for p in pages):
+        return None
+    if not pages:
+        return "no page was read before the time limit"
+    first = pages[0].get("status")
+    if first == "blocked_by_robots":
+        return "the site's robots file tells crawlers not to read it"
+    if first in (401, 403, 429):
+        return f"the site refused the request (status {first}), which usually means a login or a bot check"
+    if isinstance(first, int) and first >= 500:
+        return f"the site answered with a server error (status {first})"
+    if isinstance(first, int) and first >= 400:
+        return f"the address answered 'not found' or an error (status {first})"
+    if first == 0:
+        return "the site did not answer"
+    return "the address did not return a web page (it may be a file or an app that needs JavaScript)"
 
 
 HIGH_WEIGHT = ("Search + AI crawler access", "robots.txt reachable", "HTTP redirects to HTTPS", "Broken internal pages",

@@ -54,15 +54,17 @@ class AuditProblem(BaseModel):
 
 class AuditResult(BaseModel):
     site: str = Field(description="The site that was checked, for example 'https://example.com'.")
+    headline: str = Field(description="One plain sentence with the result. Lead with it, then show at most five problems.")
+    status: Literal["ok", "partial", "unreadable"] = Field(description="'ok' = checked as asked. 'partial' = stopped at the time limit, so only part of the site is covered: say so. 'unreadable' = the site could not be read (blocked, login, error): there is no score, never invent one.")
     pages_checked: int = Field(description="How many pages were read (at most the max_pages asked for).")
-    health_score: Optional[int] = Field(None, description="0-100 weighted score; 100 = no problems. Null if nothing could be scored.")
+    health_score: Optional[int] = Field(None, description="0-100 weighted score; 100 = no problems. Null when the site could not be read.")
     subscores: dict[str, Optional[int]] = Field(description="0-100 score per area, for example {'technical': 80, 'on-page': 55}.")
     counts: dict[str, int] = Field(description="Number of checks that failed, warned and passed: {'fail': 2, 'warn': 5, 'pass': 20}.")
     problems: list[AuditProblem] = Field(description="Up to 25 problems, worst first.")
     passed: list[str] = Field(description="Names of the checks that passed.")
     limits: str = Field(description="What this check can and cannot see. Repeat this to the user when it matters.")
-    saved: Optional[dict[str, Any]] = Field(None, description="Set only when a project name was given: {project, saved_on, trend}. trend is {previous_date, previous_score, change} when an earlier check exists, else null. Null when nothing was saved.")
-    next: str = Field(description="One short line on what to do next: call next_steps with this result, then offer a quoted AI recommend check. Say it in your own words.")
+    saved: Optional[dict[str, Any]] = Field(None, description="Set only when a project name was given and the site was read: {project, saved_on, created, trend, changes, warnings}. trend is {previous_date, previous_score, change} and changes is {since, fixed, new, still_open} (check names) when an earlier check exists, else null. created is true when this started a new project. Null when nothing was saved.")
+    next: str = Field(description="One short line on what to do next. Say it in your own words.")
 
 
 class QuoteLine(BaseModel):
@@ -77,12 +79,21 @@ class QuoteLine(BaseModel):
     not_before: Optional[str] = Field(None, description="Date (YYYY-MM-DD) before which this job cannot run, because Apify's fees for it are not live yet. Missing when it can run now.")
 
 
+class RunCap(BaseModel):
+    job: str = Field(description="Job name, for example 'ai_brand_check'.")
+    actor: str = Field(description="The Apify Actor to run, for example 'khadinakbar/ai-search-brand-monitor'.")
+    runs: int = Field(description="How many separate Actor runs this job needs, for example 6.")
+    units_per_run: float = Field(description="How many units each run covers, for example 45.")
+    max_cost_per_run_usd: float = Field(description="Spending cap for ONE run of this job: pass it as callOptions.maxTotalChargeUsd on each run.")
+
+
 class QuoteResult(BaseModel):
     pack: Optional[str] = Field(None, description="Name of the pack that was priced, for example 'starter'. Null when single jobs were priced.")
     pack_about: Optional[str] = Field(None, description="One plain sentence about what the pack gets you. Null when single jobs were priced.")
     lines: list[QuoteLine] = Field(description="One entry per priced job.")
     total_usd: float = Field(description="Total estimated cost in US dollars.")
-    suggested_cap_usd: float = Field(description="Spending cap to pass as callOptions.maxTotalChargeUsd (total x 1.3, rounded up to the cent). It covers only the jobs that can run now and is 0 when none can.")
+    suggested_cap_usd: float = Field(description="Most the whole quote can cost (total x 1.3, rounded up to the cent). For a single run, pass it as callOptions.maxTotalChargeUsd. With several runs, use run_caps instead: never put this whole amount on each run. Covers only jobs that can run now; 0 when none can.")
+    run_caps: list[RunCap] = Field(default_factory=list, description="One entry per job that can run now, with the cap for EACH of its runs. Use these when the quote needs more than one Actor run.")
     how_to_run: str = Field(description="Plain instruction for running the jobs with the cap.")
     prices_read_on: str = Field(description="Date the public prices were read, YYYY-MM-DD.")
     heads_up: str = Field(description="Caveat about estimates, including that whether Apify's cap counts compute is unconfirmed. Tell the user.")
@@ -121,6 +132,7 @@ class Step(BaseModel):
 class NextStepsResult(BaseModel):
     steps: list[Step] = Field(description="Ranked steps; the last is always a 30-day re-check reminder.")
     tip: str = Field(description="One sentence of advice to pass on to the user.")
+    project: Optional[str] = Field(None, description="Project the steps were built from. Set only when a project name was given, else null.")
 
 
 class OutreachResult(BaseModel):
@@ -166,14 +178,36 @@ class SaveResult(BaseModel):
     panel_prompts: int = Field(description="Number of test questions in the project's frozen list.")
     snapshots_in_project: list[str] = Field(description="All rounds saved in the project, in name order.")
     brand: dict[str, Any] = Field(description="Brand details saved with the project (name, domain, competitors). Empty if none.")
+    settings: dict[str, Any] = Field(default_factory=dict, description="Country, language, device and check frequency saved with the project. Empty if none.")
+    todo: list[dict[str, Any]] = Field(default_factory=list, description="The project's to-do items: step, status (open, done, skipped) and updated date. Empty if none.")
+    created: bool = Field(False, description="True when this save started a NEW project. If the user meant an existing one, see warnings.")
     stored_in: str = Field(description="Where the data lives. Tell the user it is in their own Apify account.")
-    audit_saved: Optional[dict[str, Any]] = Field(None, description="Set only when an audit was saved: {project, saved_on, trend}. trend is {previous_date, previous_score, change} when an earlier check exists, else null. Null when no audit was sent.")
+    audit_saved: Optional[dict[str, Any]] = Field(None, description="Set only when an audit was saved: {project, saved_on, created, trend, changes, warnings}. trend is {previous_date, previous_score, change} and changes is {since, fixed, new, still_open} when an earlier check exists, else null. Null when no audit was sent.")
     warnings: list[str] = Field(default_factory=list, description="Things to fix in the question list, for example a buying question that names the brand. Tell the user. Empty when none.")
     next: str = Field(description="One short line on what to offer next, for example a 30-day re-check or schedule_checks. Say it in your own words.")
 
 
+class ProjectSummary(BaseModel):
+    project: str = Field(description="Project name to pass to other tools, for example 'acme-site'.")
+    site: Optional[str] = Field(None, description="The project's website, or null when none is saved.")
+    brand: Optional[str] = Field(None, description="Brand name, or null when none is saved.")
+    rounds: int = Field(description="How many AI-answer rounds are saved.")
+    last_round_saved: Optional[str] = Field(None, description="Date the newest AI round was saved, YYYY-MM-DD, or null.")
+    last_site_check: Optional[str] = Field(None, description="Date of the newest site check, YYYY-MM-DD, or null.")
+    health_score: Optional[int] = Field(None, description="Health score of the newest site check, 0-100, or null when unknown.")
+    open_todos: int = Field(0, description="To-do items still open.")
+    updated: Optional[str] = Field(None, description="Date the project last changed, YYYY-MM-DD.")
+    due: list[str] = Field(default_factory=list, description="Checks that are due now, in plain words. Empty when nothing is due.")
+
+
 class HistoryResult(BaseModel):
-    project: str = Field(description="Project name.")
+    project: Optional[str] = Field(None, description="Project name. Null when no project was given: then see projects.")
+    projects: Optional[list[ProjectSummary]] = Field(None, description="Every saved project, newest first. Set only when no project name was given, else null. Use it when a user returns and does not say which project.")
+    settings: dict[str, Any] = Field(default_factory=dict, description="Country, language, device and check frequency saved with the project. Reuse them; do not ask again. Empty if none.")
+    todo: list[dict[str, Any]] = Field(default_factory=list, description="The project's to-do items: step, status (open, done, skipped), updated. Empty if none.")
+    site_changes: Optional[dict[str, Any]] = Field(None, description="What changed between the last two site checks: {since, fixed, new, still_open} (check names). Null with fewer than two checks.")
+    due: list[str] = Field(default_factory=list, description="Checks that are due now, in plain words. Empty when nothing is due.")
+    next: str = Field("", description="One short line on what to offer next. Say it in your own words.")
     brand: dict[str, Any] = Field(description="Brand details saved with the project. Empty if none.")
     panel_prompts: int = Field(description="Number of test questions in the project.")
     snapshots: list[dict[str, Any]] = Field(description="One entry per saved round, oldest first: snapshot, saved_on, prompts (buying questions), recommendation_share, rs_low, rs_high (the headline), mentioned_rate, cited_rate, reputation_share and reputation_prompts (brand-name questions, shown apart), metric_version and older_metric (true = counted more loosely: do not compare with newer rounds), engines (which AI engines answered) and context (per engine: answers and any recorded model, country, language, device and collection method; empty when nothing was recorded). Rates are 0-1.")
@@ -193,7 +227,9 @@ class ReportLinkResult(BaseModel):
 
 
 class ImportResult(BaseModel):
-    runs: list[dict[str, Any]] = Field(description="Converted rows, ready for save_results.")
+    runs: list[dict[str, Any]] = Field(description="Converted rows, ready for save_results. Empty when the results were read from dataset_ids and saved: they are already stored.")
+    dataset_ids: Optional[list[str]] = Field(None, description="The dataset ids that were read, or null when items were sent.")
+    next: str = Field("", description="One short line on what to do next. Say it in your own words.")
     unmatched_queries: list[str] = Field(description="Questions in the results that are not in the project's list. They were skipped.")
     needs_review: list[dict[str, Any]] = Field(description="Every mention or citation that was not clearly positive, up to 25 (close calls first), each with a reason and the sentence around it. None of them is counted as recommended until reviewed. Read them with the user and fix with save_results replace=true if needed.")
     summary: dict[str, int] = Field(description="Counts: rows, recommended, mentioned, cited, unmatched, skipped (all items left out, any reason) and needs_review (the true total, even when only 25 are listed).")
@@ -220,6 +256,19 @@ class BrandInfo(BaseModel):
     domain: Optional[str] = Field(None, description="Main website domain, for example 'acme.com'. Defaults to none.")
     competitors: Optional[list[str]] = Field(None, max_length=20, description="Competitor brand names, for example ['Rival', 'Other Co']. Up to 20. Defaults to none.")
     aliases: Optional[list[str]] = Field(None, max_length=20, description="Other ways people write the brand, for example ['AcmePay']. Used to warn when a buying question gives the brand away. Up to 20. Defaults to none.")
+    site: Optional[str] = Field(None, max_length=200, description="Full website address to check, for example 'https://acme.com'. Saved so later checks need no address. Defaults to none.")
+
+
+class ProjectSettings(BaseModel):
+    country: Optional[str] = Field(None, max_length=40, description="Country the brand sells in, as a two-letter code, for example 'gb'. Used for Google checks. Defaults to none (then 'us').")
+    language: Optional[str] = Field(None, max_length=40, description="Language of the questions, for example 'en'. Defaults to none (then 'en').")
+    device: Optional[str] = Field(None, max_length=40, description="'desktop' or 'mobile'. Defaults to none (then 'desktop').")
+    frequency: Optional[Literal["daily", "weekly", "monthly"]] = Field(None, description="How often the user wants checks, for example 'monthly'. Defaults to none.")
+
+
+class TodoItem(BaseModel):
+    step: str = Field(max_length=200, description="The step text as next_steps gave it, for example 'Add a sitemap'.")
+    status: Literal["open", "done", "skipped"] = Field("done", description="'done', 'skipped' (not suggested again) or 'open'. Defaults to 'done'.")
 
 
 class ImportContext(BaseModel):

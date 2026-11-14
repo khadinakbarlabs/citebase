@@ -549,7 +549,8 @@
       "items": [
         {
           "job": "ai_brand_check",
-          "units": 270
+          "units": 270,
+          "requests": 6
         },
         {
           "job": "ai_overview",

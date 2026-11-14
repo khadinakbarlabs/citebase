@@ -18,7 +18,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/citation_loop.py" <command> seo-workspace
 ## Web connector mode
 No local files here, so history lives in the user's own Apify account. Ask for a short project name (for example `acme-site`).
 
-Before any paid AI round: `quote_cost` with `pack: "ai_check"` (about $23.60; offer a one-round custom quote first, about $9), wait for a yes, then `call-actor` with `callOptions.maxTotalChargeUsd = suggested_cap_usd`.
+Before any paid AI round: `quote_cost` with `pack: "ai_check"` (about $23.60; offer a one-round custom quote first, about $9), wait for a yes, then `call-actor`. The AI check is several separate runs: give each run its own cap (`run_caps[].max_cost_per_run_usd` from `quote_cost`), never the whole total. Start each paid run once: if `call-actor` returns before the run has finished, do not start it again. Check the same run with `get-actor-run` until it ends, then pass its dataset id to `import_ai_results` as `dataset_ids`.
 
 First round: do not retype the answers. Run the check, then call `import_ai_results` with `panel` (the questions exactly as used), `brand` (name, domain, competitors), the `items` and `save: true`: the project is created and the round saved in one step. Or save the question list first on its own with `save_results` (`panel` and `brand`, no runs), then import by project name. Later rounds: `import_ai_results` with the new `items` (the questions are already frozen).
 
