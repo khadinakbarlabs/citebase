@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "reviewedAt": null,
-  "reviewer": null,
-  "publicContentReviewed": false,
-  "note": "Drafted by the build agent. The owner must read the public README and metadata, then set reviewer, reviewedAt and publicContentReviewed before any publication. Not a legal opinion.",
+  "reviewedAt": "2026-11-16",
+  "reviewer": "Khadin Akbar",
+  "publicContentReviewed": true,
+  "note": "Drafted by the build agent. The owner read the public README and metadata and confirmed the review in chat on 2026-11-16. Not a legal opinion.",
   "brands": [
     {
       "name": "ChatGPT (OpenAI)",

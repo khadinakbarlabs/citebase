@@ -355,6 +355,10 @@ async def fetch_datasets(dataset_ids: list, already: list[str]) -> tuple[list[di
     be = await stg.get_backend()
     for dataset_id in ids:
         source = await be.dataset_source(dataset_id)
+        if source is None:
+            raise ValueError(f"Could not tell which Actor made dataset {dataset_id}, so Citebase will not read it: it "
+                             "only reads results from its own Actors (khadinakbar/*). Nothing was imported. Check the "
+                             "dataset id and that the run belongs to this account, then try again.")
         if source and not source.startswith(OWN_ACTOR_PREFIX):
             raise ValueError(f"Dataset {dataset_id} was made by {source}, which is not one of Citebase's own Actors "
                              "(khadinakbar/*). Citebase only reads results from its own Actors. Nothing was imported.")

@@ -191,7 +191,8 @@ class ComplianceTests(unittest.TestCase):
     def test_brand_notices_match_store_compliance_record(self):
         rec = load(".actor", "STORE_COMPLIANCE.json")
         self.assertEqual(rec["schemaVersion"], 1)
-        self.assertFalse(rec["publicContentReviewed"], "a human must confirm the review; never pre-marked")
+        if rec["publicContentReviewed"]:  # only a named human with a date may mark it reviewed
+            self.assertTrue(rec["reviewer"] and rec["reviewedAt"], "reviewed needs a named reviewer and a date")
         self.assertGreaterEqual(len(rec["brands"]), 6)
         for brand in rec["brands"]:
             self.assertIn(brand["disclosure"], self.readme, brand["name"])

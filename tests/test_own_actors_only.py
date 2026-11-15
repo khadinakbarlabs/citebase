@@ -69,6 +69,13 @@ class ImportedResultsMustComeFromOwnActors(unittest.TestCase):
         self.assertIn("someone/else-scraper", str(ctx.exception))
         self.assertIn("Nothing was imported", str(ctx.exception))
 
+    def test_unidentifiable_source_is_refused(self):
+        self.be.dataset_sources["otherDataset123"] = None
+        with self.assertRaises(ValueError) as ctx:
+            asyncio.run(runner.fetch_datasets(["ownDataset123", "otherDataset123"], []))
+        self.assertIn("Could not tell which Actor", str(ctx.exception))
+        self.assertIn("Nothing was imported", str(ctx.exception))
+
     def test_lookalike_owner_is_refused(self):
         self.be.dataset_sources["otherDataset123"] = "khadinakbar-evil/x"
         with self.assertRaises(ValueError):
