@@ -60,6 +60,10 @@ class MemoryBackend:
     def __init__(self) -> None:
         self.data: dict[str, Any] = {}
         self.datasets: dict[str, list] = {}  # tests put finished-run results here
+        self.dataset_sources: dict[str, str] = {}  # tests: dataset id -> 'owner/name' of the Actor that made it
+
+    async def dataset_source(self, dataset_id: str) -> str | None:
+        return self.dataset_sources.get(dataset_id)
 
     async def dataset_items(self, dataset_id: str, limit: int = MAX_DATASET_ITEMS) -> list:
         if dataset_id not in self.datasets:
@@ -88,6 +92,22 @@ class ApifyBackend:
     def __init__(self, kvs, client=None) -> None:
         self.kvs = kvs
         self.client = client  # Apify API client that carries the running account's own token
+
+    async def dataset_source(self, dataset_id: str) -> str | None:
+        """'owner/name' of the Actor whose run made this dataset; None when no Actor made it (a hand-made dataset) or
+        when that cannot be read. Used only to refuse results made by another creator's Actor."""
+        if self.client is None:
+            return None
+        try:
+            info = await self.client.dataset(dataset_id).get()
+            act_id = getattr(info, "act_id", None)
+            if not act_id:
+                return None
+            actor = await self.client.actor(str(act_id)).get()
+            owner, name = getattr(actor, "username", None), getattr(actor, "name", None)
+            return f"{owner}/{name}".lower() if owner and name else None
+        except Exception:  # metadata is a safety check, never a reason to lose a user's results
+            return None
 
     async def dataset_items(self, dataset_id: str, limit: int = MAX_DATASET_ITEMS) -> list:
         """Reads a finished run's results straight from the caller's account, so the assistant does not have to

@@ -6,7 +6,7 @@
 
 When someone asks an AI "what's the best X for Y?", it answers from what it finds said about brands across the web: search results, press, review sites, creator content, podcasts, community threads. Citebase measures where AI stands on your brand today, finds the gaps on live data, plans the pages, press, partnerships and outreach emails that close them, and then re-measures to see whether it worked. It works inside the AI assistant you already use.
 
-One sign-in with Apify. Every data call shows its price first, and you pay only per result. In Claude Code each run also has a spending cap that Apify enforces; on the web your assistant asks you before it runs anything. No subscriptions, no five API keys.
+One sign-in with Apify. Every paid data job is quoted before it runs, and you pay only per result. In Claude Code each run also has a spending cap that Apify enforces; on the web your assistant asks you before it runs anything. No subscriptions, no five API keys.
 
 ```
 /citebase:start https://yourbrand.com

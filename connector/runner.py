@@ -101,6 +101,7 @@ async def quote(items: list[dict] | None, pack: str | None, project: str | None 
         if planned["job"] in blocked:
             continue
         ready.append({"name": planned["name"], "actor": planned["actor"], "times": planned["times"],
+                      "how_often": f"Start {planned['times']} separate run(s) with this input, one start each.",
                       "input": planned["input"], "max_cost_per_run_usd": next(caps)["max_cost_per_run_usd"]})
     priced["ready_runs"] = ready
     where = (f"round name '{round_name}' and append=true (it adds to the saved first look)" if round_name else
@@ -336,6 +337,9 @@ async def measure(project: str | None, panel: list[dict] | None, runs: list[dict
     return result
 
 
+OWN_ACTOR_PREFIX = "khadinakbar/"
+
+
 async def fetch_datasets(dataset_ids: list, already: list[str]) -> tuple[list[dict], list[str]]:
     """Reads the results of finished runs from the caller's own account. Returns (items, ids that were read).
 
@@ -349,6 +353,11 @@ async def fetch_datasets(dataset_ids: list, already: list[str]) -> tuple[list[di
         raise ValueError(f"These results are already in this round: {', '.join(repeated)}. Nothing was added. To load "
                          "them again from scratch, pass replace=true with the user's yes.")
     be = await stg.get_backend()
+    for dataset_id in ids:
+        source = await be.dataset_source(dataset_id)
+        if source and not source.startswith(OWN_ACTOR_PREFIX):
+            raise ValueError(f"Dataset {dataset_id} was made by {source}, which is not one of Citebase's own Actors "
+                             "(khadinakbar/*). Citebase only reads results from its own Actors. Nothing was imported.")
     items: list[dict] = []
     for dataset_id in ids:
         room = stg.MAX_DATASET_ITEMS - len(items)

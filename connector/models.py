@@ -259,7 +259,7 @@ class SchedulePlanResult(BaseModel):
     frequency: str = Field(description="'daily', 'weekly' or 'monthly'.")
     cron: str = Field(description="Cron text to paste into the Apify schedule.")
     when: str = Field(description="The same schedule in plain words.")
-    free_site_check: dict[str, Any] = Field(description="Actor, ready-to-paste input and cost of the free scheduled site check and report refresh.")
+    free_site_check: dict[str, Any] = Field(description="Actor, ready-to-paste input and cost of the scheduled site check and report refresh (it has no Citebase fee).")
     ai_checks: Optional[dict[str, Any]] = Field(None, description="The scheduled AI-answer checks: repeats, engines, the Actor runs to add (each with its input, how many times to add it, cost and suggested max cost), checks and cost per round, the worst-case monthly estimate (share amounts only when the user asks), and the country, language and device to pass as context when importing. Null when the project has no questions or brand yet.")
     steps: list[str] = Field(description="Plain steps for creating the schedule in Apify Console.")
     before_you_set_it_up: str = Field("", description="What the user must agree to first. Follow it: recurring checks need a clear yes.")

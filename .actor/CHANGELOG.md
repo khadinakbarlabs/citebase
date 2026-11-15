@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.5
+- Only Citebase's own Actors: `import_ai_results` refuses a dataset made by another creator's Actor, and the server instructions and every quote tell the assistant to run only the named `khadinakbar/*` Actors. A job quoted with zero requests now still counts the per-run request fee, and the approval gate recognises sends under more tool names.
 - Safer spending: `quote_cost` now returns `run_caps`, the spending cap for each separate Actor run, so a cap meant for a whole job is never set on every run. Every quote and playbook says to start a paid run once and to check a running one with `get-actor-run` instead of starting it again.
 - Results are not counted twice: the same answers sent again to a round are left out, and a dataset already imported into a round is refused.
 - A site that cannot be read (blocked, login, server error) now returns `status: "unreadable"` and no score, and is not saved. A check cut short by the time limit says `status: "partial"`.

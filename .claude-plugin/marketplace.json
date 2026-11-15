@@ -11,7 +11,7 @@
   "plugins": [
     {
       "name": "citebase",
-      "description": "Get cited by AI: measure your AI visibility on live data, find the gaps, and plan the pages, PR and outreach that close them, with price quotes and approval gates",
+      "description": "Get cited by AI: measure your AI visibility on live data, find the gaps, and plan the pages, PR and outreach that close them, with quotes before paid runs and approval gates",
       "source": "./"
     }
   ]

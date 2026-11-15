@@ -76,6 +76,8 @@ def classify(tool: str, tool_input: dict) -> str | None:
         return "apify"
     if DEDICATED_ACTOR.fullmatch(last):
         return "dedicated"
+    if "send" in snake.split("_") and st.recipients(tool_input):
+        return "send"  # check_and_send_email, gmail_send, send_bulk ...: a recipient plus a send word is a send
     if READ_ONLY.match(snake):
         return None
     if CAMPAIGN.search(snake):
