@@ -108,18 +108,9 @@ Specialist agents run in parallel with restricted tools: `technical-auditor`, `b
 
 Needs no account: the local crawler (30+ checks), all checklists, writing (page briefs, releases, emails), analysis of your own exports (Search Console, GA4, or exports from any SEO tool you already use).
 
-Live data runs on your Apify account at each Actor's published price (read 2026-11-08; the agent re-checks before quoting):
+Live data runs on your Apify account at each Actor's own published price. The agent quotes each run before starting it, tells you when a check is paid, and waits for your yes. Ask it for the price of any job and it will say.
 
-| Workflow | ≈ Cost |
-|---|---|
-| Quick audit (server-HTML audit + 15 SERPs) | $0.17 |
-| Full audit (audit, SERPs, keywords, backlinks vs 3 competitors, link prospects, small AI check) | $8.70 |
-| Competitor research | $5.10 |
-| AI-visibility pilot (30 prompts × 3 engines × 1 run + 20 AI Overviews) | $9.20 |
-| AI-visibility baseline (same, 3 runs each) | $23.60 |
-| 100 link prospects with verified contacts | $0.94 |
-
-AI answers are the expensive part: brand checks cost $0.08 per prompt × engine × run, Google AI Overviews $0.10 per query (the price Google's fallback route charged in every test run), and the page-citation tracker $0.09 per keyword × query × engine (about $1 per keyword with defaults). Apify also bills a small amount of compute on some jobs; it is included in the quote. Keyword and backlink Actors charge a per-request fee on top of per-row prices, so runs are batched. The agent quotes each run before starting. New Apify accounts include free monthly credit.
+AI answers are the expensive part, so those checks come with a smaller first-look option before the full baseline. Apify also bills a small amount of compute on some jobs; it is included in the quote. Keyword and backlink Actors charge a per-request fee on top of per-row prices, so runs are batched. New Apify accounts include free monthly credit.
 
 ## Install
 

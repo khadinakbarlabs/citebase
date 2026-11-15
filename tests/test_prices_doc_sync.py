@@ -137,16 +137,16 @@ class DocNumbersFollowTheQuote(unittest.TestCase):
         text = read(".actor", "ACTOR_README.md")
         self.assertIsNone(re.search(r"[$€£]\s?\d", text))
         self.assertIn("Each job is priced before it runs", text)
+        self.assertIsNone(re.search(r"[$€£]\s?\d", read("README.md")))
 
     def test_the_ai_check_baseline_is_the_same_everywhere(self):
         amount = self.totals["ai_check"]
-        for parts in (("README.md",), ("references", "tools-and-apis.md"),
-                      ("docs", "competitor-scorecard.md")):
+        for parts in (("references", "tools-and-apis.md"), ("docs", "competitor-scorecard.md")):
             self.assertIn(amount, read(*parts), "/".join(parts))
 
     def test_the_quick_audit_is_the_starter_pack_everywhere(self):
         amount = self.totals["starter"]
-        for parts in (("README.md",), ("references", "tools-and-apis.md")):
+        for parts in (("references", "tools-and-apis.md"),):
             self.assertIn(amount, read(*parts), "/".join(parts))
 
     def test_playbooks_and_agent_prompts_state_no_amounts(self):
@@ -166,7 +166,7 @@ class DocNumbersFollowTheQuote(unittest.TestCase):
 
     def test_the_date_the_prices_were_read_matches_the_docs(self):
         read_on = self.tools.PRICES["read_on"]
-        for parts in (("README.md",), ("references", "tools-and-apis.md")):
+        for parts in (("references", "tools-and-apis.md"),):
             self.assertIn(read_on, read(*parts), "/".join(parts))
         for parts in (("README.md",), (".actor", "ACTOR_README.md"), ("references", "tools-and-apis.md")):
             self.assertNotIn("2026-11-07", read(*parts), "/".join(parts))
