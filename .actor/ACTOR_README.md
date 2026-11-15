@@ -130,7 +130,7 @@ Built for founders, marketers and small agencies who want to show up when people
     "suggested_cap_usd": 0.1,
     "run_caps": [{"job": "serp_page", "actor": "khadinakbar/scrape-google-serp", "runs": 1, "units_per_run": 15, "max_cost_per_run_usd": 0.1}],
     "includes_compute_usd": 0.045,
-    "compute_note": "This total includes about $0.05 of Apify compute, which Apify bills on top of the data prices.",
+    "compute_note": "This total includes Apify compute (includes_compute_usd), which Apify bills on top of the data prices.",
     "prices_read_on": "2026-11-08"
   }
 }
@@ -209,6 +209,7 @@ Each paid run also pays start fees (usually $0.00005 per GB of run memory; three
 | `competitors` | How rivals look and rank | $0.34 |
 | `creators` | YouTube creators worth approaching | $0.40 |
 | `local` | Where a business shows on the map | $0.15 |
+| `ai_check_pilot` | A first look at whether AI recommends you (30 questions, 3 assistants, once) | $9.20 |
 | `ai_check` | Does AI recommend you (30 questions, 3 assistants, 3 times) | $23.60 |
 
 

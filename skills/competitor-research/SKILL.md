@@ -6,21 +6,23 @@ argument-hint: "<your domain> [competitor domains...] [country]"
 
 # Competitor research
 
-Tools: Apify Actors per `../../references/tools-and-apis.md` (run protocol: quote → cap → run → report cost). Log paid calls in `ledger.json`.
+Tools: Apify Actors per `../../references/tools-and-apis.md` (run protocol). Log paid calls in `ledger.json`.
+
+**Paid checks:** before any paid run, say it is a paid check billed to the user's own Apify account and wait for a clear yes. Do not state an amount; give it only if the user asks what that task costs (then call `quote_cost` and tell them). Always call `quote_cost` anyway to get the spending cap for each run, and set it without comment.
 
 ## Web connector mode
-Price the whole step with one call: `quote_cost` with `pack: "competitors"` (about $0.34), wait for a yes, then `call-actor` on `khadinakbar/*` only. Show five findings, not a data dump (`../../references/plain-language.md`). Keep the snapshot in chat; offer `save_results` under a project name if they want history.
+Cover the whole step with one call: say it is a paid check, wait for a yes, then `quote_cost` with `pack: "competitors"` for the caps and `call-actor` on `khadinakbar/*` only. Show five findings, not a data dump (`../../references/plain-language.md`). Keep the snapshot in chat; offer `save_results` under a project name if they want history.
 
 ## 1. Identify real competitors (by SERP, not by opinion)
 - Take 5–15 money keywords (from `context.md`, the homepage/money pages, or the user's GSC export).
-- Pull SERPs for each with `khadinakbar/scrape-google-serp` ($0.0018/page); count which domains recur in the top 10 → SERP competitors. Separate **business competitors** (sell the same thing) from **content competitors** (publishers, directories, marketplaces, Reddit, listicles) — the latter are link/mention targets, not rivals.
+- Pull SERPs for each with `khadinakbar/scrape-google-serp`; count which domains recur in the top 10 → SERP competitors. Separate **business competitors** (sell the same thing) from **content competitors** (publishers, directories, marketplaces, Reddit, listicles) — the latter are link/mention targets, not rivals.
 - Keep 3–5 business competitors (merge with the user's list).
 
 ## 2. Snapshot table
 For you + each competitor: referring domains and backlink summary (`khadinakbar/website-backlink-checker`, `mode: summary`), how many of the tracked SERPs each ranks in and at what positions, top pages by traffic, page types that win (BoFu landing pages, comparison pages, tools/templates, blog), AI-visibility hints (are they named in AI answers? see `ai-search-visibility`). Label all third-party traffic numbers as estimates.
 
 ## 3. Keyword and content gaps
-- Expand the topic set with `khadinakbar/dataforseo-keyword-research` (`mode: keyword_ideas`, 1–10 `seedKeywords` per run, ≤50 rows per run; $0.20 per request + $0.01/row, so batch seeds into one run); add `mode: search_volume` ($1.00 per request + $0.01/row) for specific phrases and `khadinakbar/google-trends-scraper` for seasonality.
+- Expand the topic set with `khadinakbar/dataforseo-keyword-research` (`mode: keyword_ideas`, 1–10 `seedKeywords` per run, ≤50 rows per run; each run carries a per-request fee, so batch seeds into one run); add `mode: search_volume` for specific phrases and `khadinakbar/google-trends-scraper` for seasonality.
 - Gap = keywords where competitors appear in the SERP top 10 and you don't (from the SERP scrapes) or where you have no matching page.
 - Classify intent from the SERP (page types ranking) and the phrasing — prioritise "best X for Y", "X vs Y", "X alternatives", "X pricing/cost", "service + city", templates/tools.
 - **Weak-page mining** (high-yield): for each candidate keyword, inspect the ranking URLs. A ranking page is *weak* if it has 0–3 referring domains, the keyword missing from its title/H1/slug, a broad/accidental page type, or stale/thin content. Weak top-10 results = keywords you can win with one dedicated, intent-matched page.
@@ -29,7 +31,10 @@ For you + each competitor: referring domains and backlink summary (`khadinakbar/
 ## 4. Backlink gap
 - Diff referring domains (`website-backlink-checker`, `mode: referring_domains`, ≤100 rows per competitor): domains linking to ≥2 competitors but not you. Classify: directory/listing (claim now), review site, listicle/roundup (pitch inclusion), publisher/editorial (digital PR), partner/integration, community. Output feeds `link-building`.
 
-## 5. Outputs
+## 5. Cited for rivals, not for you
+If AI results exist for this brand (from `ai-search-visibility` or `citation-loop`), read the sources in those answers and list the sites that AI cites for two or more competitors but never for the brand. For each: the site, the page, the competitors it is cited for, and the kind of page (list, review site, forum thread, news). Hand the list to `link-building` / `outreach` as first targets. If there are no AI results yet, say so and offer the AI check (paid; ask first). Do not guess the list.
+
+## 6. Outputs
 - `seo-workspace/<domain>/competitors.md`: competitor table, what each does well, the 3 strategic gaps to exploit.
 - `seo-workspace/<domain>/keyword-opportunities.csv`: `keyword,volume,kd,intent,ranking_url,weak_page_reason,proposed_page`.
 - A page plan: top 10 pages to create or upgrade, each with target keyword cluster, page type (per SERP), title/H1 draft using `Keyword | benefit | Brand`, and internal links to add.
@@ -38,3 +43,4 @@ For you + each competitor: referring domains and backlink summary (`khadinakbar/
 - Pages compete, not domains: always reason at page level.
 - Don't propose mass templated pages (doorways / scaled content abuse). Each proposed page needs a real reason to exist.
 - Competitor data is research only; never contact competitors or copy their content.
+- Finish with the three-line footer (Done, Cost so far, Next).

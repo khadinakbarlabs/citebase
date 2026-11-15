@@ -50,7 +50,7 @@ class ParityTests(unittest.TestCase):
 
     def test_the_parser_sees_real_functions(self):
         found = declared_tools()
-        self.assertEqual(found["quote_cost"], {"pack", "items"})
+        self.assertEqual(found["quote_cost"], {"pack", "items", "project"})
         self.assertGreaterEqual(len(found), 11)
 
 

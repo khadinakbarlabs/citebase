@@ -91,14 +91,17 @@ class QuoteResult(BaseModel):
     pack: Optional[str] = Field(None, description="Name of the pack that was priced, for example 'starter'. Null when single jobs were priced.")
     pack_about: Optional[str] = Field(None, description="One plain sentence about what the pack gets you. Null when single jobs were priced.")
     lines: list[QuoteLine] = Field(description="One entry per priced job.")
-    total_usd: float = Field(description="Total estimated cost in US dollars.")
+    total_usd: float = Field(description="Total estimated cost in US dollars. Do not read it out unless the user asked what this costs.")
     suggested_cap_usd: float = Field(description="Most the whole quote can cost (total x 1.3, rounded up to the cent). For a single run, pass it as callOptions.maxTotalChargeUsd. With several runs, use run_caps instead: never put this whole amount on each run. Covers only jobs that can run now; 0 when none can.")
     run_caps: list[RunCap] = Field(default_factory=list, description="One entry per job that can run now, with the cap for EACH of its runs. Use these when the quote needs more than one Actor run.")
     how_to_run: str = Field(description="Plain instruction for running the jobs with the cap.")
+    project: Optional[str] = Field(None, description="Project the quote was worked out for, or null.")
+    ready_runs: Optional[list[dict[str, Any]]] = Field(None, description="Set only with a project: the exact Actor runs to start, each with name, actor, times (how many times to run it), input (pass as is) and max_cost_per_run_usd (pass as callOptions.maxTotalChargeUsd on each run). Null otherwise.")
+    after_the_runs: Optional[str] = Field(None, description="Set only with a project: how to import the results when the runs finish. Null otherwise.")
     prices_read_on: str = Field(description="Date the public prices were read, YYYY-MM-DD.")
-    heads_up: str = Field(description="Caveat about estimates, including that whether Apify's cap counts compute is unconfirmed. Tell the user.")
+    heads_up: str = Field(description="Caveat about estimates, including that whether Apify's cap counts compute is unconfirmed. Share it when the user asked for the price.")
     includes_compute_usd: Optional[float] = Field(None, description="Apify compute included in total_usd, in US dollars. Null when none is billed on top of the data prices.")
-    compute_note: Optional[str] = Field(None, description="One plain sentence saying how much of the total is Apify compute, for example 'This total includes about $0.05 of Apify compute...'. Say it to the user. Null when there is none.")
+    compute_note: Optional[str] = Field(None, description="One plain sentence saying how much of the total is Apify compute, that points at includes_compute_usd. Share it, with that amount, when the user asked for the price. Null when there is none.")
     warnings: list[str] = Field(default_factory=list, description="Plain warnings, for example that a job cannot run until a date. Empty when there is nothing to warn about. Always tell the user.")
     runnable_total_usd: Optional[float] = Field(None, description="Total of the jobs that can run now, in US dollars. Set only when some job cannot run yet, otherwise null.")
 
@@ -117,6 +120,8 @@ class MeasureResult(BaseModel):
     markdown: str = Field(description="Ready-to-show report in Markdown.")
     project: Optional[str] = Field(None, description="Project name the numbers came from. Set only when a saved project was used, else null.")
     context: Optional[dict[str, Any]] = Field(None, description="Where each round's answers came from, for the baseline and the current round: per engine the number of answers and any recorded model, country, language, device and collection method. Engines with nothing recorded show only the answer count. Null when unknown.")
+    citation_gap: Optional[dict[str, Any]] = Field(None, description="Set only with a project. Sites AI cited in buying-question answers that named a rival and left the brand out, for the latest round: round, answers_with_sources, sites (site, answers_citing_it, answers_for_rivals_without_you, answers_that_recommend_you, engines, rivals_named, example_questions) and a note. These are the places to earn a mention. Null otherwise.")
+    proof: Optional[dict[str, Any]] = Field(None, description="Set only with a project. What is behind the number: round, questions (each with question, type, topic, answers, recommended, and per engine the answers and how many recommended, named or linked the brand), raw_answers (links to the datasets in the user's own Apify account, when the round was imported by dataset id) and how_to_check. Show it when the user doubts a number. Null otherwise.")
     next: str = Field(description="One short line on what to offer next, for example saving results or a 30-day re-check. Say it in your own words.")
 
 
@@ -181,6 +186,11 @@ class SaveResult(BaseModel):
     settings: dict[str, Any] = Field(default_factory=dict, description="Country, language, device and check frequency saved with the project. Empty if none.")
     todo: list[dict[str, Any]] = Field(default_factory=list, description="The project's to-do items: step, status (open, done, skipped) and updated date. Empty if none.")
     created: bool = Field(False, description="True when this save started a NEW project. If the user meant an existing one, see warnings.")
+    ai_bot_visits: Optional[dict[str, Any]] = Field(None, description="Set only when a server log was sent. Which AI and search bots read the site, from the user's own server log: lines_read, period, bots (each with bot, owner, kind 'answer' or 'training', requests, pages, top_pages, errors, blocked, error_share, first_seen, last_seen), answer_bot_requests, training_bot_requests and findings (plain sentences to pass on). Answer bots fetch pages to answer questions; blocking training bots does not stop citations. Also saved_on and previous (the headline numbers of the log saved before, or null). Null otherwise.")
+    ranks: Optional[dict[str, Any]] = Field(None, description="Set only when search positions were sent: saved_on, previous_date, keywords, top_3, top_10, not_found and positions (keyword, engine, now, before, checked_before, moved_up_by; a positive move is up). Null otherwise.")
+    panel_review: Optional[dict[str, Any]] = Field(None, description="Set only when a question list was sent: questions, buying_questions, control_questions, brand_questions, topics (topic, buying_questions, can_judge_one_change), problems (fix before the first paid round), advice and ready_to_freeze. Null otherwise.")
+    checked_only: bool = Field(False, description="True when check_only was set: nothing was stored.")
+    ai_traffic: Optional[dict[str, Any]] = Field(None, description="Set only when an analytics export was sent. Visits AI assistants sent, from the user's own analytics export: ai_visits, all_visits, ai_share (0-1), assistants (assistant, visits, conversions, revenue), by_month and findings. It undercounts (answers read without a click are not in it): present it as a floor. Also saved_on and previous (the export saved before, or null). Null otherwise.")
     stored_in: str = Field(description="Where the data lives. Tell the user it is in their own Apify account.")
     audit_saved: Optional[dict[str, Any]] = Field(None, description="Set only when an audit was saved: {project, saved_on, created, trend, changes, warnings}. trend is {previous_date, previous_score, change} and changes is {since, fixed, new, still_open} when an earlier check exists, else null. Null when no audit was sent.")
     warnings: list[str] = Field(default_factory=list, description="Things to fix in the question list, for example a buying question that names the brand. Tell the user. Empty when none.")
@@ -207,6 +217,10 @@ class HistoryResult(BaseModel):
     todo: list[dict[str, Any]] = Field(default_factory=list, description="The project's to-do items: step, status (open, done, skipped), updated. Empty if none.")
     site_changes: Optional[dict[str, Any]] = Field(None, description="What changed between the last two site checks: {since, fixed, new, still_open} (check names). Null with fewer than two checks.")
     due: list[str] = Field(default_factory=list, description="Checks that are due now, in plain words. Empty when nothing is due.")
+    ai_bot_visits: Optional[dict[str, Any]] = Field(None, description="The newest saved server-log summary, or null when none was saved. Which AI and search bots read the site, from the user's own server log: lines_read, period, bots (each with bot, owner, kind 'answer' or 'training', requests, pages, top_pages, errors, blocked, error_share, first_seen, last_seen), answer_bot_requests, training_bot_requests and findings (plain sentences to pass on). Answer bots fetch pages to answer questions; blocking training bots does not stop citations.")
+    ranks: Optional[dict[str, Any]] = Field(None, description="The newest saved search positions with the move since the ones before: saved_on, previous_date, keywords, top_3, top_10, not_found, positions (keyword, engine, now, before, checked_before, moved_up_by). Null when none were saved.")
+    citation_gap: Optional[dict[str, Any]] = Field(None, description="Sites AI cited for rivals while leaving the brand out, in the latest round: round, answers_with_sources, sites and a note. Null when there are no saved answers.")
+    ai_traffic: Optional[dict[str, Any]] = Field(None, description="The newest saved analytics-export summary, or null when none was saved. Visits AI assistants sent, from the user's own analytics export: ai_visits, all_visits, ai_share (0-1), assistants (assistant, visits, conversions, revenue), by_month and findings. It undercounts (answers read without a click are not in it): present it as a floor.")
     next: str = Field("", description="One short line on what to offer next. Say it in your own words.")
     brand: dict[str, Any] = Field(description="Brand details saved with the project. Empty if none.")
     panel_prompts: int = Field(description="Number of test questions in the project.")
@@ -224,6 +238,7 @@ class ReportLinkResult(BaseModel):
     snapshots: int = Field(description="Rounds of AI-answer results included.")
     site_checks: int = Field(description="Site checks included.")
     note: str = Field(description="How sharing works and how to stop it. Tell the user.")
+    next: str = Field("", description="One short line on what to offer next. Say it in your own words.")
 
 
 class ImportResult(BaseModel):
@@ -245,8 +260,12 @@ class SchedulePlanResult(BaseModel):
     cron: str = Field(description="Cron text to paste into the Apify schedule.")
     when: str = Field(description="The same schedule in plain words.")
     free_site_check: dict[str, Any] = Field(description="Actor, ready-to-paste input and cost of the free scheduled site check and report refresh.")
-    ai_checks: Optional[dict[str, Any]] = Field(None, description="The scheduled AI-answer checks: repeats, engines, the Actor runs to add (each with its input, how many times to add it, cost and suggested max cost), checks and cost per round, the worst-case monthly estimate, and the country, language and device to pass as context when importing. Null when the project has no questions or brand yet.")
+    ai_checks: Optional[dict[str, Any]] = Field(None, description="The scheduled AI-answer checks: repeats, engines, the Actor runs to add (each with its input, how many times to add it, cost and suggested max cost), checks and cost per round, the worst-case monthly estimate (share amounts only when the user asks), and the country, language and device to pass as context when importing. Null when the project has no questions or brand yet.")
     steps: list[str] = Field(description="Plain steps for creating the schedule in Apify Console.")
+    before_you_set_it_up: str = Field("", description="What the user must agree to first. Follow it: recurring checks need a clear yes.")
+    how_to_stop: str = Field("", description="How to switch the schedule off. Always tell the user.")
+    who_creates_it: str = Field("", description="Who creates the schedule and when an assistant may do it for the user.")
+    next: str = Field("", description="One short line on what to do next. Say it in your own words.")
     note: Optional[str] = Field(None, description="Why ai_checks is null, when it is. Null otherwise.")
 
 
@@ -264,6 +283,14 @@ class ProjectSettings(BaseModel):
     language: Optional[str] = Field(None, max_length=40, description="Language of the questions, for example 'en'. Defaults to none (then 'en').")
     device: Optional[str] = Field(None, max_length=40, description="'desktop' or 'mobile'. Defaults to none (then 'desktop').")
     frequency: Optional[Literal["daily", "weekly", "monthly"]] = Field(None, description="How often the user wants checks, for example 'monthly'. Defaults to none.")
+
+
+class RankRow(BaseModel):
+    keyword: str = Field(max_length=120, description="The search phrase, for example 'payroll software'.")
+    position: Optional[int] = Field(None, ge=1, le=1000, description="Where the site appears, 1 = first. Null when it was not found in the results checked.")
+    engine: Literal["google", "bing", "local"] = Field("google", description="'google', 'bing' or 'local' (the map results). Defaults to 'google'.")
+    url: Optional[str] = Field(None, max_length=300, description="The page that ranks, if known. Defaults to none.")
+    country: Optional[str] = Field(None, max_length=2, description="Two-letter country the search was run for, for example 'gb'. Defaults to none.")
 
 
 class TodoItem(BaseModel):

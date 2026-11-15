@@ -8,24 +8,24 @@ argument-hint: "<domain> [audit|prospect] [topics...]"
 
 Talk like `../../references/plain-language.md`: plain words, at most five prospects per message, and end each step with Done / Cost so far / Next, asking for one yes.
 
-Read `../../references/checklist-offpage.md` (criteria, tactics, never-do list) and the run protocol in `../../references/tools-and-apis.md` (quote → cap → run → report cost).
+Read `../../references/checklist-offpage.md` (criteria, tactics, never-do list) and the run protocol in `../../references/tools-and-apis.md` (ask → cap → run).
 
 ## Web connector mode
-No `seo-workspace/` or `prospects.csv` here — keep the shortlist in chat (or `save_results` under a project name if they want history). Price research with `quote_cost` (often pack `competitors`, about $0.34, or custom backlink/opportunity jobs), wait for a yes, then `call-actor` on `khadinakbar/*` only. Show at most five prospects per message. Hand outreach drafts to the `outreach` skill; on the web that means `check_outreach_draft` before any email yes.
+No `seo-workspace/` or `prospects.csv` here — keep the shortlist in chat (or `save_results` under a project name if they want history). Research is a paid check billed to the user's own Apify account: say so and wait for a clear yes, then `quote_cost` for the spending cap (often pack `competitors`, or custom backlink/opportunity jobs) and `call-actor` on `khadinakbar/*` only. Give the amount only if the user asks what it costs. Show at most five prospects per message. Hand outreach drafts to the `outreach` skill; on the web that means `check_outreach_draft` before any email yes.
 
 ## 1. Profile audit (always first)
-- `khadinakbar/website-backlink-checker`: `mode: summary` for the client and the top 3 competitors, then `referring_domains` and `anchors` for the client (`maxResults` ≤100; ≈$0.05/request + $0.01/row). Or delegate to the `backlink-analyst` agent.
+- `khadinakbar/website-backlink-checker`: `mode: summary` for the client and the top 3 competitors, then `referring_domains` and `anchors` for the client (`maxResults` ≤100; paid). Or delegate to the `backlink-analyst` agent, passing it only the caps the user approved.
 - Compare referring domains, anchor mix and dofollow share to the competitors. Flag over-optimised exact-match anchors, bursts, toxic neighbourhoods, and backlinks pointing at 404/redirected URLs (reclaim with 301s).
 - Disavow only if there is a manual action.
 
 ## 2. Build the opportunity list (`seo-workspace/<domain>/prospects.csv`)
 Columns: `domain,url,type,source,dr,traffic,relevance,contact,email,verified,status`. Sources, in order of value:
-1. **Free / owned**: unlinked brand mentions (SERP: `"[brand]" -site:[domain]`), partners, suppliers, integrations, clients, associations, awards; broken links pointing at the client's old URLs.
+1. **Already yours**: unlinked brand mentions (SERP: `"[brand]" -site:[domain]`), partners, suppliers, integrations, clients, associations, awards; broken links pointing at the client's old URLs.
 2. **Competitor gap**: referring domains linking to ≥2 competitors but not the client (diff the `referring_domains` reports) — directories and review sites first, then editorial.
 3. **AI-cited pages** from `ai-search-visibility` (listicles, roundups, comparison pages) → inclusion requests.
-4. **Prospect discovery**: `khadinakbar/backlink-opportunity-finder` — `keywords` (3–10 topics), `targetDomain` (client), `excludeDomains` (competitors, marketplaces), `opportunityTypes` (resource pages, guest-post guidelines, listicles, directories…), `countryCode`, `maxResultsPerKeyword` (default 25), `minimumRelevanceScore`; $0.006 per saved prospect. Quote first (e.g. 5 topics × 20 = 100 prospects ≈ $0.60).
+4. **Prospect discovery**: `khadinakbar/backlink-opportunity-finder` — `keywords` (3–10 topics), `targetDomain` (client), `excludeDomains` (competitors, marketplaces), `opportunityTypes` (resource pages, guest-post guidelines, listicles, directories…), `countryCode`, `maxResultsPerKeyword` (default 25), `minimumRelevanceScore`. Charged per saved prospect, so keep the count small (for example 5 topics × 20). Paid: ask first. Start with the sites AI cites for two or more competitors but not the brand, when `ai-search-visibility` or `competitor-research` has that list.
 5. **Custom footprints** via `khadinakbar/scrape-google-serp` when needed: `"[topic]" "write for us"`, `intitle:"best [category]"`, `"[topic]" inurl:resources`, `inurl:sponsors [city]`, `"[competitor]" review -site:[competitor]`.
-6. **Broken-link building**: run `khadinakbar/broken-link-checker` ($0.001/link) on the best resource pages; each dead outbound link relevant to a client page = a replacement pitch.
+6. **Broken-link building**: run `khadinakbar/broken-link-checker` (paid; ask first) on the best resource pages; each dead outbound link relevant to a client page = a replacement pitch.
 De-duplicate by domain; drop domains already linking to the client.
 
 ## 2b. Score and rank (so the user works on the best 20, not the first 200)

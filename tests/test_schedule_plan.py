@@ -214,10 +214,11 @@ class CostTests(unittest.TestCase):
             self.assertAlmostEqual(ai["max_cost_per_month_usd"], round(caps * rounds, 2), places=2)
             self.assertGreaterEqual(ai["max_cost_per_month_usd"], ai["estimated_cost_per_month_usd"])
 
-    def test_the_cost_note_says_worst_case_and_includes_the_amount(self):
+    def test_the_cost_note_says_worst_case_and_points_at_the_amount_fields(self):
         ai = plan_for(frequency="weekly")["ai_checks"]
         note = ai["cost_note"]
-        self.assertIn(f"${ai['estimated_cost_per_month_usd']:,.2f}", note)
+        self.assertIn("estimated_cost_per_month_usd", note)
+        self.assertNotIn("$", note)  # amounts stay in the numeric fields
         self.assertIn("highest", note.lower())
         self.assertIn("running costs", note.lower())
         self.assertIn(tools.PRICES["read_on"], note)

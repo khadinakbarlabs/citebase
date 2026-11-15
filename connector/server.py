@@ -30,7 +30,7 @@ import models as m  # noqa: E402
 import runner  # noqa: E402
 import tools  # noqa: E402
 
-VERSION = "0.4.1"
+VERSION = "0.5.0"
 MAX_BODY = 2 * 1024 * 1024
 log = logging.getLogger("citebase")
 INSTRUCTIONS = (
@@ -38,10 +38,11 @@ INSTRUCTIONS = (
     "First, in any new chat: call get_history with no project to see what the user already saved, and continue "
     "there instead of starting over. Reuse saved country, language and site; do not ask again. "
     "Default path (one yes at a time): (1) get_playbook name='start', (2) audit_site with the URL and a project "
-    "name so it is saved, (3) next_steps with that project, (4) offer a quoted AI recommend check — one-round "
-    "about $9 or pack ai_check about $24 — only after quote_cost and a clear yes. Talk in short, plain words. "
-    "Never spend money or send email without the user's clear yes. Paid data uses the Apify connector: quote_cost "
-    "first, then call-actor. " + tools.CAP_PER_RUN + " " + tools.RUN_ONCE + " When runs finish, pass their dataset "
+    "name so it is saved, (3) next_steps with that project, (4) offer a paid AI recommend check (a first look, "
+    "then the full baseline), (5) import and measure, (6) pick one fix, log it, (7) offer a monthly re-check. "
+    "Talk in short, plain words. End each answer with one next step. Never spend money or send email without "
+    "the user's clear yes. " + tools.PRICE_RULE + " Paid data uses the Apify connector: quote_cost first, then "
+    "call-actor. " + tools.CAP_PER_RUN + " " + tools.RUN_ONCE + " When runs finish, pass their dataset "
     "ids to import_ai_results (dataset_ids) instead of copying items. Keep progress with a project name via "
     "save_results, get_history and make_report. For drafts, check_ai_content is local and has no Citebase fee. "
     "When showing Recommendation Share, lead with the headline and show the brand-name check separately. If a "
@@ -70,10 +71,11 @@ TOOL_TEXT = {
         "No Citebase fee; takes up to a minute."),
     "quote_cost": (
         "Quote costs",
-        "Work out what paid Apify data jobs will cost and which spending cap to use. Use before every call-actor "
-        "run: pass a pack name (starter, keywords, competitors, creators, local, ai_check) or custom items. Not for "
-        "running jobs: it only prices them. Returns each job's cost, the total, and run_caps: the cap to set on "
-        "each separate Actor run as callOptions.maxTotalChargeUsd. No Citebase fee."),
+        "Get the spending cap for paid Apify data jobs, and the amount when the user asks what a task costs. Use "
+        "before every call-actor run: pass a pack name (for example ai_check_pilot, ai_check, starter, keywords) or "
+        "custom items; add project to get ready-to-run inputs for the AI check. Not for running jobs, and do not "
+        "read amounts out unless asked. Returns run_caps (the cap for each Actor run as "
+        "callOptions.maxTotalChargeUsd), ready_runs and the totals. No Citebase fee."),
     "measure_recommendation_share": (
         "Measure AI recommendations",
         "Turn AI-answer test results into Recommendation Share: how often ChatGPT, Perplexity, Gemini and others "
@@ -89,11 +91,11 @@ TOOL_TEXT = {
         "for reading the results first. Returns ranked steps plus a 30-day re-check reminder. No Citebase fee."),
     "save_results": (
         "Save progress",
-        "Save a project's details in the user's own Apify account: AI-answer results, the question list, brand and "
-        "website, settings (country, language, device, frequency), to-do updates and logged changes. Use when the "
-        "user agrees to a project name, and whenever they tell you a detail worth keeping. Not for measuring, and "
-        "not needed for site checks (audit_site saves with a project name). The question list is frozen after the "
-        "first save. Returns what was stored. No Citebase fee."),
+        "Save a project's details in the user's own Apify account: AI-answer results, the question list, brand, "
+        "settings, to-do updates and logged changes. Also keeps counts from a pasted server log (AI bot visits), "
+        "an analytics export (visits from AI) and search positions. Use when the user agrees to a project name or "
+        "shares something worth keeping; set check_only to test a question list before it is frozen. Not for "
+        "measuring; site checks save themselves. Returns what was stored. No Citebase fee."),
     "get_history": (
         "Show projects and history",
         "With no project: list every saved project with its site, last checks and what is due now. Use this first "
@@ -117,8 +119,9 @@ TOOL_TEXT = {
         "Plan automatic checks",
         "Give the exact steps and ready-to-paste inputs to run a project's site check and AI-answer checks on a "
         "schedule (daily, weekly or monthly) in Apify Schedules, so each round can be compared with the last. Use "
-        "when the user wants tracking to happen by itself. Not a scheduler: the user creates the schedule. Returns "
-        "cron, the Actor runs to add, and the worst-case monthly cost. No Citebase fee."),
+        "when the user wants tracking to happen by itself, and offer it after a check. Not a scheduler: the user "
+        "creates the schedule and can switch it off any time. Returns cron, the Actor runs to add with their max "
+        "costs, how to stop, and a monthly estimate to share only if asked. No Citebase fee."),
     "check_outreach_draft": (
         "Check an outreach email",
         "Check one outreach email before sending: valid recipients, do-not-contact list, daily limit, leftover "
@@ -151,34 +154,45 @@ def friendly(fn):
     holds the tool name, input size, outcome and time only: never the content."""
     name = fn.__name__
 
-    def record(started: float, kwargs: dict, ok: bool) -> None:
-        log.info(json.dumps({"event": "tool_call", "tool": name, "input_bytes": len(json.dumps(kwargs, default=str)),
-                             "ok": ok, "ms": int((time.monotonic() - started) * 1000)}))
+    def record(started: float, kwargs: dict, ok: bool, error_class: str | None = None) -> None:
+        line = {"event": "tool_call", "tool": name, "input_bytes": len(json.dumps(kwargs, default=str)),
+                "ok": ok, "ms": int((time.monotonic() - started) * 1000)}
+        if error_class:
+            line["error_class"] = error_class  # the kind of failure only, never its text
+        log.info(json.dumps(line))
 
     if inspect.iscoroutinefunction(fn):
         @functools.wraps(fn)
         async def wrapper(*args, **kwargs):
-            started, ok = time.monotonic(), False
+            started, ok, kind = time.monotonic(), False, None
             try:
                 result = await fn(*args, **kwargs)
                 ok = True
                 return result
             except ValueError as err:
+                kind = "bad_input"
                 raise ToolError(str(err)) from err
+            except Exception as err:
+                kind = type(err).__name__
+                raise
             finally:
-                record(started, kwargs, ok)
+                record(started, kwargs, ok, kind)
     else:
         @functools.wraps(fn)
         def wrapper(*args, **kwargs):
-            started, ok = time.monotonic(), False
+            started, ok, kind = time.monotonic(), False, None
             try:
                 result = fn(*args, **kwargs)
                 ok = True
                 return result
             except ValueError as err:
+                kind = "bad_input"
                 raise ToolError(str(err)) from err
+            except Exception as err:
+                kind = type(err).__name__
+                raise
             finally:
-                record(started, kwargs, ok)
+                record(started, kwargs, ok, kind)
     return wrapper
 
 
@@ -219,15 +233,20 @@ def build_server() -> MCPServer:
 
     @tool("quote_cost", READ_ONLY)
     @friendly
-    def quote_cost(
+    async def quote_cost(
             pack: Annotated[Optional[str], Field(json_schema_extra=m.PACK_SCHEMA, description=(
-                "The easy way: a ready-made bundle, for example 'starter' (first look at a site), 'keywords', "
-                "'competitors', 'creators', 'local' or 'ai_check'. Use this unless the user wants something custom. "
-                "Defaults to none. NOT a job name."))] = None,
+                "The easy way: a ready-made bundle, for example 'ai_check_pilot' (first look at AI recommendations), "
+                "'ai_check' (full baseline), 'starter' (first look at a site), 'keywords', 'competitors', 'creators' "
+                "or 'local'. Use this unless the user wants something custom. Defaults to none. NOT a job name."))] = None,
             items: Annotated[Optional[list[m.QuoteItem]], Field(max_length=50, description=(
                 "Custom jobs instead of a pack, each like {\"job\": \"serp_page\", \"units\": 15}. Up to 50 items. "
-                "Defaults to none. NOT a list of Actor names."))] = None) -> m.QuoteResult:
-        return m.QuoteResult(**tools.quote_cost(dump(items), pack))
+                "Defaults to none. NOT a list of Actor names."))] = None,
+            project: Annotated[Optional[str], Field(description=(
+                "Only with pack 'ai_check' or 'ai_check_pilot': name of a saved project, for example 'acme-site'. "
+                "The quote is then worked out from its saved question list and brand, and ready_runs holds the exact "
+                "Actor inputs to run, so nothing has to be made up. Defaults to none. NOT a URL."))] = None
+    ) -> m.QuoteResult:
+        return m.QuoteResult(**await runner.quote(dump(items), pack, project))
 
     @tool("measure_recommendation_share", READ_ONLY)
     @friendly
@@ -292,12 +311,31 @@ def build_server() -> MCPServer:
                 "\"en\", \"frequency\": \"monthly\"}. Later checks reuse them. Defaults to none."))] = None,
             todo: Annotated[Optional[list[m.TodoItem]], Field(max_length=40, description=(
                 "To-do updates, for example [{\"step\": \"Add a sitemap\", \"status\": \"done\"}]. Steps marked done "
-                "or skipped are not suggested again. Up to 40. Defaults to none."))] = None
+                "or skipped are not suggested again. Up to 40. Defaults to none."))] = None,
+            server_log: Annotated[Optional[str], Field(max_length=1_500_000, description=(
+                "Lines pasted from the website's own access log (combined format, a few days is enough), to see "
+                "which AI bots read the site and whether any are refused. Only counts are kept: no addresses, no "
+                "raw lines. Defaults to none. NOT a file path or a URL."))] = None,
+            traffic: Annotated[Optional[list[dict[str, Any]]], Field(max_length=5000, description=(
+                "Rows from the user's analytics export, each with a source and a visit count, for example "
+                "[{\"Session source\": \"chatgpt.com\", \"Sessions\": 40, \"Date\": \"20261101\"}]. Shows "
+                "the visits AI assistants sent. Up to 5,000 rows. Defaults to none."))] = None,
+            traffic_csv: Annotated[Optional[str], Field(max_length=1_500_000, description=(
+                "The same analytics export pasted as CSV text with its header row, instead of traffic rows. "
+                "Defaults to none. NOT a file path or a URL."))] = None,
+            ranks: Annotated[Optional[list[m.RankRow]], Field(max_length=500, description=(
+                "Search positions to keep over time, one row per keyword and engine, for example [{\"keyword\": "
+                "\"payroll software\", \"position\": 7, \"engine\": \"google\"}]. Use null for position when the site "
+                "was not found. Each save is compared with the one before. Up to 500. Defaults to none."))] = None,
+            check_only: Annotated[bool, Field(description=(
+                "True to check and review without storing anything: use it on a new question list before the "
+                "first save, because the list cannot change afterwards. Defaults to false."))] = False
     ) -> m.SaveResult:
         brand_dict = brand.model_dump(exclude_none=True) if brand else None
         settings_dict = settings.model_dump(exclude_none=True) if settings else None
         return m.SaveResult(**await runner.save(project, dump(runs), dump(panel), dump(experiments), brand_dict, audit,
-                                                replace, append, settings_dict, dump(todo)))
+                                                replace, append, settings_dict, dump(todo), server_log, traffic,
+                                                traffic_csv, dump(ranks, exclude_none=False), check_only))
 
     @tool("get_history", READ_ONLY)
     @friendly
@@ -310,7 +348,7 @@ def build_server() -> MCPServer:
     @friendly
     async def make_report(project: Annotated[str, Field(description=(
             "Name of a saved project, for example 'acme-site'. NOT a URL."))]) -> m.ReportLinkResult:
-        return m.ReportLinkResult(**await runner.report.make_report(project))
+        return m.ReportLinkResult(**await runner.make_report(project))
 
     @tool("import_ai_results", SAVE)
     @friendly
@@ -441,9 +479,15 @@ def build_server() -> MCPServer:
         try:
             result = await runner.run_tool(tool_name, data.get("arguments"))
         except ValueError as err:
-            log.info(json.dumps({"event": "run_call", "tool": tool_name, "ok": False,
+            log.info(json.dumps({"event": "run_call", "tool": tool_name, "ok": False, "error_class": "bad_input",
                                  "ms": int((time.monotonic() - started) * 1000)}))
             return JSONResponse({"ok": False, "error": str(err)}, 400)
+        except Exception as err:  # a fault in Citebase itself: one log line with the class, never the content
+            log.info(json.dumps({"event": "run_call", "tool": tool_name, "ok": False,
+                                 "error_class": type(err).__name__, "ms": int((time.monotonic() - started) * 1000)}))
+            return JSONResponse({"ok": False, "error": "Citebase hit an unexpected problem with this request. "
+                                                       "Try again; if it keeps happening, report it on the Actor's "
+                                                       "Issues tab."}, 500)
         log.info(json.dumps({"event": "run_call", "tool": tool_name, "ok": True,
                              "ms": int((time.monotonic() - started) * 1000)}))
         return JSONResponse({"ok": True, "tool": tool_name, "result": result})

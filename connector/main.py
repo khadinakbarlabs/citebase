@@ -25,6 +25,12 @@ async def run_once() -> None:
         await Actor.push_data({"tool": tool, "ok": False, "result": None, "error": str(err)})
         await Actor.fail(status_message=str(err)[:200])
         return
+    except Exception as err:  # a fault in Citebase itself: say so plainly, keep the class for the run log
+        Actor.log.error(f"{tool} failed unexpectedly: {type(err).__name__}")
+        message = "Citebase hit an unexpected problem with this request. Nothing was charged by Citebase. Try again."
+        await Actor.push_data({"tool": tool, "ok": False, "result": None, "error": message})
+        await Actor.fail(status_message=message)
+        return
     await Actor.push_data({"tool": tool, "ok": True, "result": result, "error": None})
     await Actor.set_value("OUTPUT", result)
     await Actor.set_status_message(f"{tool}: done")
@@ -39,7 +45,7 @@ async def main() -> None:
         port = int(os.environ.get("ACTOR_STANDBY_PORT") or os.environ.get("ACTOR_WEB_SERVER_PORT") or 8080)
         Actor.log.info(f"Citebase MCP server listening on port {port}")
         server = uvicorn.Server(uvicorn.Config(build_app(), host="0.0.0.0", port=port, log_level="info",
-                                               timeout_graceful_shutdown=5))
+                                               timeout_graceful_shutdown=25))
         await server.serve()
 
 

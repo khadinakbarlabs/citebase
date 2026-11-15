@@ -12,7 +12,7 @@
 ## Indexing
 - [auto] **XML sitemap** reachable, referenced in robots.txt, listing canonical 200 URLs only. Helps discovery, not authority.
 - [auto] **No accidental noindex** on 200 pages (staging leftovers, plugin checkbox); don't noindex nav category pages. (B)
-- [gsc] **"Crawled – currently not indexed"** is usually a value/authority problem, not crawl budget: differentiate titles (`Keyword | benefit | Brand`), ≥5 internal links in/out (a $50k 15-site test fixed indexing at ≥5), depth ≤3, more authority; republish at a new URL if stuck. (B)
+- [gsc] **"Crawled – currently not indexed"** is usually a value/authority problem, not crawl budget: differentiate titles (`Keyword | benefit | Brand`), ≥5 internal links in/out (one 15-site test fixed indexing at ≥5; C), depth ≤3, more authority; republish at a new URL if stuck. (B)
 - [gsc] **Monitor every property variant** (Domain + URL-prefix, www/non-www, http/https): a hacked non-canonical www homepage got a site deindexed while the canonical looked fine. (C, cheap check)
 - [agent] **Backlink-bearing pages indexed** — an unindexed backlink passes nothing.
 - [agent] **Google's own timings** (Gary Illyes via SEJ): new URL discovered ~20 h; known URL refreshed ~1 month; title/snippet update 1–2 days; duplicate clustering ≤2 weeks; removals 2–24 h; manual-action review 1–2 weeks; core-update recovery 3–6 months (6–12 slowest). Set expectations with these. (A)

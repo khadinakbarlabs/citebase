@@ -13,7 +13,7 @@ For influencers, YouTubers, podcast hosts, newsletter writers and community mode
 ## Find the right creators
 Look in this order:
 1. **Where AI already points.** Run `ai-search-visibility`. The YouTube channels, podcasts, newsletters and Reddit communities that AI answers cite for the brand's questions are the best targets.
-2. **Who already talks about the topic.** `khadinakbar/youtube-search-scraper` for videos and channels by topic, `khadinakbar/reddit-posts-comments-scraper` for communities and their regulars, `khadinakbar/google-news-scraper` for writers. Quote the cost first.
+2. **Who already talks about the topic.** `khadinakbar/youtube-search-scraper` for videos and channels by topic, `khadinakbar/reddit-posts-comments-scraper` for communities and their regulars, `khadinakbar/google-news-scraper` for writers. These are paid checks: say so and get a clear yes first.
 3. **Who covers competitors.** Search `"[competitor]" review`, `"[competitor]" alternatives`, `"[competitor]" podcast`. Creators who reviewed a competitor will often cover a fair alternative.
 4. **Customers.** Happy customers with an audience are the warmest introductions. Ask them first.
 

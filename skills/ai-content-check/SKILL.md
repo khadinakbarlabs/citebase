@@ -26,7 +26,7 @@ On the web connector, call `check_ai_content` with the text instead.
 2. Explain density (hits per 1,000 words). Threshold default **5**; above that → revise.
 3. Group the worst pattern ids using `../../references/ai-writing-patterns.md`.
 4. Offer to hand off to `humanize-content` for a rewrite that preserves facts.
-5. End with Done / Cost so far ($0) / Next.
+5. End with Done / Cost so far (no paid checks) / Next.
 
 ## Rules
 - Never invent facts to "fix" the score.

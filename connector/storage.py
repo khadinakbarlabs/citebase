@@ -14,7 +14,7 @@ from typing import Any
 
 STORE_NAME = "citebase-projects"
 MAX_PROJECTS = 100
-MAX_SNAPSHOTS = 60
+MAX_SNAPSHOTS = 160  # about three years of weekly rounds; every round is read for a report, so not unlimited
 KEY_PREFIX = "p."
 
 

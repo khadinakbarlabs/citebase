@@ -6,24 +6,32 @@ argument-hint: "<topic or site> [country]"
 
 # Keyword research, made simple
 
-Talk like `../../references/plain-language.md`. The user is usually a beginner: ask one question, do the work, show five results, ask for one yes. Costs and Actors: `../../references/tools-and-apis.md`.
+Talk like `../../references/plain-language.md`. The user is usually a beginner: ask one question, do the work, show five results, ask for one yes. Actors: `../../references/tools-and-apis.md`.
 
 ## Web connector mode
-Use `quote_cost` with `pack: "keywords"` (about $1.42), wait for a yes, then `call-actor` on `khadinakbar/*` only. Free warm-up: `audit_site` when a URL is available. Show five results, not a dump. Claude Code: follow the run protocol in `tools-and-apis.md`.
+Say the keyword check is a paid check billed to the user's own Apify account and wait for a yes. Then `quote_cost` with `pack: "keywords"` for the spending caps, and `call-actor` on `khadinakbar/*` only. Give the amount only if the user asks what it costs. Unpaid warm-up: `audit_site` when a URL is available. Show five results, not a dump. Claude Code: follow the run protocol in `tools-and-apis.md`.
 
 ## 1. One question
 Ask: "What do you sell, and who to?" Turn the answer into 3 to 5 seed phrases in the customers' own words (not the brand's marketing words). Add the country.
 
-## 2. Free first
-Before spending, use what is free: the site check (`audit_site`), and the user's own Search Console export if they have one (queries they already show for are the best seeds).
+## 2. Unpaid sources first
+Before spending, use what needs no paid check: the site check (`audit_site`), and the user's own Search Console export if they have one (queries they already show for are the best seeds).
 
-## 3. Quote, then collect (one yes for the whole pack)
-Quote the `keywords` pack, wait for a yes, run with the suggested cap. The pack covers:
+## 3. Ask, then collect (one yes for the whole pack)
+Say the `keywords` pack is a paid check, wait for a yes, and run each job with the cap `quote_cost` suggests. The pack covers:
 1. **Suggestions** (`search_suggestion`): what people type. Seeds plus a, b, c endings if they want more.
 2. **Long-tail ideas** (`longtail_keyword`): specific phrases, 3 or more words, easier to win.
 3. **Trends** (`google_trend`): is it rising, steady or falling, and is it seasonal. Use `property: youtube` to see the same on YouTube.
 4. **Numbers** (`keyword_metrics`) and **difficulty** (`keyword_difficulty`): search volume and how hard. Treat them as rough guides, not facts.
 5. **Real questions** (`reddit_search`, `forum_search`, `quora_question`): the exact words customers use, and what worries them.
+
+### Fan-out step (the questions behind the question)
+When someone asks an AI assistant one question, the assistant runs several related searches behind the scenes (a "fan-out"). A page gets used more often when it answers those related searches too.
+1. Take the 3 to 5 main buying phrases from above.
+2. Run the long-tail job on them (`longtail_keyword`, the `khadinakbar/keyword-fanout-longtail` Actor: `seedKeywords`, `maxResults`, `maxDepth`). It is part of the `keywords` pack; on its own it is a paid check, so ask first.
+3. From the output, keep the related questions a buyer would really ask: comparisons, "reviews", "alternatives", "pricing", the current year, a use case.
+4. For each main phrase, list 5 to 8 related questions. In the page plan, each one becomes a short section that makes sense when read alone.
+These are likely related searches, not a record of what an assistant actually ran. Say so.
 
 ## 4. Pick, don't dump
 Never show a list of 500 keywords. Group them by what the searcher wants, then show at most five groups:
@@ -34,7 +42,7 @@ Never show a list of 500 keywords. Group them by what the searcher wants, then s
 Prefer phrases that are specific, growing, and not too hard for a site of this size. If a phrase is very hard, say so and move on.
 
 ## 5. Turn it into a page plan (the result the user keeps)
-For each of the top five groups give: the page to make or fix (title idea in plain words), the one question it must answer in the first lines, three real questions from step 3 to include, and which page on the site should link to it. For a detailed outline of the best page, quote `content_brief`.
+For each of the top five groups give: the page to make or fix (title idea in plain words), the one question it must answer in the first lines, three real questions from step 3 to include, the related questions from the fan-out step (one self-contained section each), and which page on the site should link to it. For a detailed outline of the best page, offer `content_brief` (paid; ask first).
 
 ## 6. YouTube SEO (only if video fits the business)
 Search the topic with `youtube_result` and look at: what titles the top videos use, how long they are, and what viewers ask in comments (`youtube_comment`). Suggest one video per top group: title with the main phrase near the start, the answer in the first 30 seconds, a description with the main phrase in the first lines. For ideas of what is rising, `youtube_trending`. To learn from a good competitor video, `youtube_transcript`. Never copy their words.

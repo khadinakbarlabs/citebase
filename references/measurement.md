@@ -11,6 +11,8 @@ Used by `skills/citation-loop`. The aim is a number you can trust enough to deci
 
 **Recommendation Share (RS)** = share of answers that recommend the brand, computed per prompt (mean over engines and repeats) and averaged over the **buying questions** only (awareness and consideration prompts). Report it per engine and overall, with its interval. In plain words: "AI recommends you in X% of buying questions."
 
+**Which engines come first.** Lead every report with **ChatGPT** and **Google (AI Overviews / AI Mode)**, each on its own line, then the others. Perplexity is optional: add it when the user asks for it or their customers use it. Reason: ChatGPT sends most AI referral visits (about three quarters of them in SE Ranking's 2026 study, with Gemini second and Perplexity third; https://seranking.com/blog/ai-traffic-research-study/, checked November 2026, grade B), and Google's AI answers sit on top of the search most people already use. The engines that are actually measured are ChatGPT, Perplexity, Gemini, Claude, Google AI Overviews and Google AI Mode. Nothing here measures Copilot, so never promise it.
+
 **Reputation check** = the same share over the brand-name questions ("is Acme legit", "Acme pricing"). Those questions name the brand, so the answer almost always mentions it. They are shown on their own line and never averaged into the headline; otherwise a true 5% discovery rate can read as about 37%.
 
 **What counts as recommended when answers are imported automatically:** only positive wording, and never negative wording. A mention position score says where the brand appeared in the answer, not whether it was recommended, so it never counts by itself. Every other mention goes to a review list with the sentence around it, because being named is not the same as being recommended.
@@ -18,6 +20,16 @@ Used by `skills/citation-loop`. The aim is a number you can trust enough to deci
 **Results from other checks.** Google AI Overviews, Google AI Mode and the two tracker Actors report sources and answer text but no wording to judge. Their results are read, with these rules: a listed source on the brand's site counts as *cited*; the brand named in the answer text counts as *mentioned*; neither is ever *recommended* by itself, and a position or rank never changes that. Each such row goes to the review list. Items that cannot be used (diagnostic rows, shapes that are not recognised, questions not in the panel, an AI that is not named, a brand that is needed but not known) are counted with a reason, not dropped quietly.
 
 **`metric_version`.** Every saved row carries the version of this counting rule (currently 2). A round saved without it (version 1) counted any non-negative mention as a recommendation and had brand-name questions in the headline. Version 1 and version 2 rounds are never compared with each other; the report says so and the change reads "not comparable".
+
+## Topics, one change at a time, and the weekly check
+- **Group the question list into topics** of 8 to 10 questions each (for example "pricing questions", "alternatives to a rival", "best tool for a use case"). Do this when the list is written, before it is frozen. The list itself stays frozen; topics are only labels.
+- **Aim one change at one topic.** A new comparison page targets the "alternatives" topic, not the whole list. Log the change with that topic's questions as its targets.
+- **A single change is judged on its topic**: its 8 to 10 questions compared with the other questions over the same dates. It is not judged on the overall number.
+- **A 20-question list cannot see small changes.** The overall number on 20 questions cannot reliably show a change smaller than roughly 15 points. One page will rarely move the overall number that much, but it can move its own topic a lot. That is why the topic is the place to look.
+- **Weekly check between full rounds.** A full round is 3 repeats on every question. Between full rounds, run a light weekly check: 1 repeat, only the questions in the topic you changed. It shows fast effects (a new page being picked up) within days instead of a month. Keep these answers under their own round name so they never mix into the baseline or a full round. Read a weekly check as an early signal only: say "early sign" or "nothing yet", never "it worked". The verdict comes from the next full round.
+
+## The first small check is repeat 1 of the baseline
+The first paid AI check asks every question once. That is **repeat 1 of the full baseline**, not a separate test. Save those answers into the baseline round. When the user wants the full baseline, add two more repeats of the buying questions to the same round. The user never pays for the same answers twice. Brand-name and control questions need only one repeat, because they are not part of the headline number, so do not repeat them. Until the buying questions have 3 repeats, call the number "indicative".
 
 ## Why the design looks like this
 - **Frozen panel.** Compare like with like: the same prompts every time. Editing prompts after seeing results turns the metric into a marketing tool.
@@ -37,12 +49,13 @@ Each row can carry the model that answered (`engine_version`), `country`, `langu
 Two rounds are only really alike if they were asked under the same conditions. The report therefore warns, per engine, in plain words, when the model, country, language, device or collection method differs between the baseline and the current round ("ChatGPT answers came from a different model between rounds"), when one round records a field and the other does not ("not recorded in the baseline"), and when a round mixes values. It only warns: the verdict is never forced to "not comparable" for this, but read a small change with care. Saving more repeats into an existing round warns when they were collected under different conditions from the ones already saved.
 
 ## Minimums
-- 3 repeats per prompt for each assistant (ChatGPT, Perplexity, Gemini, Claude) before quoting a number; below that the report warns that answers vary run to run. Google AI Overviews and AI Mode are one answer per search, so one answer per question is normal there and the repeat minimum does not apply to them.
+- 3 repeats per buying question for each assistant (ChatGPT, Perplexity, Gemini, Claude) before quoting a baseline number; below that the report warns that answers vary run to run. Brand-name and control questions need one repeat. A weekly topic check is 1 repeat and is never quoted as a baseline. Google AI Overviews and AI Mode are one answer per search, so one answer per question is normal there and the repeat minimum does not apply to them.
 - At least 20 buying questions (awareness and consideration), not counting brand-name or control questions.
 - At least 5 control prompts; fewer than 5 triggers a warning.
+- Topics of 8 to 10 questions, so a change aimed at one topic has enough questions to be judged.
 - An experiment needs at least 3 targeted prompts (fewer is always "inconclusive") and at least 3 comparison prompts left after other changes' targets are set aside.
 - The same engines and the same number of repeats (for the assistants) in every round. If they differ the report warns, and the overall change uses only the engines both rounds share.
-- Re-measure no sooner than 30 days after a change; new pages need time to be crawled, indexed and picked up, and some engines refresh slowly.
+- Run the full re-measure no sooner than 30 days after a change; new pages need time to be crawled, indexed and picked up, and some engines refresh slowly. The weekly topic check covers the weeks in between.
 
 ## What this cannot tell you
 - **Causation.** Several changes in one window, engine updates, seasonality and press cycles all confound. `supported` means "worth repeating", not "proven".

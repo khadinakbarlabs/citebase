@@ -15,7 +15,7 @@ Help search engines and AI assistants understand **who you are** and **how your 
 - Only true relationships. Never invent partnerships, awards, or "as seen in".
 - Schema must match visible text. No claims in JSON-LD that the page does not say.
 - Real, owned profiles only in `sameAs`. No fake directories.
-- Paid live data: `quote_cost` then only `khadinakbar/*` Actors. Auth is Apify OAuth/token via the Citebase setup address — never ask for keys in chat.
+- Paid live data: say it is a paid check billed to the user's own Apify account, wait for a clear yes, get the cap from `quote_cost`, then only `khadinakbar/*` Actors. Give the amount only if the user asks. Auth is Apify OAuth/token via the Citebase setup address — never ask for keys in chat.
 - White-hat only. No PBNs, fake profiles, or rented "parasite" folders on unrelated domains.
 
 ## Web connector mode
@@ -26,8 +26,14 @@ Deliver the entity map and schema drafts in chat. Optional site readiness: `audi
 2. **Audit** — Per relationship: stated on-site? encoded with `@id` links? confirmed on an independent profile? answered correctly by Google / ChatGPT / Perplexity when asked "who founded X"?
 3. **Site** — One home URL per entity; multi-entity JSON-LD graph; titles and internal links that name the relationships; hand off thin pages to `content-optimize` or `eeat-audit`.
 4. **Reinforce** — Checklist of profile bios (LinkedIn, GitHub, Crunchbase, app stores) with exact statement-library lines. Owner applies off-site edits.
-5. **Measure** — Re-ask relationship questions; optional AI check via `ai-search-visibility` / `citation-loop`.
-6. Done / Cost so far / Next.
+5. **Wikidata** (the public database of facts that search engines and assistants read):
+   - Search wikidata.org for the brand name and the founders. Note whether an entry exists and what it says.
+   - If an entry exists: check that the name, official website, founders, founding date and country match the site and the profiles in step 4. List every mismatch. The owner fixes the wrong side, with a public source for each fact.
+   - If no entry exists: say what is needed to qualify. Wikidata asks for a clearly identifiable thing that can be described using serious, publicly available sources (for example news coverage or official registers, not the brand's own site alone). No such sources yet means wait: earn coverage first (`press-release`), then add the entry.
+   - Be honest: most small brands will not qualify for a Wikipedia article, and trying anyway usually ends in deletion. Never suggest paying for one or writing one about yourself. Wikidata is the realistic step; Wikipedia comes later, if ever, and is written by others.
+   - Add the Wikidata address to `sameAs` only when the entry is real and correct.
+6. **Measure** — Re-ask relationship questions; optional AI check via `ai-search-visibility` / `citation-loop`.
+7. Done / Cost so far / Next.
 
 ## Hand-offs
 - Thin trust → `eeat-audit`. Scaled template pages → `programmatic-seo` quality gates.

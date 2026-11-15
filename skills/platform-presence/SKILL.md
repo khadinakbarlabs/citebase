@@ -22,9 +22,10 @@ Deliver the platform checklist and bios in chat. Optional live research on who A
 2. Prioritise owned or authorized profiles: LinkedIn Company + founders, YouTube, GitHub, Crunchbase, Product Hunt, G2/Capterra (if reviews are earned), Medium/Dev.to for original posts, niche associations.
 3. For each surface: exact bio from the statement library, link to the canonical entity URL, disclosure rules for any gifted/paid placement (`creator-outreach` / FTC).
 4. Content plan: 3–5 first-hand posts that demonstrate relationships (build logs, case studies) — not spun syndication.
-5. Track which platforms AI already cites; feed wins into `citation-loop`.
-6. Done / Cost so far ($0 unless a quoted Apify research job) / Next.
+5. **Stores only: product feed.** Applies to stores only. Keep the merchant product feed complete and current (title, price, stock, images, product identifiers, shipping and returns), because shopping results inside assistants read feeds. Details in `ai-search-visibility`.
+6. Track which platforms AI already cites; feed wins into `citation-loop`.
+7. Done / Cost so far (say "no paid checks" unless an approved Apify research job ran) / Next.
 
 ## Rules
 - No fake reviews, bought "as seen in", or undisclosed paid posts.
-- Scraping/research jobs: Apify sign-in + `khadinakbar/*` only after a quote (`quote_cost` → `call-actor`).
+- Scraping/research jobs: Apify sign-in + `khadinakbar/*` only. Say it is a paid check billed to the user's own Apify account, wait for a clear yes, then `quote_cost` for the cap → `call-actor`. Give the amount only if the user asks.

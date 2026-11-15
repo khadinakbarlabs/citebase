@@ -62,7 +62,62 @@ def verdict_cell(verdict: str) -> str:
     return f'<span class="{cls}">{esc(verdict)}</span>'
 
 
-def render_html(project: str, data: dict, snaps: list[dict], measure: dict | None, steps: list[dict] | None) -> str:
+def table(headers: list[str], rows: list[list[Any]]) -> str:
+    """An HTML table with every cell escaped."""
+    head = "".join(f"<th>{esc(h)}</th>" for h in headers)
+    body = "".join("<tr>" + "".join(f"<td>{esc(c)}</td>" for c in row) + "</tr>" for row in rows)
+    return f"<table><tr>{head}</tr>{body}</table>"
+
+
+def extra_sections(extras: dict) -> list[str]:
+    """Sections for what the project knows beyond the headline: where AI cites rivals, each question's result,
+    which AI bots read the site, visits AI sent, and search positions."""
+    parts: list[str] = []
+    gap = extras.get("citation_gap") or {}
+    if gap.get("sites"):
+        parts.append("<h2>Sites AI cites for rivals, not for you</h2>" + table(
+            ["Site", "Answers for rivals without you", "Rivals named"],
+            [[s["site"], s["answers_for_rivals_without_you"], ", ".join(s["rivals_named"])] for s in gap["sites"][:10]])
+            + f"<p><small>{esc(gap.get('note'))}</small></p>")
+    proof = extras.get("proof") or {}
+    if proof.get("questions"):
+        rows = [[q["question"], q["type"], f"{q['recommended']} of {q['answers']}"] for q in proof["questions"][:60]]
+        links = "".join(f'<li><a href="{esc(s["open"])}" rel="noopener">{esc(s["dataset_id"])}</a></li>'
+                        for s in proof.get("raw_answers") or [])
+        parts.append(f"<h2>Each question, round {esc(proof.get('round'))}</h2>"
+                     + table(["Question", "Kind", "Recommended"], rows)
+                     + f"<p><small>{esc(proof.get('how_to_check'))}</small></p>" + (f"<ul>{links}</ul>" if links else ""))
+    bots = extras.get("ai_bot_visits") or {}
+    if bots.get("bots"):
+        parts.append(f"<h2>AI bots that read the site</h2><p><small>From the site's own log, "
+                     f"{esc((bots.get('period') or {}).get('from'))} to {esc((bots.get('period') or {}).get('to'))}.</small></p>"
+                     + table(["Bot", "Run by", "What it does", "Requests", "Refused"],
+                             [[b["bot"], b["owner"], "answers questions" if b["kind"] == "answer" else "collects training text",
+                               b["requests"], b["blocked"]] for b in bots["bots"][:12]])
+                     + "".join(f"<p><small>{esc(f)}</small></p>" for f in (bots.get("findings") or [])[:4]))
+    traffic = extras.get("ai_traffic") or {}
+    if traffic.get("rows_read"):
+        parts.append(f'<h2>Visits from AI assistants</h2><div class="card"><div class="big">{esc(traffic.get("ai_visits"))}</div>'
+                     f'<p>visits out of {esc(traffic.get("all_visits"))} in the export read on {esc(traffic.get("date"))}. '
+                     "This is a floor: answers read without a click are not counted.</p></div>"
+                     + (table(["Month", "Visits from AI", "All visits"],
+                              [[m["month"], m["ai_visits"], m["all_visits"]] for m in traffic["by_month"][-12:]])
+                        if traffic.get("by_month") else ""))
+    ranks = extras.get("ranks") or {}
+    if ranks.get("positions"):
+        def before(p: dict) -> Any:
+            if not p["checked_before"]:
+                return "new"
+            return p["before"] if p["before"] is not None else "not found"
+        parts.append(f"<h2>Search positions</h2><p><small>Saved {esc(ranks.get('saved_on'))}.</small></p>" + table(
+            ["Keyword", "Where", "Now", "Before"],
+            [[p["keyword"], p["engine"], p["now"] if p["now"] is not None else "not found", before(p)]
+             for p in ranks["positions"][:30]]))
+    return parts
+
+
+def render_html(project: str, data: dict, snaps: list[dict], measure: dict | None, steps: list[dict] | None,
+                extras: dict | None = None) -> str:
     brand = data["meta"].get("brand", {})
     name = brand.get("name") or project
     parts = [f"<main><h1>{esc(name)}: AI visibility report</h1>",
@@ -100,11 +155,12 @@ def render_html(project: str, data: dict, snaps: list[dict], measure: dict | Non
         if probs:
             parts.append("<h2>Top problems to fix</h2><table><tr><th>Problem</th><th>Detail</th></tr>" +
                          "".join(f'<tr><td>{esc(p.get("check"))}</td><td>{esc(p.get("detail"))}</td></tr>' for p in probs[:8]) + "</table>")
+    parts += extra_sections(extras or {})
     if steps:
         parts.append("<h2>What to do next</h2><table><tr><th>Step</th><th>Who</th><th>Time</th></tr>" +
                      "".join(f'<tr><td><b>{esc(s["step"])}</b><br><small>{esc(s["why"])}</small></td><td>{esc(s["who"])}</td>'
                              f'<td>{esc(s["effort"])}</td></tr>' for s in steps) + "</table>")
-    if not snaps and not audits:
+    if not snaps and not audits and not any((extras or {}).values()):
         parts.append("<p>Nothing saved yet.</p>")
     parts.append("</main>")
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -125,7 +181,15 @@ async def make_report(project: str) -> dict:
             skipped = str(err)  # still make the report, and tell the user why a section is missing
     audit = data["audits"][-1] if data["audits"] else None
     steps = tools.next_steps(audit, measure, 5)["steps"] if (audit or measure) else None
-    page = render_html(data["slug"], data, snaps, measure, steps)
+    import insights  # local import, like tools above
+    saved = await hist.latest_signals(data["slug"])
+    latest = snaps[-1]["snapshot"] if snaps else None
+    extras = {"citation_gap": insights.citation_gap(data["runs"], data["panel"], data["meta"].get("brand"), latest),
+              "proof": insights.proof(data["runs"], data["panel"], latest, (data["meta"].get("imports") or {}).get(latest or "")),
+              "ai_bot_visits": saved["bots"][-1] if saved["bots"] else None,
+              "ai_traffic": saved["traffic"][-1] if saved["traffic"] else None,
+              "ranks": hist.ranks_view(saved["ranks"])}
+    page = render_html(data["slug"], data, snaps, measure, steps, extras)
     be = await stg.get_backend()
     key = stg.key(data["slug"], REPORT_KEY_SUFFIX)
     await be.set(key, page, content_type="text/html; charset=utf-8")

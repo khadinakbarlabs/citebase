@@ -274,7 +274,8 @@ class StoreWordingTests(unittest.TestCase):
 
     def test_changelog_names_the_packs_and_new_jobs_of_this_version(self):
         text = doc((".actor", "CHANGELOG.md"))
-        section = text.split("## 0.4")[1].split("\n## ", 1)[0].lower()
+        # packs added since 0.4 are listed under Unreleased, above the 0.4 section
+        section = (text.split("## 0.4")[0] + text.split("## 0.4")[1].split("\n## ", 1)[0]).lower()
         self.assertRegex(section, r"packs?")
         for pack in load("connector", "prices.json")["packs"]:
             self.assertIn(pack, section, f"pack {pack} missing from the 0.4 changelog")

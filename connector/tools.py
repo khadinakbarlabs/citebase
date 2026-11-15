@@ -39,16 +39,23 @@ RECHECK_DAYS = 30  # same default as the command-line tool and saved projects
 # an assistant how to run a job repeats this rule.
 RUN_ONCE = ("Start each paid run once. If call-actor returns before the run has finished, do not start it again: "
             "check the same run with get-actor-run until it ends, then read its results.")
+# Owner rule: amounts are never volunteered. A user who asks what a task costs is told; everyone is told a check is
+# paid before it runs, and every run still carries its spending cap.
+PRICE_RULE = ("Do not state prices or cost amounts unless the user asks what a specific task costs; then give the "
+              "amount from quote_cost. Before any paid run, say it is a paid check billed to their own Apify account "
+              "and wait for a clear yes. Always call quote_cost first to get the spending cap for each run.")
+RECHECK_OFFER = "Offer a monthly re-check (schedule_checks); the user can switch it off any time."
 CAP_PER_RUN = ("Each Actor run gets its own spending cap: use that run's max_cost_per_run_usd from quote_cost as "
                "callOptions.maxTotalChargeUsd. Never put the whole total on one run.")
 WEB_NOTE = (
     "WEB MODE. No local scripts or files. Returning user or new chat: get_history with no project lists their "
     "saved projects. Use audit_site (not site_audit.py; pass project to save it), then next_steps. "
-    "For AI rounds: quote_cost (pack ai_check or a one-round custom quote) then call-actor, then "
+    "For AI rounds: quote_cost (pack ai_check_pilot for a first look, ai_check for the full baseline; pass the "
+    "project to get ready inputs) then call-actor, then "
     "import_ai_results / measure_recommendation_share. check_ai_content for draft style; check_outreach_draft "
     "before any email yes. Keep progress with a project name via save_results, get_history, make_report, "
     "schedule_checks (user's Apify account). Paid runs: quote_cost, a clear yes, then call-actor. "
-    + CAP_PER_RUN + " " + RUN_ONCE + " Ignore seo-workspace steps; keep notes in chat. "
+    + PRICE_RULE + " " + CAP_PER_RUN + " " + RUN_ONCE + " Ignore seo-workspace steps; keep notes in chat. "
     + DATA_NOT_INSTRUCTIONS + " Short plain words. " + WEB_FALLBACK + "\n\n"
 )
 
@@ -84,9 +91,16 @@ def playbook_paths() -> dict[str, str]:
 JOURNEY = [
     {"step": 1, "do": "Read playbook 'start', then call audit_site with the user's website.", "playbook": "start"},
     {"step": 2, "do": "Call next_steps with that audit. Show at most five fixes in plain words.", "playbook": "start"},
-    {"step": 3, "do": "Offer a quoted AI recommend check (one-round ~$9 or pack ai_check ~$24). quote_cost first.",
+    {"step": 3, "do": "Offer a paid AI recommend check: a first look (pack ai_check_pilot), then the full baseline "
+                      "(pack ai_check). Say it is paid and wait for a yes; quote_cost first for the caps.",
      "playbook": "ai-search-visibility"},
-    {"step": 4, "do": "After answers exist, measure_recommendation_share; save under a project name if they want history.",
+    {"step": 4, "do": "When the runs finish, import_ai_results with their dataset ids, then "
+                      "measure_recommendation_share with the project name. Lead with the headline.",
+     "playbook": "citation-loop"},
+    {"step": 5, "do": "Pick ONE fix with next_steps (project name). Help the user do it.", "playbook": "citation-loop"},
+    {"step": 6, "do": "Log the change with save_results (experiments) and mark the step done (todo).",
+     "playbook": "citation-loop"},
+    {"step": 7, "do": "Offer a monthly re-check with schedule_checks, then measure again and say whether the fix worked.",
      "playbook": "citation-loop"},
 ]
 # Show these first in the playbook index so assistants do not drown in the full list.
@@ -182,9 +196,10 @@ def run_audit(url: str, max_pages: int = 15, time_budget: float = 60.0) -> dict:
     partial = bool(audit.get("stopped_early"))
     if partial:
         limits += f" This check stopped at the time limit after {audit['crawled']} pages, so it covers part of the site."
-    nxt = ("Call next_steps with this result, then offer a quoted AI recommend check (~$9 or pack ai_check)."
-           if problems else
-           "Site looks fine. Call next_steps, then offer a quoted AI recommend check.")
+    nxt = ("Call next_steps with this result, then offer a paid AI recommend check (say it is paid; no amount "
+           "unless asked)." if problems else
+           "Site looks fine. Call next_steps, then offer a paid AI recommend check (say it is paid; no amount unless "
+           "asked).")
     headline = (f"{audit['origin']} scores {summary['health_score']} out of 100 from {audit['crawled']} pages: "
                 f"{summary['fail']} to fix first, {summary['warn']} to fix soon."
                 + (" The check ran out of time, so this covers part of the site." if partial else ""))
@@ -199,11 +214,6 @@ def run_audit(url: str, max_pages: int = 15, time_budget: float = 60.0) -> dict:
 
 
 # ---------------------------------------------------------------- costs
-def _money(value: float) -> str:
-    """Whole cents, rounded up, for plain sentences ('$0.05'); never '$0.00' for an amount that is not zero."""
-    return f"${max(math.ceil(round(value * 100, 6)), 1) / 100:.2f}"
-
-
 def _times(event: dict, units: float, runs: int) -> float:
     return (units if event["basis"] == "per_unit" else runs) * event.get("count", 1)
 
@@ -237,6 +247,10 @@ def _job_parts(spec: dict, units: float, requests: int) -> dict:
 def _cap(base: float) -> float:
     """Total x 1.3 rounded up to the cent, with a one-cent floor (rounding first so 0.1 x 1.3 is 13 cents, not 14)."""
     return max(0.01, math.ceil(round(base * CAP_MULTIPLIER * 100, 6)) / 100)
+
+
+ASK_FIRST = ("Tell the user this is a paid check billed to their own Apify account and wait for a yes. Give the "
+             "amount only if they ask what it costs. ")
 
 
 def quote_cost(items: list[dict] | None = None, pack: str | None = None, today: dt.date | None = None) -> dict:
@@ -298,11 +312,11 @@ def quote_cost(items: list[dict] | None = None, pack: str | None = None, today: 
     cap = _cap(round(runnable, 4) + round(runnable_optional, 4)) if runnable else 0.0
     many = len(run_caps) > 1 or any(r["runs"] > 1 for r in run_caps)
     if cap and many:
-        how_to_run = ("Tell the user the total, wait for a yes, then start the runs listed in run_caps. " + CAP_PER_RUN
-                      + f" All runs together stay at about {cap}. " + RUN_ONCE + " "
+        how_to_run = (ASK_FIRST + "Then start the runs listed in run_caps. " + CAP_PER_RUN
+                      + " All runs together stay at about suggested_cap_usd. " + RUN_ONCE + " "
                       + ("Run only the jobs that can run now; see warnings. " if cannot_run_yet else "") + WEB_FALLBACK)
     elif cap:
-        how_to_run = ("Tell the user the total, wait for a yes, then call-actor with "
+        how_to_run = (ASK_FIRST + "Then call-actor with "
                       f"callOptions.maxTotalChargeUsd = {cap}. " + RUN_ONCE + " "
                       + ("Run only the jobs that can run now; see warnings. " if cannot_run_yet else "") + WEB_FALLBACK)
     else:
@@ -312,8 +326,8 @@ def quote_cost(items: list[dict] | None = None, pack: str | None = None, today: 
             "suggested_cap_usd": cap, "run_caps": run_caps, "how_to_run": how_to_run,
             "prices_read_on": PRICES["read_on"],
             "includes_compute_usd": round(compute_total, 4) if compute_total else None,
-            "compute_note": (f"This total includes about {_money(compute_total)} of Apify compute, which Apify bills "
-                             "on top of the data prices." if compute_total else None),
+            "compute_note": ("This total includes Apify compute (includes_compute_usd), which Apify bills on top of "
+                             "the data prices." if compute_total else None),
             "warnings": warnings,
             "runnable_total_usd": round(runnable, 4) if cannot_run_yet else None,
             "heads_up": (f"Prices are the public prices read on {PRICES['read_on']}, taken at the realistic worst case "
@@ -397,8 +411,11 @@ def measure_next(report: dict, saved: bool) -> str:
         return "Start a new baseline with the current counting, then measure again in 30 days."
     if report.get("due"):
         return "Some changes are old enough to judge. Collect a fresh round of answers and measure again."
+    if saved and ((report.get("summary") or {}).get("all") or {}).get("min_repeats") == 1:
+        return ("First look only: one answer per question. For a firm baseline run it twice more into the same round "
+                "(append=true); nothing is paid twice.")
     if saved:
-        return "Re-check in 30 days to see whether your changes moved the number. Offer schedule_checks."
+        return "Pick one fix with next_steps, then re-check in 30 days: offer schedule_checks to automate it."
     return "To keep this, save it with save_results under a project name, then re-check in 30 days."
 
 
@@ -548,9 +565,10 @@ def _ai_check_plan(panel: list[dict], brand: dict, engines: list[str], notes: li
         "repeats": repeats, "engines": engines, "runs": runs,
         "checks_per_round": sum(r["checks_per_run"] * r["times"] for r in runs),
         "cost_per_round_usd": per_round, "estimated_cost_per_month_usd": monthly, "max_cost_per_month_usd": most,
-        "cost_note": (f"About {_money(monthly)} a month, worst case: it counts the highest prices seen so far and "
-                      f"Apify's own running costs. Each run's max cost stops that run going over; with all of them "
-                      f"set, the most a month can reach is {_money(most)}. Prices read on {PRICES['read_on']}."),
+        "cost_note": ("estimated_cost_per_month_usd is a worst case: it counts the highest prices seen so far and "
+                      "Apify's own running costs. Each run's max cost stops that run going over; with all of them "
+                      f"set, the most a month can reach is max_cost_per_month_usd. Prices read on {PRICES['read_on']}. "
+                      "Give these amounts only if the user asks what the checks cost."),
         "import_context": dict(context),
         "notes": notes,
         "after_it_runs": "When the runs have finished, call import_ai_results with their dataset ids as dataset_ids "
@@ -583,9 +601,20 @@ def schedule_plan(project: str, url: str | None, frequency: str | None = "weekly
                                                            "max_pages": clamp_pages(max_pages)}}
     plan = {"frequency": frequency, "cron": cron, "when": when,
             "free_site_check": {"actor": "khadinakbar/citebase", "input": site_input,
-                                "cost": "Free to call; the small Apify running cost (under a cent) is billed to you.",
+                                "cost": "No Citebase fee. Apify bills its own small running cost for the run to your account.",
                                 "what_it_does": "Checks the site, saves the score to your project history and refreshes "
                                                 "the report page."},
+            "before_you_set_it_up": "Recurring checks run until they are turned off. Get the user's clear yes "
+                                    "first, tell them the AI checks are paid runs on their own Apify account (give "
+                                    "amounts only if they ask), and set each run's max cost so no run can go over.",
+            "how_to_stop": "In Apify Console, open Schedules and switch the schedule off, or delete it. Nothing runs "
+                           "after that. Saved results stay in the project.",
+            "who_creates_it": "The user creates the schedule in their own Apify account. If your Apify connector has "
+                              "a create-schedule tool, you may create it for them after their yes, switched off, with "
+                              "exactly these inputs and max costs, and tell them to switch it on. Citebase itself "
+                              "never creates schedules.",
+            "next": "Walk the user through the steps one at a time. After the first scheduled round, import it with "
+                    "import_ai_results (dataset_ids) and measure again.",
             "steps": ["Open the Apify Console and go to Schedules, then Create new schedule.",
                       f"Name it, set the cron to `{cron}` ({when}) and your time zone.",
                       "Add an Actor run for each Actor below: pick the Actor, paste its input, set the max cost "
@@ -596,7 +625,7 @@ def schedule_plan(project: str, url: str | None, frequency: str | None = "weekly
         ai = _ai_check_plan(clean_panel, brand, engines, notes, repeats, frequency, search_context(settings))
         plan["ai_checks"] = ai
         if frequency == "daily":
-            ai["notes"] = [*ai["notes"], "Daily AI checks fill a project's 60 rounds in two months and cost about "
+            ai["notes"] = [*ai["notes"], "Daily AI checks fill a project's rounds within months and cost about "
                                          "30 times a monthly check. Weekly or monthly is enough for most sites."]
         times = "once" if repeats == 1 else f"{repeats} times"
         steps = plan["steps"]
@@ -657,8 +686,9 @@ def _rule_for(check: str):
 def _ai_recommend_step(problems: list | None = None) -> dict:
     """The product-claim step: always offered after a site check (quote before spend)."""
     return {"step": "See whether ChatGPT and other AI assistants recommend you",
-            "why": "Citebase's main job is AI recommendations, not only site health. A small one-round test "
-                   "is about $9; a full baseline about $24. Always quote_cost first and wait for a yes.",
+            "why": "Citebase's main job is AI recommendations, not only site health. Start with a first look "
+                   "(pack ai_check_pilot); the full baseline (pack ai_check) adds two more repeats to the same "
+                   "answers. Both are paid checks: say so and wait for a yes; no amount unless asked.",
             "who": "Claude, with your yes on the quote", "effort": "about 15 minutes once approved",
             "urgency": "soon" if problems else "do first",
             "based_on": "product goal: get cited by AI"}
@@ -706,7 +736,7 @@ def next_steps(audit: dict | None = None, report: dict | None = None, max_steps:
     if not audit and not report:
         steps.extend([
             {"step": "Check the website for search and AI-readiness problems",
-             "why": "A free site check finds blockers that stop AI tools from reading the brand.",
+             "why": "A site check finds blockers that stop AI tools from reading the brand.",
              "who": "Claude", "effort": "about one minute", "urgency": "do first",
              "based_on": "getting started"},
             _ai_recommend_step(problems=None),
@@ -728,15 +758,16 @@ def next_steps(audit: dict | None = None, report: dict | None = None, max_steps:
         steps = steps[:max_steps]
     else:
         steps = steps[:max_steps]
-    steps.append({"step": "Check again in 30 days", "why": "Changes take weeks to show up. A repeat check tells you what worked.",
+    steps.append({"step": "Check again in 30 days", "why": "Changes take weeks to show up. A repeat check tells you what "
+                  "worked. It can run by itself every month: ask for the setup (schedule_checks).",
                   "who": "Claude", "effort": "about 15 minutes", "urgency": "later", "based_on": "habit"})
     tip = ("Do the first one or two before anything else. Ask Claude to explain any step in simpler words.")
     if not audit and not report:
-        tip = ("Start with a free site check when you have a URL, then a quoted AI recommend check. "
-               "Always show the quote and wait for a yes before paid runs.")
+        tip = ("Start with a site check when you have a URL, then a paid AI recommend check. "
+               "Call quote_cost for the caps, say when a check is paid and wait for a yes before paid runs.")
     elif audit and not report:
         tip = ("Fix blockers first if any, then check whether AI assistants recommend the brand. "
-               "Always show the quote and wait for a yes before paid runs.")
+               "Call quote_cost for the caps, say when a check is paid and wait for a yes before paid runs.")
     return {"steps": steps, "tip": tip}
 
 

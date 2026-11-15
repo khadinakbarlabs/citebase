@@ -1,11 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.5
 - Safer spending: `quote_cost` now returns `run_caps`, the spending cap for each separate Actor run, so a cap meant for a whole job is never set on every run. Every quote and playbook says to start a paid run once and to check a running one with `get-actor-run` instead of starting it again.
 - Results are not counted twice: the same answers sent again to a round are left out, and a dataset already imported into a round is refused.
 - A site that cannot be read (blocked, login, server error) now returns `status: "unreadable"` and no score, and is not saved. A check cut short by the time limit says `status: "partial"`.
 - Projects remember more: `get_history` with no project lists every saved project with its last checks and what is due; `audit_site` takes a `project`, saves the check and returns what was fixed, what is new and what is still open; `next_steps` takes a `project`, reads the saved results and skips steps marked done; `save_results` stores `settings` (country, language, device, frequency) and `todo` updates, which later checks reuse.
 - `import_ai_results` takes `dataset_ids` and reads the finished runs' results itself, so they do not pass through the chat.
+- New pack `ai_check_pilot`: a first look at AI recommendations with one answer per question. The answers are kept, so the full `ai_check` baseline only adds two more repeats to them. `quote_cost` takes a `project` for these two packs and returns `ready_runs`, the exact Actor inputs built from the saved question list.
+- Every result now ends with one next step, and site checks, measurements and reports offer a monthly re-check. `schedule_checks` says what the user must agree to, who creates the schedule and how to switch it off.
+- Amounts are no longer volunteered in tool text: the assistant says when a check is paid and waits for a yes, and gives the amount when asked.
+- First-party signals: paste the site's own access log into `save_results` (`server_log`) to see which AI bots read the site and whether any are refused, or paste an analytics export (`traffic` or `traffic_csv`) to see the visits AI assistants sent, by month. Only counts are kept. `get_history` shows both.
+- Where to act and why to trust it: `measure_recommendation_share` with a project now returns `citation_gap` (sites AI cited for rivals while leaving the brand out) and `proof` (each question's result per engine, with links to the raw answers in the user's own account when the round was imported by dataset id). `next_steps` turns the gap into a step.
+- `save_results` keeps search positions over time (`ranks`) and can review a question list before it is frozen (`check_only`): mix of question types, topics and near-duplicates. The report page shows the new sections.
 - Misspelt project names: an unknown name suggests the closest saved one, a look-alike new project is flagged, and `schedule_checks` stops instead of planning for the wrong project.
 
 ## 0.4

@@ -12,4 +12,4 @@ Citebase is MIT-licensed. Skills adapt ideas (and some deterministic lint code) 
 | [siddiqss/semantic-seo-suite](https://github.com/siddiqss/semantic-seo-suite) | MIT | Content-brief structure and fabrication-guard ideas → `skills/content-brief` |
 | Wikipedia WikiProject AI Cleanup — "Signs of AI writing" | CC BY-SA | Pattern catalog grounding |
 
-Citebase still runs paid live data only through Actors owned by `khadinakbar/*` on the user's Apify account, with a quote before every run. Auth for connectors is Apify OAuth or Apify API token via the documented mcp.apify.com setup address. Local skills (lint, humanize, E-E-A-T, entity, pSEO, briefs, platform presence, listings) add no Citebase fee.
+Citebase still runs paid live data only through Actors owned by `khadinakbar/*` on the user's Apify account, with the user's yes and a spending cap before every run. Auth for connectors is Apify OAuth or Apify API token via the documented mcp.apify.com setup address. Local skills (lint, humanize, E-E-A-T, entity, pSEO, briefs, platform presence, listings) add no Citebase fee.

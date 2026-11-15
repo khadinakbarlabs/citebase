@@ -14,7 +14,7 @@ Talk like `../../references/plain-language.md`.
 - Fake NAP (name/address/phone) inconsistencies for local
 
 ## Web connector mode
-Produce the submission sheet in chat. Live competitor/local research: `quote_cost` (pack `local` about $0.15 when relevant) then `call-actor` on `khadinakbar/*` only. Never create accounts or submit without an explicit yes per directory.
+Produce the submission sheet in chat. Live competitor/local research is a paid check billed to the user's own Apify account: say so and wait for a clear yes, then `quote_cost` for the cap (pack `local` when relevant) and `call-actor` on `khadinakbar/*` only. Give the amount only if the user asks. Never create accounts or submit without an explicit yes per directory.
 
 ## Workflow
 1. Collect canonical NAP + website + categories from the user / site.

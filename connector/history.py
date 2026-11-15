@@ -15,6 +15,7 @@ import difflib
 import re
 from typing import Any
 
+import insights
 import storage as stg
 import tools
 
@@ -265,7 +266,9 @@ async def _save_results(slug: str, runs: list[dict], panel: list[dict] | None, e
     meta = meta or {"project": slug, "created": today(), "brand": {}, "snapshots": {}}
     known = set(meta["snapshots"]) | {k[len(stg.key(slug, "runs")) + 1:] for k in await be.keys(stg.key(slug, "runs") + ".")}
     if len(known | set(groups)) > stg.MAX_SNAPSHOTS:
-        raise ValueError(f"A project can hold {stg.MAX_SNAPSHOTS} rounds. Start a new project.")
+        raise ValueError(f"A project can hold {stg.MAX_SNAPSHOTS} rounds and this one is full. Nothing was saved. "
+                         "Start a new project with the same question list and brand (for example the same name with "
+                         "the year added); the old one stays readable for comparison.")
 
     # 1) validate every round and build what will be written; nothing is stored yet
     to_write: dict[str, list[dict]] = {}
@@ -384,6 +387,99 @@ async def save_audit(project: str, audit: dict) -> dict:
             "warnings": new_project_warnings(slug, created, others)}
 
 
+SIGNAL_KINDS = ("bots", "traffic", "ranks")
+MAX_SIGNALS = 24  # per kind: two years of monthly pastes
+
+
+async def save_signal(project: str, kind: str, summary: dict) -> dict:
+    """Keeps one dated summary of a pasted server log ('bots') or analytics export ('traffic') with the project.
+    Only the counts are stored: the pasted text itself is never kept."""
+    if kind not in SIGNAL_KINDS:
+        raise ValueError(f"Unknown signal '{kind}'.")
+    slug = stg.clean_slug(project)
+    async with lock_for(slug):
+        be = await stg.get_backend()
+        meta = await be.get(stg.key(slug, "meta"))
+        created = meta is None
+        others = [p for p in await list_projects() if p != slug] if created else []
+        if created and len(others) >= stg.MAX_PROJECTS:
+            raise ValueError(f"You already have {stg.MAX_PROJECTS} saved projects. Reuse one of them.")
+        meta = meta or {"project": slug, "created": today(), "brand": {}, "snapshots": {}}
+        prefix = stg.key(slug, "signal", kind) + "."
+        keys = await be.keys(prefix)
+        earlier = [k for k in keys if not k.endswith("." + today())]
+        previous = await be.get(earlier[-1]) if earlier else None
+        record = {"date": today(), **summary}
+        same_day = await be.get(prefix + today()) if kind == "ranks" else None
+        if same_day and same_day.get("rows"):
+            # a second save today adds to the first (Google rows, then Bing rows); a repeated keyword is replaced
+            merged = {(r["keyword"], r["engine"], r.get("country", "")): r for r in same_day["rows"]}
+            merged.update({(r["keyword"], r["engine"], r.get("country", "")): r for r in summary["rows"]})
+            record = {"date": today(), **insights.summarise_ranks(list(merged.values()))}
+        await be.set(prefix + today(), record)
+        for old in sorted(set(keys) | {prefix + today()})[:-MAX_SIGNALS]:
+            await be.delete(old)
+        meta["updated"] = today()
+        await be.set(stg.key(slug, "meta"), meta)
+    return {"saved_on": record["date"], "previous": previous, "created": created, "record": record,
+            "warnings": new_project_warnings(slug, created, others)}
+
+
+async def latest_signals(slug: str) -> dict[str, list[dict]]:
+    """Every saved summary per kind, oldest first: {'bots': [...], 'traffic': [...]}."""
+    be = await stg.get_backend()
+    out: dict[str, list[dict]] = {}
+    for kind in SIGNAL_KINDS:
+        keys = await be.keys(stg.key(slug, "signal", kind) + ".")
+        out[kind] = [r for r in await asyncio.gather(*[be.get(k) for k in keys]) if r]
+    return out
+
+
+def signal_lines(signals: dict[str, list[dict]]) -> list[str]:
+    """Short history lines for the newest bot log and traffic export, with the change since the one before."""
+    lines: list[str] = []
+    bots = signals.get("bots") or []
+    if bots and "bots" in bots[-1]:
+        now = bots[-1]
+        names = ", ".join(f"{b['bot']} ({b['requests']})" for b in now["bots"] if b["kind"] == "answer")[:300]
+        lines += ["", f"AI bot visits (server log read {now['date']}, covering {now['period']['from']} to "
+                      f"{now['period']['to']}): {now['answer_bot_requests']} requests from answer bots"
+                      + (f": {names}." if names else ".")]
+        lines += [f"- {finding}" for finding in now.get("findings", [])[:4]]
+    traffic = signals.get("traffic") or []
+    if traffic and "ai_visits" in traffic[-1]:
+        now = traffic[-1]
+        share = f" ({100 * now['ai_share']:.1f}% of all visits)" if now.get("ai_share") is not None else ""
+        line = f"Visits from AI assistants (export read {now['date']}): {now['ai_visits']}{share}."
+        if len(traffic) > 1 and "ai_visits" in traffic[-2]:
+            line += f" The export before that ({traffic[-2]['date']}) showed {traffic[-2]['ai_visits']}."
+        lines += ["", line]
+        if now.get("by_month"):
+            lines += ["", "| Month | Visits from AI | All visits |", "|---|---|---|"]
+            lines += [f"| {m['month']} | {m['ai_visits']} | {m['all_visits']} |" for m in now["by_month"][-12:]]
+    ranks = [r for r in signals.get("ranks") or [] if "rows" in r]
+    if ranks:
+        moves = insights.rank_changes(ranks)
+        lines += ["", f"Search positions (saved {ranks[-1]['date']}): {ranks[-1]['top_10']} of {ranks[-1]['keywords']} "
+                      f"keywords in the top 10, {ranks[-1]['not_found']} not found.",
+                  "", "| Keyword | Where | Now | Before |", "|---|---|---|---|"]
+        lines += [f"| {m['keyword'].replace('|', '/')} | {m['engine']} | {m['now'] if m['now'] is not None else 'not found'} | "
+                  f"{(m['before'] if m['before'] is not None else 'not found') if m['checked_before'] else 'new'} |"
+                  for m in moves[:20]]
+    return lines
+
+
+def ranks_view(records: list[dict]) -> dict | None:
+    """The newest saved search positions with the move since the ones before, or None when none are saved."""
+    records = [r for r in records if "rows" in r]
+    if not records:
+        return None
+    now = records[-1]
+    return {"saved_on": now["date"], "previous_date": records[-2]["date"] if len(records) > 1 else None,
+            "keywords": now["keywords"], "top_3": now["top_3"], "top_10": now["top_10"], "not_found": now["not_found"],
+            "positions": insights.rank_changes(records)}
+
+
 async def load_meta(project: str) -> dict:
     """A saved project's details (brand, settings, to-dos, round dates). Raises ValueError when it is not saved."""
     return await _require_project(stg.clean_slug(project))
@@ -495,6 +591,7 @@ async def overview() -> dict:
         nxt = ("No projects yet. Start with audit_site and pass a project name (for example the site's name) so the "
                "check is saved.")
     return {"project": None, "brand": {}, "panel_prompts": 0, "snapshots": [], "audits": [], "experiments": [],
+            "ai_bot_visits": None, "ai_traffic": None, "ranks": None, "citation_gap": None,
             "projects": projects, "markdown": "\n".join(lines), "next": nxt}
 
 
@@ -527,20 +624,29 @@ async def history(project: str | None = None) -> dict:
     if changes and (changes["fixed"] or changes["new"]):
         lines += ["", f"Since the site check on {changes['since']}: {len(changes['fixed'])} fixed, {len(changes['new'])} "
                       f"new, {len(changes['still_open'])} still open."]
+    signals = await latest_signals(data["slug"])
+    lines += signal_lines(signals)
     todo = meta.get("todo") or []
     open_items = [t["step"] for t in todo if t.get("status") == "open"]
     if open_items:
         lines += ["", "Open to-dos: " + "; ".join(open_items[:10]) + "."]
     due = due_lines({**meta, "last_audit": meta.get("last_audit") or ({"date": audits[-1]["date"]} if audits else {})})
     if due:
-        nxt = " ".join(due) + " Offer to run it now, and say what it costs first if it is a paid check."
+        nxt = (" ".join(due) + " Offer to run it now. If it is a paid check, say so and wait for a yes; no amount "
+               "unless asked. " + tools.RECHECK_OFFER)
     elif not snaps:
-        nxt = "No AI recommendation round saved yet. Offer a quoted AI recommend check (quote_cost first)."
+        nxt = ("No AI recommendation round saved yet. Offer a paid AI recommend check (say it is paid; quote_cost "
+               "first for the caps).")
     else:
         nxt = "Nothing is due. Offer next_steps with this project name to pick one thing to work on."
     return {"project": data["slug"], "brand": meta.get("brand", {}), "panel_prompts": len(data["panel"]),
             "snapshots": snaps, "audits": audits, "experiments": data["experiments"],
             "settings": meta.get("settings", {}), "todo": todo, "site_changes": changes, "due": due,
+            "ai_bot_visits": signals["bots"][-1] if signals["bots"] else None,
+            "ai_traffic": signals["traffic"][-1] if signals["traffic"] else None,
+            "ranks": ranks_view(signals["ranks"]),
+            "citation_gap": insights.citation_gap(data["runs"], data["panel"], meta.get("brand"),
+                                                  snaps[-1]["snapshot"] if snaps else None),
             "projects": None, "markdown": "\n".join(lines), "next": nxt}
 
 

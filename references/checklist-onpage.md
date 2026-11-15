@@ -60,4 +60,4 @@ Evidence grades: **A** controlled test or large dataset · **B** repeated practi
 
 ## 8. Conversion layer
 - [agent] Clear CTA per page, simple path to lead/checkout, phone visible for local.
-- [agent] Install Microsoft Clarity (free): rage/dead clicks, scroll depth (60–70% of visitors never scroll on many landing pages).
+- [agent] Install Microsoft Clarity: rage/dead clicks, scroll depth (60–70% of visitors never scroll on many landing pages).

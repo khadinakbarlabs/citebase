@@ -140,14 +140,28 @@ class DocNumbersFollowTheQuote(unittest.TestCase):
     def test_the_ai_check_baseline_is_the_same_everywhere(self):
         amount = self.totals["ai_check"]
         for parts in (("README.md",), (".actor", "ACTOR_README.md"), ("references", "tools-and-apis.md"),
-                      ("skills", "start", "SKILL.md"), ("docs", "competitor-scorecard.md")):
+                      ("docs", "competitor-scorecard.md")):
             self.assertIn(amount, read(*parts), "/".join(parts))
 
     def test_the_quick_audit_is_the_starter_pack_everywhere(self):
         amount = self.totals["starter"]
-        for parts in (("README.md",), (".actor", "ACTOR_README.md"), ("references", "tools-and-apis.md"),
-                      ("skills", "start", "SKILL.md")):
+        for parts in (("README.md",), (".actor", "ACTOR_README.md"), ("references", "tools-and-apis.md")):
             self.assertIn(amount, read(*parts), "/".join(parts))
+
+    def test_playbooks_and_agent_prompts_state_no_amounts(self):
+        """Owner rule: an assistant never volunteers a price. The price tables live in one reference file, which
+        itself says to read prices out only when the user asks."""
+        import re
+        amount = re.compile(r"[$€£]\s?\d")
+        for rel in ("skills", "agents", "references"):
+            for base, _dirs, names in os.walk(os.path.join(ROOT, rel)):
+                for name in sorted(names):
+                    path = os.path.relpath(os.path.join(base, name), ROOT)
+                    if not name.endswith(".md") or path == os.path.join("references", "tools-and-apis.md"):
+                        continue
+                    found = amount.search(read(path))
+                    self.assertIsNone(found, f"{path} states an amount: {found.group(0) if found else ''}")
+        self.assertIn("Do not read prices out unless the user asks", read("references", "tools-and-apis.md"))
 
     def test_the_date_the_prices_were_read_matches_the_docs(self):
         read_on = self.tools.PRICES["read_on"]

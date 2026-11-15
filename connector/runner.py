@@ -11,6 +11,8 @@ from typing import Any
 
 import history as hist
 import importer
+import insights
+import signals
 import report
 import storage as stg
 import tools
@@ -20,10 +22,11 @@ ONE_SHOT_ONLY = {"scheduled_check"}  # meant for Apify Schedules; not offered as
 ALLOWED_ARGS = {
     **tools.ALLOWED_ARGS,
     "audit_site": {"url", "max_pages", "project"},
+    "quote_cost": {"items", "pack", "project"},
     "next_steps": {"audit", "report", "max_steps", "project"},
     "measure_recommendation_share": {"panel", "runs", "baseline", "current", "experiments", "brand", "project"},
     "save_results": {"project", "runs", "panel", "experiments", "brand", "audit", "replace", "append", "settings",
-                     "todo"},
+                     "todo", "server_log", "traffic", "traffic_csv", "ranks", "check_only"},
     "get_history": {"project"},
     "make_report": {"project"},
     "import_ai_results": {"project", "items", "dataset_ids", "snapshot", "save", "append", "replace", "panel", "brand",
@@ -34,8 +37,8 @@ ALLOWED_ARGS = {
 MAX_DATASETS = 20  # one round of the AI check is about seven runs; this leaves room for a larger panel
 TOOL_NAMES = sorted(set(tools.DISPATCH) | SAVED | ONE_SHOT_ONLY)
 AUDIT_SLOTS = asyncio.Semaphore(2)
-SAVE_NEXT_RUNS = "Saved. Re-check in 30 days to see what moved, or offer schedule_checks to run the checks automatically."
-SAVE_NEXT_AUDIT = "Saved. Check the site again in 30 days to see what moved, or offer schedule_checks to automate it."
+SAVE_NEXT_RUNS = "Saved. Measure with the project name, then re-check in 30 days: offer schedule_checks to automate it."
+SAVE_NEXT_AUDIT = "Saved. " + tools.RECHECK_OFFER
 SAVE_NEXT_PANEL = ("Saved the question list. Next, run the AI check with exactly these questions, then call "
                    "import_ai_results with save=true to bring the first round in (no retyping).")
 
@@ -46,6 +49,72 @@ def flag(args: dict, name: str) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"'{name}' must be true or false (a real boolean), not {value!r}.")
     return value
+
+
+AI_PACK_REPEATS = {"ai_check": tools.DEFAULT_REPEATS, "ai_check_pilot": 1}
+
+
+async def quote(items: list[dict] | None, pack: str | None, project: str | None = None) -> dict:
+    """Prices jobs. For the AI check of a saved project it prices that project's own question list and returns the
+    exact Actor inputs (ready_runs), so the assistant never has to invent questions or inputs that would later
+    fail to match on import."""
+    if not str(project or "").strip():
+        return await asyncio.to_thread(tools.quote_cost, items, pack)
+    name = str(pack or "").strip().lower()
+    if name not in AI_PACK_REPEATS or items:
+        raise ValueError("project works only with pack 'ai_check' or 'ai_check_pilot' (and no items). For other jobs "
+                         "leave project empty.")
+    data = await hist.load_project(project)
+    brand = data["meta"].get("brand") or {}
+    if not data["panel"] or not brand.get("name"):
+        raise ValueError(f"Project '{data['slug']}' needs a saved question list and brand name first. Save them with "
+                         "save_results (panel and brand), then ask again.")
+    rounds = await asyncio.to_thread(hist.snapshot_trend, data)
+    engines, notes = tools.plan_engines(None, rounds[0]["engines"] if rounds else None)
+    repeats, round_name = AI_PACK_REPEATS[name], None
+    if name == "ai_check" and rounds:
+        # A first look is repeat 1 of this check. Top it up instead of buying those answers again: ask the
+        # assistants only for the missing repeats, and leave out Google (one answer per search is already saved).
+        last = rounds[-1]["snapshot"]
+        asked = [int(r["repeat"]) for r in data["runs"]
+                 if r["snapshot"] == last and r["platform"] in tools.ASSISTANT_ENGINES]
+        have = max(asked) if asked else 0
+        if 0 < have < tools.DEFAULT_REPEATS:
+            repeats, round_name = tools.DEFAULT_REPEATS - have, last
+            engines = [e for e in engines if e in tools.ASSISTANT_ENGINES]
+            notes = [*notes, f"Round '{last}' already holds {have} answer(s) per question, so this adds {repeats} more "
+                             "repeat(s) from the assistants only. Nothing already saved is bought again."]
+    plan = tools._ai_check_plan(data["panel"], brand, engines, notes, repeats, "monthly",
+                                tools.search_context(data["meta"].get("settings")))
+    priced = await asyncio.to_thread(tools.quote_cost, [
+        {"job": r["job"], "units": r["checks_per_run"] * r["times"], "requests": r["times"]} for r in plan["runs"]])
+    engine_names = ", ".join(tools.cl.engine_name(e) for e in plan["engines"])
+    priced["pack"] = name
+    priced["pack_about"] = (f"{len(data['panel'])} saved questions on {engine_names}; the assistants are asked "
+                            f"{plan['repeats']} time(s) each.")
+    priced["project"] = data["slug"]
+    # Only runs that can start now are offered, each with the same cap quote_cost worked out for it.
+    blocked = {ln["job"] for ln in priced["lines"] if ln.get("not_before")}
+    caps = iter(priced["run_caps"])
+    ready = []
+    for planned in plan["runs"]:
+        if planned["job"] in blocked:
+            continue
+        ready.append({"name": planned["name"], "actor": planned["actor"], "times": planned["times"],
+                      "input": planned["input"], "max_cost_per_run_usd": next(caps)["max_cost_per_run_usd"]})
+    priced["ready_runs"] = ready
+    where = (f"round name '{round_name}' and append=true (it adds to the saved first look)" if round_name else
+             "one new round name (use append=true only when adding to a round that already exists)")
+    priced["after_the_runs"] = (f"When every run has finished, call import_ai_results with project='{data['slug']}', "
+                                f"the runs' dataset ids as dataset_ids, save=true, and {where}.")
+    priced["warnings"] = [*priced["warnings"], *plan["notes"]]
+    return priced
+
+
+async def make_report(project: str) -> dict:
+    out = await report.make_report(project)
+    out["next"] = "Give the user the link and say anyone with it can open it. " + tools.RECHECK_OFFER
+    return out
 
 
 async def audit(url: str | None = None, max_pages: int = 15, project: str | None = None) -> dict:
@@ -80,7 +149,8 @@ async def audit(url: str | None = None, max_pages: int = 15, project: str | None
             f" Since {changes['since']}: {len(changes['fixed'])} fixed, {len(changes['new'])} new, "
             f"{len(changes['still_open'])} still open.")
     result["next"] = (f"Saved to project '{slug}'. Call next_steps with project='{slug}' (no need to pass this result "
-                      "back). Then offer a quoted AI recommend check, and a re-check in 30 days.")
+                      "back). Then offer a paid AI recommend check (say it is paid; no amount unless asked). "
+                      + tools.RECHECK_OFFER)
     return result
 
 
@@ -102,6 +172,25 @@ async def next_steps(audit_result: dict | None, report_result: dict | None, max_
     done = {t["step"].lower() for t in meta.get("todo") or [] if t.get("status") in ("done", "skipped")}
     out = await asyncio.to_thread(tools.next_steps, audit_result, report_result, max_steps, done)
     out["project"] = slug
+    gap = (report_result or {}).get("citation_gap") or {}
+    if not gap and report_result and not report_result.get("citation_gap"):
+        try:
+            data = await hist.load_project(slug)
+            gap = insights.citation_gap(data["runs"], data["panel"], (data.get("meta") or {}).get("brand"),
+                                        report_result.get("current")) or {}
+        except (ValueError, KeyError, AttributeError):
+            gap = {}
+    step_name = "Get a fair mention on the sites AI cites for your rivals"
+    if gap.get("sites") and step_name.lower() not in done:
+        top = [s["site"] for s in gap["sites"][:3]]
+        out["steps"].insert(min(1, len(out["steps"]) - 1), {
+            "step": step_name,
+            "why": f"In the latest round AI cited {', '.join(top)} in answers that named a rival and left you out. "
+                   "Those pages feed the answers you are missing from.",
+            "who": "you, with Claude's help (link-building and outreach playbooks)", "effort": "a few hours per site",
+            "urgency": "do first", "based_on": f"cited sites in round {gap.get('round')}"})
+        if len(out["steps"]) > max_steps + 1:
+            del out["steps"][-2]  # keep the closing re-check step; drop the weakest step before it
     if not audit_result and not report_result:
         out["tip"] = (f"Project '{slug}' has no saved site check or AI results yet. Start with audit_site and pass "
                       "this project name.")
@@ -113,14 +202,35 @@ async def next_steps(audit_result: dict | None, report_result: dict | None, max_
 
 async def save(project: str, runs: list[dict] | None, panel: list[dict] | None, experiments: list[dict] | None,
                brand: dict | None, audit_result: dict | None, replace: bool = False, append: bool = False,
-               settings: dict | None = None, todo: list[dict] | None = None) -> dict:
-    """Saves AI-answer results, the question list, brand details, settings, to-do updates, logged changes and/or
-    one site check."""
-    if not (runs or panel or experiments or brand or audit_result or settings or todo):
+               settings: dict | None = None, todo: list[dict] | None = None, server_log: str | None = None,
+               traffic: list[dict] | None = None, traffic_csv: str | None = None, ranks: list[dict] | None = None,
+               check_only: bool = False) -> dict:
+    """Saves AI-answer results, the question list, brand details, settings, to-do updates, logged changes, one
+    site check, and/or counts from a pasted server log, an analytics export or search positions.
+
+    With check_only nothing is stored: the question list, log, export or positions are checked and reviewed, so a
+    question list can be put right before it is frozen."""
+    has_signal = bool(server_log or traffic or traffic_csv or ranks)
+    if not (runs or panel or experiments or brand or audit_result or settings or todo or has_signal):
         raise ValueError("Send runs (AI answers), the question list (panel), an audit (the result of audit_site), "
-                         "brand details, settings, to-do updates or logged changes. Nothing was saved.")
+                         "brand details, settings, to-do updates, a server log, an analytics export or logged "
+                         "changes. Nothing was saved.")
+    if traffic and traffic_csv:
+        raise ValueError("Send the analytics export either as rows (traffic) or as pasted text (traffic_csv), not both.")
+    stg.clean_slug(project)  # a bad project name is refused before any work
+    # Everything is checked before anything is written, so a bad paste cannot leave a half-saved project.
+    bots = await asyncio.to_thread(signals.summarise_bot_log, server_log) if server_log else None
+    visits = None
+    if traffic or traffic_csv:
+        rows = traffic or await asyncio.to_thread(signals.parse_traffic_csv, traffic_csv)
+        visits = await asyncio.to_thread(signals.summarise_traffic, rows)
+    rank_rows = insights.clean_ranks(ranks) if ranks else None
+    panel_rows = tools.normalise_panel(panel) if panel else None
+    review = await asyncio.to_thread(insights.review_panel, list(panel_rows.values())) if panel_rows else None
     if audit_result:
         hist.checked_audit(audit_result)  # refuse a bad site check before the rounds are written, not after
+    if check_only:
+        return await _check_only(project, runs, panel_rows, brand, review, bots, visits, rank_rows)
     if runs or panel or experiments or brand or settings or todo:
         out = await hist.save_results(project, runs or [], panel, experiments, brand, replace, append, settings, todo)
     else:
@@ -134,13 +244,77 @@ async def save(project: str, runs: list[dict] | None, panel: list[dict] | None, 
     out["audit_saved"] = await hist.save_audit(project, audit_result) if audit_result else None
     if out["audit_saved"]:
         out["warnings"] = [*out["warnings"], *out["audit_saved"].get("warnings", [])]
+    out["ai_bot_visits"] = out["ai_traffic"] = None
+    for kind, summary, field in (("bots", bots, "ai_bot_visits"), ("traffic", visits, "ai_traffic")):
+        if summary:
+            kept = await hist.save_signal(project, kind, summary)
+            out[field] = {**summary, "saved_on": kept["saved_on"], "previous": _signal_change(kind, kept["previous"])}
+            out["warnings"] = [*out["warnings"], *kept["warnings"]]
+            out["created"] = out["created"] or kept["created"]
+    out["ranks"] = None
+    if rank_rows:
+        summary = insights.summarise_ranks(rank_rows)
+        kept = await hist.save_signal(project, "ranks", summary)
+        summary = kept["record"] if "rows" in kept["record"] else summary
+        history = [r for r in (kept["previous"], summary) if r and "rows" in r]
+        out["ranks"] = {"saved_on": kept["saved_on"], "previous_date": (kept["previous"] or {}).get("date"),
+                        "keywords": summary["keywords"], "top_3": summary["top_3"], "top_10": summary["top_10"],
+                        "not_found": summary["not_found"], "positions": insights.rank_changes(history)}
+        out["warnings"] = [*out["warnings"], *kept["warnings"]]
+        out["created"] = out["created"] or kept["created"]
+    out["panel_review"], out["checked_only"] = review, False  # problems stay in the review: the list is saved as sent
     out["next"] = (SAVE_NEXT_RUNS if runs else SAVE_NEXT_PANEL if panel else SAVE_NEXT_AUDIT if audit_result
+                   else SAVE_NEXT_SIGNAL if has_signal
                    else "Saved. These details are reused by later checks, so the user is not asked again.")
     return out
 
 
+async def _check_only(project: str, runs: list[dict] | None, panel_rows: dict | None, brand: dict | None,
+                      review: dict | None, bots: dict | None, visits: dict | None, rank_rows: list[dict] | None) -> dict:
+    """What a save would look like, with nothing stored. Raises ValueError exactly where the real save would."""
+    if runs:
+        raise ValueError("check_only checks a question list, a server log, an analytics export or search positions. "
+                         "Leave runs out, or save them without check_only.")
+    slug = stg.clean_slug(project)
+    meta = await hist.load_meta(slug) if await _exists(slug) else {}
+    warnings: list[str] = []
+    if panel_rows:
+        be = await stg.get_backend()
+        hist.check_frozen(await be.get(stg.key(slug, "panel")), panel_rows)
+        known_brand = {**(meta.get("brand") or {}), **hist.clean_brand(brand)}
+        warnings = [*tools.cl.panel_warnings(panel_rows, known_brand), *(review or {}).get("problems", [])]
+    ready = not warnings
+    return {"project": slug, "snapshots_saved": {}, "panel_prompts": len(panel_rows or {}),
+            "snapshots_in_project": sorted(meta.get("snapshots") or {}), "brand": meta.get("brand", {}),
+            "settings": meta.get("settings", {}), "todo": meta.get("todo", []), "created": False,
+            "stored_in": "Nothing was stored: this was a check only.", "warnings": warnings, "audit_saved": None,
+            "ai_bot_visits": bots, "ai_traffic": visits,
+            "ranks": {**insights.summarise_ranks(rank_rows), "positions": insights.rank_changes(
+                [insights.summarise_ranks(rank_rows)])} if rank_rows else None,
+            "panel_review": review, "checked_only": True,
+            "next": ("Nothing was stored. " + ("It looks ready: " if ready else "Fix the warnings with the user, then ")
+                     + "call save_results again without check_only to keep it. A question list cannot change once saved.")}
+
+
+SAVE_NEXT_SIGNAL = ("Saved. Lead with the findings in plain words. These are the site's own numbers: read them as a "
+                    "floor, and paste a fresh export next month to see the direction.")
+
+
+def _signal_change(kind: str, previous: dict | None) -> dict | None:
+    """The headline numbers of the summary saved before this one, so the assistant can say what changed."""
+    if not previous:
+        return None
+    if kind == "bots":
+        return {"date": previous.get("date"), "answer_bot_requests": previous.get("answer_bot_requests"),
+                "period": previous.get("period")}
+    return {"date": previous.get("date"), "ai_visits": previous.get("ai_visits"), "ai_share": previous.get("ai_share")}
+
+
 async def _exists(project: str) -> bool:
-    return stg.clean_slug(project) in await hist.list_projects()
+    """True when the project has its details record. Stray records without one (a save that stopped half way) do
+    not count, so the next save simply completes the project instead of failing to load it."""
+    be = await stg.get_backend()
+    return await be.get(stg.key(stg.clean_slug(project), "meta")) is not None
 
 
 async def measure(project: str | None, panel: list[dict] | None, runs: list[dict] | None, baseline: str = "",
@@ -150,7 +324,13 @@ async def measure(project: str | None, panel: list[dict] | None, runs: list[dict
     if panel or runs or experiments or brand:
         raise ValueError("With a project name, measure reads the saved results. Save new ones first with save_results, "
                          "or leave project empty to measure the data you send.")
-    result = await hist.measure_project(project, baseline, current)
+    data = await hist.load_project(project)
+    result = await asyncio.to_thread(hist.measure_loaded, data, baseline, current)
+    # The proof behind the number, and where to act: both read from the same saved answers.
+    brand_saved = data["meta"].get("brand")
+    result["citation_gap"] = insights.citation_gap(data["runs"], data["panel"], brand_saved, result.get("current"))
+    result["proof"] = insights.proof(data["runs"], data["panel"], result.get("current"),
+                                     (data["meta"].get("imports") or {}).get(result.get("current") or ""))
     result["project"] = stg.clean_slug(project)
     result["next"] = tools.measure_next(result, saved=True)
     return result
@@ -313,14 +493,18 @@ async def run_tool(tool: str, arguments: dict | None) -> dict[str, Any]:
         if tool == "measure_recommendation_share":
             return await measure(args.get("project"), args.get("panel"), args.get("runs"), args.get("baseline", ""),
                                  args.get("current", ""), args.get("experiments"), args.get("brand"))
+        if tool == "quote_cost" and str(args.get("project") or "").strip():
+            return await quote(args.get("items") or [], args.get("pack"), args.get("project"))
+        if tool == "make_report":
+            return await make_report(args.get("project", ""))
         if tool == "save_results":
             return await save(args.get("project", ""), args.get("runs"), args.get("panel"), args.get("experiments"),
                               args.get("brand"), args.get("audit"), flag(args, "replace"), flag(args, "append"),
-                              args.get("settings"), args.get("todo"))
+                              args.get("settings"), args.get("todo"), args.get("server_log"),
+                              args.get("traffic"), args.get("traffic_csv"), args.get("ranks"),
+                              flag(args, "check_only"))
         if tool == "get_history":
             return await hist.history(args.get("project"))
-        if tool == "make_report":
-            return await report.make_report(args.get("project", ""))
         if tool == "import_ai_results":
             return await import_results(args.get("project", ""), args.get("items") or [], args.get("snapshot", ""),
                                         flag(args, "save"), flag(args, "append"), flag(args, "replace"),
@@ -331,7 +515,7 @@ async def run_tool(tool: str, arguments: dict | None) -> dict[str, Any]:
                                   args.get("max_pages", 15), None, None, args.get("platforms"), args.get("repeats"))
         if tool == "scheduled_check":
             return await scheduled_check(args.get("project", ""), args.get("url", ""), args.get("max_pages", 15))
-        if tool == "next_steps":
+        if tool in ("next_steps", "quote_cost"):
             args = {k: v for k, v in args.items() if k != "project"}  # blank project: the stateless tool
         return await asyncio.to_thread(tools.dispatch, tool, args)
     except ArithmeticError as err:

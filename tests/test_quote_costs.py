@@ -115,7 +115,8 @@ class ComputeIsInTheQuote(unittest.TestCase):
 
     def test_one_plain_sentence_about_compute(self):
         note = quote("serp_page", 15)["compute_note"]
-        self.assertIn("includes about $0.05 of Apify compute", note)
+        self.assertIn("includes Apify compute (includes_compute_usd)", note)
+        self.assertNotIn("$", note)  # the amount lives in includes_compute_usd, never in a sentence
         self.assertNotIn("\n", note)
 
     def test_no_compute_sentence_when_there_is_none(self):
@@ -300,7 +301,7 @@ class PriceFileShape(unittest.TestCase):
             self.assertEqual(result.includes_compute_usd, q.get("includes_compute_usd"))
 
 
-PACK_ORDER = ["starter", "keywords", "competitors", "creators", "local", "ai_check"]
+PACK_ORDER = ["starter", "keywords", "competitors", "creators", "local", "ai_check_pilot", "ai_check"]
 RAW_ERROR_WORDS = ("validation error", "pydantic", "literal_error", "input_value", "Input should be", "errors.pydantic.dev")
 
 

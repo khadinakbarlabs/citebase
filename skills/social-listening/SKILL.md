@@ -12,11 +12,11 @@ Talk like `../../references/plain-language.md`. Read-only research. Does not pos
 Turn public conversations into a short insight brief for content, product and outreach — especially signals AI assistants already cite.
 
 ## Web connector mode
-`quote_cost` first (pack `creators` about $0.40 when the goal is who to approach, or custom Reddit/YouTube/news jobs), wait for a yes, then `call-actor` on `khadinakbar/*` only. Deliver the insight brief in chat. If outreach follows, use `check_outreach_draft` before any email yes.
+Say it is a paid check billed to the user's own Apify account and wait for a clear yes. Give the amount only if the user asks what it costs. Then `quote_cost` for the spending cap (pack `creators` when the goal is who to approach, or custom Reddit/YouTube/news jobs) and `call-actor` on `khadinakbar/*` only. Deliver the insight brief in chat. If outreach follows, use `check_outreach_draft` before any email yes.
 
 ## Steps
 1. Confirm brand / topic / competitors and which surfaces matter (Reddit, YouTube, newsletters, news).
-2. Quote costs, then run only `khadinakbar/*` jobs as needed, for example:
+2. After the user's yes, get the cap from `quote_cost`, then run only `khadinakbar/*` jobs as needed, for example:
    - Reddit search / posts-comments
    - YouTube search, comments, transcripts, channel stats
    - Newsletter posts (Substack / Beehiiv Actors)

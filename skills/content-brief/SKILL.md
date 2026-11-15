@@ -12,7 +12,7 @@ Talk like `../../references/plain-language.md`. Fabrication guard: never invent 
 Primary keyword / question, optional URL of a draft or competitor page, brand facts the user already confirmed.
 
 ## Web connector mode
-Deliver the brief in chat. Optional live SERP skim: `quote_cost` (pack `keywords` about $1.42 or `starter` about $0.17) → yes → `call-actor` on `khadinakbar/*`. Without live data, label assumptions.
+Deliver the brief in chat. Optional live SERP skim: say it is a paid check billed to the user's own Apify account → yes → `quote_cost` for the cap (pack `keywords` or `starter`) → `call-actor` on `khadinakbar/*`. Give the amount only if the user asks. Without live data, label assumptions.
 
 ## Steps
 1. Clarify intent (informational / commercial / comparison). If unclear, ask one question.

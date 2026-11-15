@@ -26,7 +26,7 @@ Call `check_ai_content` with the draft, rewrite in chat, then call `check_ai_con
 2. Rewrite using `../../references/ai-writing-patterns.md` (P1–P36 priority table).
 3. Re-lint until density is under threshold or the user accepts remaining hits.
 4. Deliver the cleaned text. Add a change list only if asked.
-5. Done / Cost so far ($0) / Next — offer `eeat-audit` or `content-optimize` if they want trust/SEO next.
+5. Done / Cost so far (no paid checks) / Next — offer `eeat-audit` or `content-optimize` if they want trust/SEO next.
 
 ## Out of scope
 Code, commit messages, legal boilerplate that must stay formulaic, and any request to "beat" a named commercial AI detector by gaming it.
