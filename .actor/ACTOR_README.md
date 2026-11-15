@@ -155,75 +155,75 @@ You can also run this Actor normally with the same two fields as input: `tool` (
 
 Citebase never runs these itself and never calls other people's Actors. It tells your assistant which one fits, what it will cost and which spending cap to set; you approve and the assistant runs it on your own Apify account. All are public Actors by the same author.
 
-| Job name | Actor | What it gets you | Price |
-|---|---|---|---|
-| `site_audit` | [Complete SEO Audit](https://apify.com/khadinakbar/complete-seo-audit) | Technical site audit: crawl rules, redirects, headings, links, structured data (server HTML, no JavaScript) | $0.10 per audit |
-| `serp_page` | [Google SERP Scraper](https://apify.com/khadinakbar/scrape-google-serp) | Google search results pages: who ranks, questions people ask, search features | $0.0018 per SERP page |
-| `keyword_ideas` | [Keyword Research](https://apify.com/khadinakbar/dataforseo-keyword-research) | Keyword ideas with search volume and difficulty | $0.20 per run + $0.01 per keyword row (cannot run until 2026-11-14) |
-| `keyword_volume` | [Keyword Research](https://apify.com/khadinakbar/dataforseo-keyword-research) | Exact search volume, cost per click and competition for keywords you already have | $1.00 per run + $0.01 per keyword row (cannot run until 2026-11-14) |
-| `backlinks` | [Website Backlink Checker](https://apify.com/khadinakbar/website-backlink-checker) | Who links to a site: backlinks, referring domains and anchor text | $0.05 per run + $0.01 per backlink or domain row |
-| `backlink_prospects` | [Backlink Opportunity Finder](https://apify.com/khadinakbar/backlink-opportunity-finder) | Link prospects: resource pages, best-of lists and guest-post sites | $0.006 per prospect |
-| `ai_brand_check` | [AI Brand Monitor](https://apify.com/khadinakbar/ai-search-brand-monitor) | Does an AI assistant mention or recommend your brand? Checks ChatGPT, Perplexity, Claude and Gemini answers | $0.08 per prompt x engine x run |
-| `ai_page_citation` | [AI Search Visibility Tracker](https://apify.com/khadinakbar/ai-search-visibility-tracker) | Which of your pages AI assistants cite, and which competitors they cite instead | $0.09 per keyword x query x engine |
-| `ai_citation_scan` | [AI Citations Tracker](https://apify.com/khadinakbar/ai-citations-tracker) | The sources behind a Perplexity answer | $0.12 per Perplexity prompt |
-| `ai_overview` | [Google AI Overviews Scraper](https://apify.com/khadinakbar/google-ai-overviews-scraper) | Google AI Overviews for a search, and whether your domain is among the sources | $0.015 per query, $0.10 when the fallback route is used (it was in every test run) |
-| `ai_mode` | [Google AI Mode Scraper](https://apify.com/khadinakbar/google-ai-mode-scraper) | Google AI Mode answers and their citations | $0.025 per query |
-| `website_contact` | [Bulk Website Contact Extractor](https://apify.com/khadinakbar/bulk-website-contact-extractor) | Public emails and social links from a website (for outreach) | $0.005 per domain |
-| `email_verify` | [Email Address Validator](https://apify.com/khadinakbar/email-address-validator) | Checks that an email address is real before you send | $0.0009 per email |
-| `news_article` | [Google News Scraper](https://apify.com/khadinakbar/google-news-scraper) | News coverage and the journalists who wrote it (for PR) | $0.003 per article |
-| `reddit_result` | [Reddit Posts and Comments Scraper](https://apify.com/khadinakbar/reddit-posts-comments-scraper) | Reddit posts and comments on a topic | $0.003 per result |
-| `youtube_result` | [YouTube Search Scraper](https://apify.com/khadinakbar/youtube-search-scraper) | YouTube videos and channels on a topic | $0.003 per result |
-| `review_site` | [Software Reviews Scraper](https://apify.com/khadinakbar/software-reviews-all-in-one-scraper) | Software reviews from G2, Capterra and TrustRadius | $0.007 per review, plus $0.01 per product found and a start fee of $0.005 per GB of memory |
-| `trustpilot_review` | [Trustpilot Reviews Scraper](https://apify.com/khadinakbar/trustpilot-reviews-scraper) | Trustpilot ratings, reviews and replies | $0.0025 per review |
-| `google_trend` | [Google Trends](https://apify.com/khadinakbar/google-trends-scraper) | Interest over time, regions and rising searches for a topic | $0.005 per trend item |
-| `search_suggestion` | [Google Autocomplete Suggestions](https://apify.com/khadinakbar/google-autocomplete-api) | What people start typing in Google for a topic | $0.005 per lookup |
-| `longtail_keyword` | [Long-Tail Keyword Ideas](https://apify.com/khadinakbar/keyword-fanout-longtail) | Many specific long-tail phrases grown from a seed word | $0.0015 per keyword |
-| `keyword_difficulty` | [Keyword Difficulty Checker](https://apify.com/khadinakbar/ahrefs-keyword-difficulty-checker) | How hard each keyword is to rank for, in batches | $0.30 per batch |
-| `keyword_metrics` | [Keyword Metrics](https://apify.com/khadinakbar/ahrefs-keyword-explorer) | Search numbers, matching terms and related terms for keywords | $0.01 per result |
-| `content_brief` | [SEO Content Brief Generator](https://apify.com/khadinakbar/surfer-seo-alternative) | A page outline built from what the top results cover | $0.02 per run + $0.005 per brief |
-| `quora_question` | [Quora Scraper](https://apify.com/khadinakbar/quora-scraper) | Real questions and answers people post on a topic | $0.003 per item, plus a start fee of $0.005 per GB of memory |
-| `reddit_search` | [Reddit Search Scraper](https://apify.com/khadinakbar/reddit-search-scraper) | Reddit posts that match a search, in people's own words | $0.003 per result |
-| `forum_search` | [Google Forums Search](https://apify.com/khadinakbar/google-forums-search-scraper) | Public forum discussions Google shows for a question | $0.065 per search page |
-| `youtube_trending` | [YouTube Trending Videos](https://apify.com/khadinakbar/youtube-trending-videos-scraper) | Videos on YouTube's trending charts by country | $0.03 per run + $0.0006 per video |
-| `youtube_transcript` | [YouTube Transcript Extractor](https://apify.com/khadinakbar/youtube-transcript-extractor) | What is said in a video, as text | $0.005 per transcript |
-| `youtube_channel_stats` | [YouTube Channel Statistics](https://apify.com/khadinakbar/youtube-channel-statistics-scraper) | Subscribers, views and activity of channels you might approach | $0.0035 per channel |
-| `youtube_comment` | [YouTube Comments Scraper](https://apify.com/khadinakbar/youtube-comments-scraper) | What viewers say under a video | $0.001 per comment |
-| `creator_report` | [Creator Intelligence Report](https://apify.com/khadinakbar/influencer-marketing-intelligence-scraper) | A report on a creator's audience fit and recent posts | $0.05 per creator report |
-| `newsletter_post` | [Substack Posts Scraper](https://apify.com/khadinakbar/substack-posts-scraper) | Posts from newsletters on your topic | $0.005 per post |
-| `traffic_rank` | [Website Traffic and Rank](https://apify.com/khadinakbar/similarweb-traffic-rank-scraper) | Estimated traffic and rank of a website | $0.08 per domain |
-| `tech_stack` | [Website Technology Detector](https://apify.com/khadinakbar/website-tech-stack-detector) | What a site is built with | $0.01 per site |
-| `bing_rank` | [Bing Rank Tracker](https://apify.com/khadinakbar/bing-rank-tracker) | Where a domain ranks on Bing for your keywords | $0.008 per rank check |
-| `crawl_page` | [Website SEO Crawler](https://apify.com/khadinakbar/website-seo-spider) | A full-site crawl, page by page | $0.01 per page |
-| `local_rank` | [Local Rank Tracker](https://apify.com/khadinakbar/local-rank-tracker) | Where a business shows on the map around a location | $0.06 per local check |
-| `local_pack` | [Google Local Pack](https://apify.com/khadinakbar/google-local-pack-api) | Who appears in Google's map results for a search | $0.03 per snapshot |
-| `agency_listing` | [Agency Directory Listings](https://apify.com/khadinakbar/clutch-listings-scraper) | Listings of agencies and companies in a category | $0.004 per listing |
+| Job name | Actor | What it gets you |
+|---|---|---|
+| `site_audit` | [Complete SEO Audit](https://apify.com/khadinakbar/complete-seo-audit) | Technical site audit: crawl rules, redirects, headings, links, structured data (server HTML, no JavaScript) |
+| `serp_page` | [Google SERP Scraper](https://apify.com/khadinakbar/scrape-google-serp) | Google search results pages: who ranks, questions people ask, search features |
+| `keyword_ideas` | [Keyword Research](https://apify.com/khadinakbar/dataforseo-keyword-research) | Keyword ideas with search volume and difficulty |
+| `keyword_volume` | [Keyword Research](https://apify.com/khadinakbar/dataforseo-keyword-research) | Exact search volume, cost per click and competition for keywords you already have |
+| `backlinks` | [Website Backlink Checker](https://apify.com/khadinakbar/website-backlink-checker) | Who links to a site: backlinks, referring domains and anchor text |
+| `backlink_prospects` | [Backlink Opportunity Finder](https://apify.com/khadinakbar/backlink-opportunity-finder) | Link prospects: resource pages, best-of lists and guest-post sites |
+| `ai_brand_check` | [AI Brand Monitor](https://apify.com/khadinakbar/ai-search-brand-monitor) | Does an AI assistant mention or recommend your brand? Checks ChatGPT, Perplexity, Claude and Gemini answers |
+| `ai_page_citation` | [AI Search Visibility Tracker](https://apify.com/khadinakbar/ai-search-visibility-tracker) | Which of your pages AI assistants cite, and which competitors they cite instead |
+| `ai_citation_scan` | [AI Citations Tracker](https://apify.com/khadinakbar/ai-citations-tracker) | The sources behind a Perplexity answer |
+| `ai_overview` | [Google AI Overviews Scraper](https://apify.com/khadinakbar/google-ai-overviews-scraper) | Google AI Overviews for a search, and whether your domain is among the sources |
+| `ai_mode` | [Google AI Mode Scraper](https://apify.com/khadinakbar/google-ai-mode-scraper) | Google AI Mode answers and their citations |
+| `website_contact` | [Bulk Website Contact Extractor](https://apify.com/khadinakbar/bulk-website-contact-extractor) | Public emails and social links from a website (for outreach) |
+| `email_verify` | [Email Address Validator](https://apify.com/khadinakbar/email-address-validator) | Checks that an email address is real before you send |
+| `news_article` | [Google News Scraper](https://apify.com/khadinakbar/google-news-scraper) | News coverage and the journalists who wrote it (for PR) |
+| `reddit_result` | [Reddit Posts and Comments Scraper](https://apify.com/khadinakbar/reddit-posts-comments-scraper) | Reddit posts and comments on a topic |
+| `youtube_result` | [YouTube Search Scraper](https://apify.com/khadinakbar/youtube-search-scraper) | YouTube videos and channels on a topic |
+| `review_site` | [Software Reviews Scraper](https://apify.com/khadinakbar/software-reviews-all-in-one-scraper) | Software reviews from G2, Capterra and TrustRadius |
+| `trustpilot_review` | [Trustpilot Reviews Scraper](https://apify.com/khadinakbar/trustpilot-reviews-scraper) | Trustpilot ratings, reviews and replies |
+| `google_trend` | [Google Trends](https://apify.com/khadinakbar/google-trends-scraper) | Interest over time, regions and rising searches for a topic |
+| `search_suggestion` | [Google Autocomplete Suggestions](https://apify.com/khadinakbar/google-autocomplete-api) | What people start typing in Google for a topic |
+| `longtail_keyword` | [Long-Tail Keyword Ideas](https://apify.com/khadinakbar/keyword-fanout-longtail) | Many specific long-tail phrases grown from a seed word |
+| `keyword_difficulty` | [Keyword Difficulty Checker](https://apify.com/khadinakbar/ahrefs-keyword-difficulty-checker) | How hard each keyword is to rank for, in batches |
+| `keyword_metrics` | [Keyword Metrics](https://apify.com/khadinakbar/ahrefs-keyword-explorer) | Search numbers, matching terms and related terms for keywords |
+| `content_brief` | [SEO Content Brief Generator](https://apify.com/khadinakbar/surfer-seo-alternative) | A page outline built from what the top results cover |
+| `quora_question` | [Quora Scraper](https://apify.com/khadinakbar/quora-scraper) | Real questions and answers people post on a topic |
+| `reddit_search` | [Reddit Search Scraper](https://apify.com/khadinakbar/reddit-search-scraper) | Reddit posts that match a search, in people's own words |
+| `forum_search` | [Google Forums Search](https://apify.com/khadinakbar/google-forums-search-scraper) | Public forum discussions Google shows for a question |
+| `youtube_trending` | [YouTube Trending Videos](https://apify.com/khadinakbar/youtube-trending-videos-scraper) | Videos on YouTube's trending charts by country |
+| `youtube_transcript` | [YouTube Transcript Extractor](https://apify.com/khadinakbar/youtube-transcript-extractor) | What is said in a video, as text |
+| `youtube_channel_stats` | [YouTube Channel Statistics](https://apify.com/khadinakbar/youtube-channel-statistics-scraper) | Subscribers, views and activity of channels you might approach |
+| `youtube_comment` | [YouTube Comments Scraper](https://apify.com/khadinakbar/youtube-comments-scraper) | What viewers say under a video |
+| `creator_report` | [Creator Intelligence Report](https://apify.com/khadinakbar/influencer-marketing-intelligence-scraper) | A report on a creator's audience fit and recent posts |
+| `newsletter_post` | [Substack Posts Scraper](https://apify.com/khadinakbar/substack-posts-scraper) | Posts from newsletters on your topic |
+| `traffic_rank` | [Website Traffic and Rank](https://apify.com/khadinakbar/similarweb-traffic-rank-scraper) | Estimated traffic and rank of a website |
+| `tech_stack` | [Website Technology Detector](https://apify.com/khadinakbar/website-tech-stack-detector) | What a site is built with |
+| `bing_rank` | [Bing Rank Tracker](https://apify.com/khadinakbar/bing-rank-tracker) | Where a domain ranks on Bing for your keywords |
+| `crawl_page` | [Website SEO Crawler](https://apify.com/khadinakbar/website-seo-spider) | A full-site crawl, page by page |
+| `local_rank` | [Local Rank Tracker](https://apify.com/khadinakbar/local-rank-tracker) | Where a business shows on the map around a location |
+| `local_pack` | [Google Local Pack](https://apify.com/khadinakbar/google-local-pack-api) | Who appears in Google's map results for a search |
+| `agency_listing` | [Agency Directory Listings](https://apify.com/khadinakbar/clutch-listings-scraper) | Listings of agencies and companies in a category |
 
-Each paid run also pays start fees (usually $0.00005 per GB of run memory; three Actors have none). Apify also bills a small amount of compute on some jobs; it is included in the quote. Prices were read from each Actor's public pricing on 2026-11-08 and can change: the assistant checks again before quoting.
+Each job is priced before it runs: ask your assistant what a job costs and it will tell you. Each Actor's own Store page shows its current pricing. Apify also bills a small amount of compute on some jobs; it is included in the quote.
 
 **Easy bundles.** You do not need to pick jobs yourself. Ask for a pack and the assistant prices it in one go:
 
-| Pack | What you get | About |
-|---|---|---|
-| `starter` | A first look at a website | $0.17 |
-| `keywords` | What people search for on one topic | $1.42 |
-| `competitors` | How rivals look and rank | $0.34 |
-| `creators` | YouTube creators worth approaching | $0.40 |
-| `local` | Where a business shows on the map | $0.15 |
-| `ai_check_pilot` | A first look at whether AI recommends you (30 questions, 3 assistants, once) | $9.20 |
-| `ai_check` | Does AI recommend you (30 questions, 3 assistants, 3 times) | $23.60 |
+| Pack | What you get |
+|---|---|
+| `starter` | A first look at a website |
+| `keywords` | What people search for on one topic |
+| `competitors` | How rivals look and rank |
+| `creators` | YouTube creators worth approaching |
+| `local` | Where a business shows on the map |
+| `ai_check_pilot` | A first look at whether AI recommends you (30 questions, 3 assistants, once) |
+| `ai_check` | Does AI recommend you (30 questions, 3 assistants, 3 times) |
 
 
 ## Pricing and cost example
 
 - **Citebase itself:** the twelve tools add no fee of their own. The connector has no start fee and no minimum. Everything that runs costs what Apify charges for compute plus the data jobs below.
 - **Platform usage:** running this Actor uses a small amount of Apify platform compute. It is paid by the account that starts the run, which is yours when you connect with your own sign-in. A 15-page site check takes under a minute.
-- **Paid data Actors:** each is priced per result on your account, as in the table. `quote_cost` totals them before anything runs.
+- **Paid data Actors:** each is priced per result on your account; each Actor's Store page lists its price. `quote_cost` totals them before anything runs.
 
-| Example | What it includes | About |
-|---|---|---|
-| Quick audit | 1 site audit + 15 results pages | $0.17 |
-| Full audit | site audit, keywords, backlinks for you and 3 competitors, link prospects, a small AI check | $8.70 |
-| AI recommendation baseline | 30 questions x 3 assistants x 3 repeats + 20 Google AI Overviews | $23.60 |
+| Example | What it includes |
+|---|---|
+| Quick audit | 1 site audit + 15 results pages |
+| Full audit | site audit, keywords, backlinks for you and 3 competitors, link prospects, a small AI check |
+| AI recommendation baseline | 30 questions x 3 assistants x 3 repeats + 20 Google AI Overviews |
 
 Request fees dominate small keyword and backlink jobs, so batch them into one run.
 
@@ -259,7 +259,7 @@ Prices were read from public Actor pricing on 2026-11-08. The release checklist 
 
 ## Frequently asked questions
 
-**What does it cost?** Citebase adds no fee. You pay Apify's running cost and the data jobs you choose to run, each priced before it starts (a first look is about $0.17). Apify also bills a small amount of compute on some jobs; it is included in the quote.
+**What does it cost?** Citebase adds no fee. You pay Apify's running cost and the data jobs you choose to run, each priced before it starts. Apify also bills a small amount of compute on some jobs; it is included in the quote.
 
 **Does it store my data?** Only if you ask it to. With a project name, `save_results` keeps your rounds and site checks in a store named `citebase-projects` in the Apify account that runs the Actor (yours, when you connect with your own sign-in). The author cannot see it. Without a project name every call stands alone and nothing is kept. Reports are shared by link only: delete the record to stop sharing.
 

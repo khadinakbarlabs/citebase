@@ -162,15 +162,13 @@ class ComplianceTests(unittest.TestCase):
             for url in self.urls_in(open(os.path.join(ACTOR, name)).read()):
                 self.assertTrue(self.host(url).endswith(ON_PLATFORM) or self.host(url) in EXAMPLE_HOSTS, f"{name}: {url}")
 
-    def test_every_used_actor_is_listed_with_link_and_price(self):
-        numbers = {round(float(n), 6) for n in re.findall(r"\$([0-9]+\.[0-9]+)", self.readme)}
+    def test_every_used_actor_is_listed_with_link_and_no_price(self):
+        """The Store page links every Actor Citebase prices, and states no amounts (owner decision 2026-11-15)."""
+        self.assertIsNone(re.search(r"[$€£]\s?\d", self.readme))
         for job, spec in self.prices["jobs"].items():
             slug = spec["actor"].split("/")[1]
             self.assertIn(f"https://apify.com/khadinakbar/{slug})", self.readme, f"{job}: link to {slug}")
-            self.assertIn(round(spec["per_unit"], 6), numbers, f"{job}: unit price")
-            if spec["per_request"] > 0:
-                self.assertIn(round(spec["per_request"], 6), numbers, f"{job}: per-run fee")
-        self.assertIn(fmt(self.prices["start_fee_usd"]), self.readme)
+            self.assertIn(f"`{job}`", self.readme, f"{job}: listed")
 
     def test_only_own_actors_are_linked(self):
         for slug_owner in re.findall(r"https://apify\.com/([a-z0-9_.-]+)/[a-z0-9_.-]+\)", self.readme):
