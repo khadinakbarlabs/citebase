@@ -613,10 +613,10 @@ def schedule_plan(project: str, url: str | None, frequency: str | None = "weekly
                                     "amounts only if they ask), and set each run's max cost so no run can go over.",
             "how_to_stop": "In Apify Console, open Schedules and switch the schedule off, or delete it. Nothing runs "
                            "after that. Saved results stay in the project.",
-            "who_creates_it": "The user creates the schedule in their own Apify account. If your Apify connector has "
-                              "a create-schedule tool, you may create it for them after their yes, switched off, with "
-                              "exactly these inputs and max costs, and tell them to switch it on. Citebase itself "
-                              "never creates schedules.",
+            "who_creates_it": "The user creates the schedule themselves in their own Apify Console, using the steps "
+                              "below. Do not create it for them with any tool: a schedule runs on its own, outside "
+                              "the approval and spending checks you work under. Citebase itself never creates "
+                              "schedules.",
             "next": "Walk the user through the steps one at a time. After the first scheduled round, import it with "
                     "import_ai_results (dataset_ids) and measure again.",
             "steps": ["Open the Apify Console and go to Schedules, then Create new schedule.",

@@ -264,7 +264,7 @@ class SchedulePlanResult(BaseModel):
     steps: list[str] = Field(description="Plain steps for creating the schedule in Apify Console.")
     before_you_set_it_up: str = Field("", description="What the user must agree to first. Follow it: recurring checks need a clear yes.")
     how_to_stop: str = Field("", description="How to switch the schedule off. Always tell the user.")
-    who_creates_it: str = Field("", description="Who creates the schedule and when an assistant may do it for the user.")
+    who_creates_it: str = Field("", description="Who creates the schedule: always the user, in their own Apify Console.")
     next: str = Field("", description="One short line on what to do next. Say it in your own words.")
     note: Optional[str] = Field(None, description="Why ai_checks is null, when it is. Null otherwise.")
 

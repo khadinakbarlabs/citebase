@@ -196,7 +196,8 @@ class RecurringCheckRulesTests(Base):
         text = self.plan()["who_creates_it"]
         self.assertIn("The user creates the schedule", text)
         self.assertIn("Citebase itself never creates schedules", text)
-        self.assertIn("switched off", text)
+        self.assertIn("Do not create it for them with any tool", text)
+        self.assertNotIn("you may create it", text)
 
     def test_every_planned_run_still_carries_its_own_max_cost(self):
         for entry in self.plan()["ai_checks"]["runs"]:

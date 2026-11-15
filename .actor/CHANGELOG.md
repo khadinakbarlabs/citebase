@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.5
+- Schedules are always created by the user in Apify Console: `schedule_checks` no longer lets an assistant create one, because a schedule runs outside the approval and spending checks.
 - Only Citebase's own Actors: `import_ai_results` refuses a dataset made by another creator's Actor, and the server instructions and every quote tell the assistant to run only the named `khadinakbar/*` Actors. A job quoted with zero requests now still counts the per-run request fee, and the approval gate recognises sends under more tool names.
 - Safer spending: `quote_cost` now returns `run_caps`, the spending cap for each separate Actor run, so a cap meant for a whole job is never set on every run. Every quote and playbook says to start a paid run once and to check a running one with `get-actor-run` instead of starting it again.
 - Results are not counted twice: the same answers sent again to a round are left out, and a dataset already imported into a round is refused.
