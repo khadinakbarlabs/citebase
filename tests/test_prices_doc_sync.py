@@ -38,6 +38,11 @@ class NoDocumentStatesAPrice(unittest.TestCase):
             self.assertIsNone(AMOUNT.search(read(*parts)), "/".join(parts))
         self.assertIn("Each job is priced before it runs", read(".actor", "ACTOR_README.md"))
 
+    def test_readme_examples_show_no_cost_fields(self):
+        for parts in ((".actor", "ACTOR_README.md"), ("README.md",)):
+            self.assertNotRegex(read(*parts), r'"(cost|total|max_cost_per_run|suggested_cap)_usd"', "/".join(parts))
+            self.assertNotIn("prices_read_on", read(*parts), "/".join(parts))
+
     def test_playbooks_agents_and_references_state_no_amounts(self):
         for rel in ("skills", "agents", "references"):
             for base, _dirs, names in os.walk(os.path.join(ROOT, rel)):

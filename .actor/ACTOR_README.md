@@ -123,15 +123,12 @@ Built for founders, marketers and small agencies who want to show up when people
 ```json
 {
   "ok": true,
-  "tool": "quote_cost",
+  "tool": "get_history",
   "result": {
-    "lines": [{"job": "serp_page", "actor": "khadinakbar/scrape-google-serp", "units": 15, "unit": "SERP page", "requests": 1, "cost_usd": 0.0721, "compute_usd": 0.045}],
-    "total_usd": 0.0721,
-    "suggested_cap_usd": 0.1,
-    "run_caps": [{"job": "serp_page", "actor": "khadinakbar/scrape-google-serp", "runs": 1, "units_per_run": 15, "max_cost_per_run_usd": 0.1}],
-    "includes_compute_usd": 0.045,
-    "compute_note": "This total includes Apify compute (includes_compute_usd), which Apify bills on top of the data prices.",
-    "prices_read_on": "2026-11-08"
+    "project": null,
+    "projects": [],
+    "markdown": "# Your saved projects\n\nNothing saved yet.",
+    "next": "No projects yet. Start with audit_site and pass a project name (for example the site's name) so the check is saved."
   }
 }
 ```
@@ -255,7 +252,7 @@ Prompt to try: *"Use Citebase to check example.com, tell me the three most impor
 
 ## Evidence and freshness
 
-Prices were read from public Actor pricing on 2026-11-08. The release checklist covers good, bad, oversized and hostile inputs, parallel calls and all three ways in (Standby, `/run` and normal runs). It is a check, not a guarantee of future reliability. The version history is in the changelog.
+The release checklist covers good, bad, oversized and hostile inputs, parallel calls and all three ways in (Standby, `/run` and normal runs). It is a check, not a guarantee of future reliability. The version history is in the changelog.
 
 ## Frequently asked questions
 
