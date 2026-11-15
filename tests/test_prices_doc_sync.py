@@ -1,8 +1,9 @@
-"""The price table in references/tools-and-apis.md must say the same as connector/prices.json.
+"""No document states a price (owner rule 2026-11-14, extended 2026-11-15).
 
-The table is what the Claude Code plugin quotes from; prices.json is what the connector's quote_cost uses. If they
-drift apart a user is quoted two different prices for the same job. This test reads the table and checks every
-priced job against it (and every table row whose Actor is priced against the job list).
+Prices live in one place: connector/prices.json, which quote_cost reads. The Store page, README.md, the playbooks,
+the agent prompts and references/tools-and-apis.md carry no amounts; the assistant gets a number from quote_cost only
+when the user asks what a task costs. The only dollar figures allowed in documents are the two spending-limit
+defaults (`daily_spend_usd` and `max_run_usd`), which are settings, not prices.
 """
 import json
 import os
@@ -12,100 +13,8 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REF = os.path.join(ROOT, "references", "tools-and-apis.md")
-PRICES = os.path.join(ROOT, "connector", "prices.json")
-REQUEST_UNITS = {"request", "run"}  # a fee charged once per run, not per result
-
-
-def load_prices() -> dict:
-    with open(PRICES, encoding="utf-8") as fh:
-        return json.load(fh)
-
-
-def table_rows() -> list[list[str]]:
-    with open(REF, encoding="utf-8") as fh:
-        lines = fh.read().splitlines()
-    start = next(i for i, ln in enumerate(lines) if ln.startswith("## Jobs"))
-    rows = []
-    for ln in lines[start + 1:]:
-        if ln.startswith("## "):
-            break
-        if ln.startswith("|") and not set(ln) <= set("|- "):
-            cells = [c.strip() for c in ln.strip().strip("|").split("|")]
-            if cells[0] != "Job":
-                rows.append(cells)
-    return rows
-
-
-def parse_price(cell: str) -> dict:
-    """Primary Actor's own price: the part of the cell before the first ' · ' or '(' note, as per_unit/per_request."""
-    head = re.split(r"\s·\s|\s\(", cell.replace("**", ""), maxsplit=1)[0]
-    out = {"per_unit": 0.0, "per_request": 0.0}
-    for amount, unit in re.findall(r"\$([\d.]+)\s*(?:/|per)\s*([a-z]+)", head):
-        key = "per_request" if unit in REQUEST_UNITS else "per_unit"
-        if not out[key]:
-            out[key] = float(amount)
-    return out
-
-
-def parse_rows() -> list[dict]:
-    parsed = []
-    for cells in table_rows():
-        actor = re.search(r"`(khadinakbar/[a-z0-9-]+)`", cells[1])
-        if not actor:
-            continue
-        parsed.append({"job": cells[0], "actor": actor.group(1), **parse_price(cells[3])})
-        # a fallback Actor that states its own price in brackets, like `owner/name` ($0.03 / snapshot)
-        for name, price in re.findall(r"`(khadinakbar/[a-z0-9-]+)`[^()|]*\((\$[^)]*)\)", cells[2]):
-            parsed.append({"job": f"{cells[0]} (fallback)", "actor": name, **parse_price(price)})
-    return parsed
-
-
-class PriceTableParsing(unittest.TestCase):
-    def test_the_table_is_found_and_parsed(self):
-        rows = parse_rows()
-        self.assertGreater(len(rows), 30)
-        by_job = {r["job"]: r for r in rows}
-        keyword_ideas = by_job["Keyword ideas"]
-        self.assertEqual((keyword_ideas["per_request"], keyword_ideas["per_unit"]), (0.20, 0.01))
-        serp = by_job["SERP (organic, PAA, features)"]
-        self.assertEqual((serp["per_request"], serp["per_unit"]), (0.0, 0.0018))
-
-    def test_run_fee_is_a_request_fee(self):
-        self.assertEqual(parse_price("$0.02 / run + $0.005 / brief"), {"per_unit": 0.005, "per_request": 0.02})
-
-    def test_fallback_and_note_prices_are_ignored(self):
-        self.assertEqual(parse_price("$0.0018 / page · fallback $0.003 (browser)")["per_unit"], 0.0018)
-        self.assertEqual(parse_price("$0.015 / query (+ $0.005 when matched)")["per_unit"], 0.015)
-
-
-class PricesMatchTheDocs(unittest.TestCase):
-    def setUp(self):
-        self.rows = parse_rows()
-        self.prices = load_prices()
-
-    def test_every_priced_job_is_in_the_table_with_the_same_price(self):
-        for job, spec in self.prices["jobs"].items():
-            rows = [r for r in self.rows if r["actor"] == spec["actor"]]
-            self.assertTrue(rows, f"{job}: Actor {spec['actor']} is not a primary Actor in the table")
-            wanted = (spec["per_unit"], spec["per_request"])
-            found = [(r["per_unit"], r["per_request"]) for r in rows]
-            self.assertIn(wanted, found, f"{job}: prices.json says {wanted}, the table says {found}")
-
-    def test_every_table_row_for_a_priced_actor_matches_a_job(self):
-        priced_actors = {spec["actor"] for spec in self.prices["jobs"].values()}
-        for row in self.rows:
-            if row["actor"] not in priced_actors:
-                continue
-            candidates = [(s["per_unit"], s["per_request"]) for s in self.prices["jobs"].values()
-                          if s["actor"] == row["actor"]]
-            self.assertIn((row["per_unit"], row["per_request"]), candidates,
-                          f"{row['job']}: table price does not match any prices.json job for {row['actor']}")
-
-    def test_the_doc_says_the_start_fee_prices_json_uses(self):
-        with open(REF, encoding="utf-8") as fh:
-            text = fh.read()
-        self.assertEqual(self.prices["start_fee_usd"], 0.00005)
-        self.assertIn("$0.00005", text)
+AMOUNT = re.compile(r"[$€£]\s?\d")
+SETTING_DEFAULTS = ("`daily_spend_usd` (default $40)", "`max_run_usd` (default $2)")
 
 
 def read(*parts: str) -> str:
@@ -113,64 +22,56 @@ def read(*parts: str) -> str:
         return fh.read()
 
 
-class DocNumbersFollowTheQuote(unittest.TestCase):
-    """Every pack total written in the docs is the total quote_cost gives today, so a price change cannot leave old numbers behind."""
+def without_setting_defaults(text: str) -> str:
+    for phrase in SETTING_DEFAULTS:
+        text = text.replace(phrase, "")
+    return text
 
-    @classmethod
-    def setUpClass(cls):
-        import datetime as dt
-        sys.path.insert(0, os.path.join(ROOT, "connector"))
-        import tools
-        cls.tools = tools
-        cls.totals = {name: f"${tools.quote_cost(None, name, dt.date(2026, 11, 8))['total_usd']:.2f}"
-                      for name in tools.PRICES["packs"]}
 
-    def test_reference_pack_line(self):
-        text = read("references", "tools-and-apis.md")
-        for name, amount in self.totals.items():
-            self.assertIn(f"`{name}` (about {amount})", text, name)
+def load_prices() -> dict:
+    return json.loads(read("connector", "prices.json"))
 
-    def test_store_page_states_no_amounts(self):
-        """Owner decision 2026-11-15: the Store page carries no price tables. Prices live on each paid Actor's own
-        page and are read out by the assistant when the user asks."""
-        import re
-        text = read(".actor", "ACTOR_README.md")
-        self.assertIsNone(re.search(r"[$€£]\s?\d", text))
-        self.assertIn("Each job is priced before it runs", text)
-        self.assertIsNone(re.search(r"[$€£]\s?\d", read("README.md")))
 
-    def test_the_ai_check_baseline_is_the_same_everywhere(self):
-        amount = self.totals["ai_check"]
-        for parts in (("references", "tools-and-apis.md"), ("docs", "competitor-scorecard.md")):
-            self.assertIn(amount, read(*parts), "/".join(parts))
+class NoDocumentStatesAPrice(unittest.TestCase):
+    def test_store_page_and_readme_state_no_amounts(self):
+        for parts in ((".actor", "ACTOR_README.md"), ("README.md",)):
+            self.assertIsNone(AMOUNT.search(read(*parts)), "/".join(parts))
+        self.assertIn("Each job is priced before it runs", read(".actor", "ACTOR_README.md"))
 
-    def test_the_quick_audit_is_the_starter_pack_everywhere(self):
-        amount = self.totals["starter"]
-        for parts in (("references", "tools-and-apis.md"),):
-            self.assertIn(amount, read(*parts), "/".join(parts))
-
-    def test_playbooks_and_agent_prompts_state_no_amounts(self):
-        """Owner rule: an assistant never volunteers a price. The price tables live in one reference file, which
-        itself says to read prices out only when the user asks."""
-        import re
-        amount = re.compile(r"[$€£]\s?\d")
+    def test_playbooks_agents_and_references_state_no_amounts(self):
         for rel in ("skills", "agents", "references"):
             for base, _dirs, names in os.walk(os.path.join(ROOT, rel)):
                 for name in sorted(names):
-                    path = os.path.relpath(os.path.join(base, name), ROOT)
-                    if not name.endswith(".md") or path == os.path.join("references", "tools-and-apis.md"):
+                    if not name.endswith(".md"):
                         continue
-                    found = amount.search(read(path))
+                    path = os.path.relpath(os.path.join(base, name), ROOT)
+                    found = AMOUNT.search(without_setting_defaults(read(path)))
                     self.assertIsNone(found, f"{path} states an amount: {found.group(0) if found else ''}")
-        self.assertIn("Do not read prices out unless the user asks", read("references", "tools-and-apis.md"))
 
-    def test_the_date_the_prices_were_read_matches_the_docs(self):
-        read_on = self.tools.PRICES["read_on"]
-        for parts in (("references", "tools-and-apis.md"),):
-            self.assertIn(read_on, read(*parts), "/".join(parts))
-        for parts in (("README.md",), (".actor", "ACTOR_README.md"), ("references", "tools-and-apis.md")):
-            self.assertNotIn("2026-11-07", read(*parts), "/".join(parts))
+    def test_the_reference_says_where_numbers_come_from(self):
+        text = read("references", "tools-and-apis.md")
+        self.assertIn("This file holds no prices", text)
+        self.assertIn("quote_cost", text)
+        self.assertNotIn("Price (USD)", text)
 
+
+class EveryPricedJobIsListed(unittest.TestCase):
+    """quote_cost can price a job only if the reference tells the assistant which Actor runs it."""
+
+    def test_every_priced_actor_is_named_in_the_reference_and_the_store_page(self):
+        reference, store = read("references", "tools-and-apis.md"), read(".actor", "ACTOR_README.md")
+        for job, spec in load_prices()["jobs"].items():
+            slug = spec["actor"].split("/")[1]
+            self.assertIn(spec["actor"], reference, f"{job}: {spec['actor']} missing from the reference")
+            self.assertIn(f"https://apify.com/khadinakbar/{slug})", store, f"{job}: not linked on the Store page")
+
+    def test_the_date_stamps_of_jobs_that_cannot_run_yet_are_in_the_reference(self):
+        for spec in load_prices()["jobs"].values():
+            if "effective_from" in spec:
+                self.assertIn(spec["effective_from"], read("references", "tools-and-apis.md"))
+
+
+class WordingStaysHonest(unittest.TestCase):
     def test_no_doc_calls_the_extra_charges_tiny_or_small_platform_charges(self):
         for parts in (("README.md",), (".actor", "ACTOR_README.md"), ("references", "tools-and-apis.md"),
                       ("connector", "tools.py"), ("connector", "models.py")):
@@ -185,15 +86,12 @@ class DocNumbersFollowTheQuote(unittest.TestCase):
             self.assertIn(sentence, read(*parts), "/".join(parts))
 
     def test_the_cap_is_described_as_thirty_percent_everywhere(self):
-        self.assertEqual(self.tools.CAP_MULTIPLIER, 1.3)
+        sys.path.insert(0, os.path.join(ROOT, "connector"))
+        import tools
+        self.assertEqual(tools.CAP_MULTIPLIER, 1.3)
         for parts in (("README.md",), (".actor", "ACTOR_README.md"), ("references", "tools-and-apis.md"),
                       ("skills", "start", "SKILL.md")):
             self.assertNotRegex(read(*parts), r"(?i)\b20 ?(%|percent)\s+(above|more|over|on top)", "/".join(parts))
-
-    def test_jobs_that_cannot_run_yet_say_so_in_the_docs(self):
-        dated = {spec["effective_from"] for spec in load_prices()["jobs"].values() if "effective_from" in spec}
-        for stamp in dated:
-            self.assertIn(stamp, read("references", "tools-and-apis.md"))
 
 
 if __name__ == "__main__":
