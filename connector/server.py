@@ -327,6 +327,11 @@ def build_server() -> MCPServer:
                 "Search positions to keep over time, one row per keyword and engine, for example [{\"keyword\": "
                 "\"payroll software\", \"position\": 7, \"engine\": \"google\"}]. Use null for position when the site "
                 "was not found. Each save is compared with the one before. Up to 500. Defaults to none."))] = None,
+            gsc_csv: Annotated[Optional[str], Field(max_length=1_500_000, description=(
+                "The user's Google Search Console Performance export (Queries tab) pasted as CSV text with its header "
+                "row. Shows which questions people search, where the site is seen but rarely clicked, and which "
+                "searches to test in AI assistants. Only short summaries are kept. Defaults to none. NOT a file path "
+                "or a URL."))] = None,
             check_only: Annotated[bool, Field(description=(
                 "True to check and review without storing anything: use it on a new question list before the "
                 "first save, because the list cannot change afterwards. Defaults to false."))] = False
@@ -335,7 +340,7 @@ def build_server() -> MCPServer:
         settings_dict = settings.model_dump(exclude_none=True) if settings else None
         return m.SaveResult(**await runner.save(project, dump(runs), dump(panel), dump(experiments), brand_dict, audit,
                                                 replace, append, settings_dict, dump(todo), server_log, traffic,
-                                                traffic_csv, dump(ranks, exclude_none=False), check_only))
+                                                traffic_csv, dump(ranks, exclude_none=False), check_only, gsc_csv))
 
     @tool("get_history", READ_ONLY)
     @friendly

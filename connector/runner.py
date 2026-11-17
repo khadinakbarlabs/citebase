@@ -14,6 +14,7 @@ import importer
 import insights
 import signals
 import report
+import search_demand
 import storage as stg
 import tools
 
@@ -26,7 +27,7 @@ ALLOWED_ARGS = {
     "next_steps": {"audit", "report", "max_steps", "project"},
     "measure_recommendation_share": {"panel", "runs", "baseline", "current", "experiments", "brand", "project"},
     "save_results": {"project", "runs", "panel", "experiments", "brand", "audit", "replace", "append", "settings",
-                     "todo", "server_log", "traffic", "traffic_csv", "ranks", "check_only"},
+                     "todo", "server_log", "traffic", "traffic_csv", "ranks", "check_only", "gsc_csv"},
     "get_history": {"project"},
     "make_report": {"project"},
     "import_ai_results": {"project", "items", "dataset_ids", "snapshot", "save", "append", "replace", "panel", "brand",
@@ -205,13 +206,13 @@ async def save(project: str, runs: list[dict] | None, panel: list[dict] | None, 
                brand: dict | None, audit_result: dict | None, replace: bool = False, append: bool = False,
                settings: dict | None = None, todo: list[dict] | None = None, server_log: str | None = None,
                traffic: list[dict] | None = None, traffic_csv: str | None = None, ranks: list[dict] | None = None,
-               check_only: bool = False) -> dict:
+               check_only: bool = False, gsc_csv: str | None = None) -> dict:
     """Saves AI-answer results, the question list, brand details, settings, to-do updates, logged changes, one
     site check, and/or counts from a pasted server log, an analytics export or search positions.
 
     With check_only nothing is stored: the question list, log, export or positions are checked and reviewed, so a
     question list can be put right before it is frozen."""
-    has_signal = bool(server_log or traffic or traffic_csv or ranks)
+    has_signal = bool(server_log or traffic or traffic_csv or ranks or gsc_csv)
     if not (runs or panel or experiments or brand or audit_result or settings or todo or has_signal):
         raise ValueError("Send runs (AI answers), the question list (panel), an audit (the result of audit_site), "
                          "brand details, settings, to-do updates, a server log, an analytics export or logged "
@@ -226,12 +227,16 @@ async def save(project: str, runs: list[dict] | None, panel: list[dict] | None, 
         rows = traffic or await asyncio.to_thread(signals.parse_traffic_csv, traffic_csv)
         visits = await asyncio.to_thread(signals.summarise_traffic, rows)
     rank_rows = insights.clean_ranks(ranks) if ranks else None
+    demand = None
+    if gsc_csv:
+        rows = await asyncio.to_thread(search_demand.parse_gsc_csv, gsc_csv)
+        demand = await asyncio.to_thread(search_demand.summarise_search_demand, rows, await _brand_terms(project, brand))
     panel_rows = tools.normalise_panel(panel) if panel else None
     review = await asyncio.to_thread(insights.review_panel, list(panel_rows.values())) if panel_rows else None
     if audit_result:
         hist.checked_audit(audit_result)  # refuse a bad site check before the rounds are written, not after
     if check_only:
-        return await _check_only(project, runs, panel_rows, brand, review, bots, visits, rank_rows)
+        return await _check_only(project, runs, panel_rows, brand, review, bots, visits, rank_rows, demand)
     if runs or panel or experiments or brand or settings or todo:
         out = await hist.save_results(project, runs or [], panel, experiments, brand, replace, append, settings, todo)
     else:
@@ -252,6 +257,12 @@ async def save(project: str, runs: list[dict] | None, panel: list[dict] | None, 
             out[field] = {**summary, "saved_on": kept["saved_on"], "previous": _signal_change(kind, kept["previous"])}
             out["warnings"] = [*out["warnings"], *kept["warnings"]]
             out["created"] = out["created"] or kept["created"]
+    out["search_demand"] = None
+    if demand:
+        kept = await hist.save_signal(project, "search", demand)
+        out["search_demand"] = {**demand, "saved_on": kept["saved_on"], "previous": _search_change(kept["previous"])}
+        out["warnings"] = [*out["warnings"], *kept["warnings"]]
+        out["created"] = out["created"] or kept["created"]
     out["ranks"] = None
     if rank_rows:
         summary = insights.summarise_ranks(rank_rows)
@@ -271,7 +282,7 @@ async def save(project: str, runs: list[dict] | None, panel: list[dict] | None, 
 
 
 async def _check_only(project: str, runs: list[dict] | None, panel_rows: dict | None, brand: dict | None,
-                      review: dict | None, bots: dict | None, visits: dict | None, rank_rows: list[dict] | None) -> dict:
+                      review: dict | None, bots: dict | None, visits: dict | None, rank_rows: list[dict] | None, demand: dict | None = None) -> dict:
     """What a save would look like, with nothing stored. Raises ValueError exactly where the real save would."""
     if runs:
         raise ValueError("check_only checks a question list, a server log, an analytics export or search positions. "
@@ -289,7 +300,7 @@ async def _check_only(project: str, runs: list[dict] | None, panel_rows: dict | 
             "snapshots_in_project": sorted(meta.get("snapshots") or {}), "brand": meta.get("brand", {}),
             "settings": meta.get("settings", {}), "todo": meta.get("todo", []), "created": False,
             "stored_in": "Nothing was stored: this was a check only.", "warnings": warnings, "audit_saved": None,
-            "ai_bot_visits": bots, "ai_traffic": visits,
+            "ai_bot_visits": bots, "ai_traffic": visits, "search_demand": demand,
             "ranks": {**insights.summarise_ranks(rank_rows), "positions": insights.rank_changes(
                 [insights.summarise_ranks(rank_rows)])} if rank_rows else None,
             "panel_review": review, "checked_only": True,
@@ -299,6 +310,23 @@ async def _check_only(project: str, runs: list[dict] | None, panel_rows: dict | 
 
 SAVE_NEXT_SIGNAL = ("Saved. Lead with the findings in plain words. These are the site's own numbers: read them as a "
                     "floor, and paste a fresh export next month to see the direction.")
+
+
+async def _brand_terms(project: str, brand: dict | None) -> tuple[str, ...]:
+    """Brand name and domain label, from this call or the saved project, to tell brand searches from the rest."""
+    saved = {}
+    slug = stg.clean_slug(project)
+    if await _exists(slug):
+        saved = (await hist.load_meta(slug)).get("brand") or {}
+    names = [(brand or {}).get("name"), saved.get("name"), str((brand or saved).get("domain") or "").split(".")[0]]
+    return tuple(dict.fromkeys(str(n).strip() for n in names if n and len(str(n).strip()) >= 3))
+
+
+def _search_change(previous: dict | None) -> dict | None:
+    if not previous or "impressions" not in previous:
+        return None
+    return {"date": previous.get("date"), "clicks": previous.get("clicks"), "impressions": previous.get("impressions"),
+            "gaps": len(previous.get("gaps") or [])}
 
 
 def _signal_change(kind: str, previous: dict | None) -> dict | None:
@@ -515,7 +543,7 @@ async def run_tool(tool: str, arguments: dict | None) -> dict[str, Any]:
                               args.get("brand"), args.get("audit"), flag(args, "replace"), flag(args, "append"),
                               args.get("settings"), args.get("todo"), args.get("server_log"),
                               args.get("traffic"), args.get("traffic_csv"), args.get("ranks"),
-                              flag(args, "check_only"))
+                              flag(args, "check_only"), args.get("gsc_csv"))
         if tool == "get_history":
             return await hist.history(args.get("project"))
         if tool == "import_ai_results":

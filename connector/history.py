@@ -387,7 +387,7 @@ async def save_audit(project: str, audit: dict) -> dict:
             "warnings": new_project_warnings(slug, created, others)}
 
 
-SIGNAL_KINDS = ("bots", "traffic", "ranks")
+SIGNAL_KINDS = ("bots", "traffic", "ranks", "search")
 MAX_SIGNALS = 24  # per kind: two years of monthly pastes
 
 
@@ -457,6 +457,12 @@ def signal_lines(signals: dict[str, list[dict]]) -> list[str]:
         if now.get("by_month"):
             lines += ["", "| Month | Visits from AI | All visits |", "|---|---|---|"]
             lines += [f"| {m['month']} | {m['ai_visits']} | {m['all_visits']} |" for m in now["by_month"][-12:]]
+    search = (signals.get("search") or [])
+    if search and "impressions" in search[-1]:
+        now = search[-1]
+        lines += ["", f"Google searches (Search Console export read {now['date']}): {now['clicks']} clicks, "
+                      f"{now['impressions']} views."]
+        lines += [f"- {finding}" for finding in now.get("findings", [])[:3]]
     ranks = [r for r in signals.get("ranks") or [] if "rows" in r]
     if ranks:
         moves = insights.rank_changes(ranks)
@@ -591,7 +597,7 @@ async def overview() -> dict:
         nxt = ("No projects yet. Start with audit_site and pass a project name (for example the site's name) so the "
                "check is saved.")
     return {"project": None, "brand": {}, "panel_prompts": 0, "snapshots": [], "audits": [], "experiments": [],
-            "ai_bot_visits": None, "ai_traffic": None, "ranks": None, "citation_gap": None,
+            "ai_bot_visits": None, "ai_traffic": None, "search_demand": None, "ranks": None, "citation_gap": None,
             "projects": projects, "markdown": "\n".join(lines), "next": nxt}
 
 
@@ -644,6 +650,7 @@ async def history(project: str | None = None) -> dict:
             "settings": meta.get("settings", {}), "todo": todo, "site_changes": changes, "due": due,
             "ai_bot_visits": signals["bots"][-1] if signals["bots"] else None,
             "ai_traffic": signals["traffic"][-1] if signals["traffic"] else None,
+            "search_demand": signals["search"][-1] if signals["search"] else None,
             "ranks": ranks_view(signals["ranks"]),
             "citation_gap": insights.citation_gap(data["runs"], data["panel"], meta.get("brand"),
                                                   snaps[-1]["snapshot"] if snaps else None),
