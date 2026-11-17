@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--CSP-->
+<meta name="referrer" content="no-referrer">
+<title>Citebase dashboard</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="app.css">
+<meta name="theme-color" content="#f6f3ec">
+</head>
+<body>
+<header class="bar">
+  <a class="brand" href="../"><img src="../favicon.svg" alt="" width="26" height="26"><span>Citebase</span></a>
+  <nav id="crumbs" aria-label="Breadcrumb"></nav>
+  <div id="who" class="who"></div>
+</header>
+<main id="main" tabindex="-1"></main>
+<div id="tip" class="tip" role="tooltip" hidden></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="config.js"></script>
+<script src="core.js"></script>
+<script src="demo.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

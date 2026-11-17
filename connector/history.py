@@ -387,6 +387,7 @@ async def save_audit(project: str, audit: dict) -> dict:
             "warnings": new_project_warnings(slug, created, others)}
 
 
+MAX_QUESTION_VIEW = 80
 SIGNAL_KINDS = ("bots", "traffic", "ranks", "search")
 MAX_SIGNALS = 24  # per kind: two years of monthly pastes
 
@@ -538,7 +539,34 @@ def snapshot_trend(data: dict) -> list[dict]:
                         "recommendation_share": s["recommendation_share"], "rs_low": s["rs_low"], "rs_high": s["rs_high"],
                         "mentioned_rate": s["mentioned_rate"], "cited_rate": s["cited_rate"],
                         "reputation_share": s["reputation_share"], "reputation_prompts": s["reputation_prompts"],
-                        "metric_version": s["metric_version"], "older_metric": s["older_metric"]})
+                        "metric_version": s["metric_version"], "older_metric": s["older_metric"],
+                        "by_engine": _by_engine(data["runs"], panel, label, sorted(context))})
+    return out
+
+
+def _by_engine(runs: list[dict], panel: dict, label: str, engines: list[str]) -> dict:
+    """The same headline numbers for each engine on its own, so a chart can show which engine moved."""
+    out = {}
+    for name in engines:
+        s = cl.snapshot_summary(runs, panel, label, name)
+        if s:
+            out[name] = {"prompts": s["prompts"], "recommendation_share": s["recommendation_share"], "rs_low": s["rs_low"],
+                         "rs_high": s["rs_high"], "mentioned_rate": s["mentioned_rate"], "cited_rate": s["cited_rate"]}
+    return out
+
+
+def question_view(data: dict, snaps: list[dict]) -> list[dict]:
+    """Each test question in the latest round, with how many answers recommended the brand there and in the round
+    before. Lets a page show which questions were won, lost or never won."""
+    if not snaps:
+        return []
+    now = insights.question_breakdown(data["runs"], data["panel"], snaps[-1]["snapshot"])
+    before = {q["prompt_id"]: q for q in insights.question_breakdown(data["runs"], data["panel"], snaps[-2]["snapshot"])} \
+        if len(snaps) > 1 else {}
+    out = []
+    for q in now[:MAX_QUESTION_VIEW]:
+        prev = before.get(q["prompt_id"])
+        out.append({**q, "before": {"answers": prev["answers"], "recommended": prev["recommended"]} if prev else None})
     return out
 
 
@@ -597,7 +625,7 @@ async def overview() -> dict:
         nxt = ("No projects yet. Start with audit_site and pass a project name (for example the site's name) so the "
                "check is saved.")
     return {"project": None, "brand": {}, "panel_prompts": 0, "snapshots": [], "audits": [], "experiments": [],
-            "ai_bot_visits": None, "ai_traffic": None, "search_demand": None, "ranks": None, "citation_gap": None,
+            "ai_bot_visits": None, "ai_traffic": None, "search_demand": None, "ranks": None, "questions": [], "citation_gap": None,
             "projects": projects, "markdown": "\n".join(lines), "next": nxt}
 
 
@@ -652,6 +680,7 @@ async def history(project: str | None = None) -> dict:
             "ai_traffic": signals["traffic"][-1] if signals["traffic"] else None,
             "search_demand": signals["search"][-1] if signals["search"] else None,
             "ranks": ranks_view(signals["ranks"]),
+            "questions": question_view(data, snaps),
             "citation_gap": insights.citation_gap(data["runs"], data["panel"], meta.get("brand"),
                                                   snaps[-1]["snapshot"] if snaps else None),
             "projects": None, "markdown": "\n".join(lines), "next": nxt}

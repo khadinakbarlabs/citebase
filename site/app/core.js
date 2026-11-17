@@ -1,0 +1,279 @@
+/* Citebase dashboard core: DOM helpers, charts, sign-in with Apify, and calls to Citebase.
+   All text is set with textContent, never parsed as HTML, so saved data cannot inject markup.
+   The sign-in token lives in this tab's sessionStorage only and is sent to Apify only. */
+(function () {
+  'use strict';
+  var CFG = window.__CB || {}, OA = CFG.oauth || {}, API = (CFG.api || '').replace(/\/$/, '');
+  var QS = new URLSearchParams(location.search);
+  var CB = window.CB = { cfg: CFG, api: API, demo: QS.get('demo') === '1' || !API, qs: QS, token: '' };
+  var SVG = 'http://www.w3.org/2000/svg';
+
+  /* ---------- DOM ---------- */
+  function setAttrs(el, attrs) {
+    Object.keys(attrs || {}).forEach(function (k) {
+      var v = attrs[k];
+      if (v == null || v === false) return;
+      if (k === 'text') el.textContent = v;
+      else if (k.slice(0, 2) === 'on') el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? '' : v);
+    });
+  }
+  function add(el, kid) {
+    if (kid == null || kid === false) return;
+    if (Array.isArray(kid)) { kid.forEach(function (k) { add(el, k); }); return; }
+    el.appendChild(typeof kid === 'string' || typeof kid === 'number' ? document.createTextNode(String(kid)) : kid);
+  }
+  CB.h = function (tag, attrs) {
+    var el = document.createElement(tag); setAttrs(el, attrs);
+    for (var i = 2; i < arguments.length; i++) add(el, arguments[i]);
+    return el;
+  };
+  CB.s = function (tag, attrs) {
+    var el = document.createElementNS(SVG, tag); setAttrs(el, attrs);
+    for (var i = 2; i < arguments.length; i++) add(el, arguments[i]);
+    return el;
+  };
+  CB.clear = function (el) { while (el.firstChild) el.removeChild(el.firstChild); return el; };
+  var h = CB.h, s = CB.s;
+
+  /* ---------- formatting ---------- */
+  CB.pct = function (x) { return x == null || isNaN(x) ? '–' : Math.round(x * 100) + '%'; };
+  CB.num = function (x) { return x == null || isNaN(x) ? '–' : Math.round(Number(x)).toLocaleString('en-US'); };
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  CB.day = function (d) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || ''); return m ? MONTHS[+m[2] - 1] + ' ' + (+m[3]) + ', ' + m[1] : (d || '–'); };
+  CB.short = function (d) { var m = /^(\d{4})-(\d{2})(?:-(\d{2}))?/.exec(d || ''); return m ? MONTHS[+m[2] - 1] + (m[3] ? ' ' + (+m[3]) : " '" + m[1].slice(2)) : (d || ''); };
+  CB.host = function (u) { try { return new URL(u).host.replace(/^www\./, ''); } catch (e) { return u || ''; } };
+  CB.safeUrl = function (u) { try { var x = new URL(u); return /^https?:$/.test(x.protocol) ? x.href : null; } catch (e) { return null; } };
+  // Engines keep one colour each everywhere (colour follows the engine, never its rank).
+  CB.ENGINES = [['chatgpt', 'ChatGPT', 'e1'], ['google-aio', 'Google AI Overviews', 'e2'], ['perplexity', 'Perplexity', 'e3'],
+    ['gemini', 'Gemini', 'e4'], ['claude', 'Claude', 'e5'], ['google-aimode', 'Google AI Mode', 'e6']];
+  function engineRow(k) { return CB.ENGINES.filter(function (x) { return x[0] === k; })[0]; }
+  CB.engine = function (k) { var e = engineRow(k); return e ? e[1] : k; };
+  CB.ecls = function (k) { var e = engineRow(k); return e ? e[2] : 'e7'; };
+  CB.roundName = function (x) { return x.snapshot === 'baseline' ? 'Baseline' : x.snapshot; };
+  CB.roundLabel = function (x) { return x.snapshot === 'baseline' ? 'Baseline' : CB.short(x.saved_on) || x.snapshot; };
+
+  /* ---------- tooltip and toast ---------- */
+  var tipEl = document.getElementById('tip');
+  CB.tip = function (e, title, lines) {
+    CB.clear(tipEl); tipEl.appendChild(h('b', { text: title }));
+    lines.forEach(function (l) { tipEl.appendChild(h('div', { text: l })); });
+    tipEl.hidden = false;
+    var x = e.clientX + 14, y = e.clientY + 14, w = tipEl.offsetWidth, hh = tipEl.offsetHeight;
+    if (x + w > innerWidth - 8) x = e.clientX - w - 14;
+    if (y + hh > innerHeight - 8) y = e.clientY - hh - 14;
+    tipEl.style.left = x + 'px'; tipEl.style.top = y + 'px';
+  };
+  CB.untip = function () { tipEl.hidden = true; };
+  var toastEl = document.getElementById('toast'), toastTimer;
+  CB.toast = function (text, bad) {
+    toastEl.textContent = text; toastEl.className = 'toast show' + (bad ? ' bad' : '');
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.className = 'toast'; }, 3200);
+  };
+
+  /* ---------- charts: inline SVG, hover tooltips, no libraries ---------- */
+  // o: {labels, series:[{name, cls, vals}], band:{lo,hi}, max, fmt, width, height, aria, tipTitle(i), tipExtra(i), endLabels}
+  CB.lineChart = function (o) {
+    var W = o.width || 460, H = o.height || 230, L = 40, R = o.endLabels ? 104 : 18, T = 14, B = 30, n = o.labels.length;
+    var max = o.max || 1, fmt = o.fmt || CB.pct;
+    var x = function (i) { return n === 1 ? L + (W - L - R) / 2 : L + i * (W - L - R) / (n - 1); };
+    var y = function (v) { return T + (1 - Math.max(0, Math.min(max, v)) / max) * (H - T - B); };
+    var svg = s('svg', { class: 'chart', viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': o.aria });
+    [0, .25, .5, .75, 1].forEach(function (f) {
+      var t = f * max;
+      svg.appendChild(s('line', { class: 'gl', x1: L, x2: W - R, y1: y(t), y2: y(t) }));
+      svg.appendChild(s('text', { class: 'ax', x: L - 8, y: y(t) + 4, 'text-anchor': 'end', text: fmt(t) }));
+    });
+    var every = Math.ceil(n / 7);
+    o.labels.forEach(function (lab, i) {
+      if (i % every && i !== n - 1) return;
+      var anchor = n === 1 ? 'middle' : i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle';
+      svg.appendChild(s('text', { class: 'ax', x: x(i), y: H - 8, 'text-anchor': anchor, text: lab }));
+    });
+    if (o.band) {
+      var top = [], bot = [];
+      o.band.hi.forEach(function (v, i) { if (v != null) top.push(x(i) + ' ' + y(v)); });
+      o.band.lo.forEach(function (v, i) { if (v != null) bot.unshift(x(i) + ' ' + y(v)); });
+      if (n > 1 && top.length) svg.appendChild(s('path', { class: 'band', d: 'M' + top.concat(bot).join(' L') + ' Z' }));
+      else if (top.length) svg.appendChild(s('rect', { class: 'band', x: x(0) - 14, width: 28, y: y(o.band.hi[0]), height: Math.max(2, y(o.band.lo[0]) - y(o.band.hi[0])), rx: 4 }));
+    }
+    var ends = [];
+    o.series.forEach(function (se) {
+      var d = '', pen = 'M', lastI = -1;
+      se.vals.forEach(function (v, i) { if (v == null) { pen = 'M'; return; } d += pen + x(i) + ' ' + y(v) + ' '; pen = 'L'; lastI = i; });
+      if (n > 1) svg.appendChild(s('path', { class: 'ln ' + se.cls, d: d }));
+      se.vals.forEach(function (v, i) { if (v != null) svg.appendChild(s('circle', { class: 'pt ' + se.cls, cx: x(i), cy: y(v), r: i === n - 1 ? 5 : 4 })); });
+      if (o.endLabels && lastI >= 0) ends.push({ y: y(se.vals[lastI]), x: x(lastI), text: se.name + ' ' + fmt(se.vals[lastI]) });
+    });
+    // direct labels at the line ends, nudged apart so they never overlap
+    ends.sort(function (a, b) { return a.y - b.y; });
+    for (var k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 14) ends[k].y = ends[k - 1].y + 14;
+    ends.forEach(function (e) { svg.appendChild(s('text', { class: 'endlbl', x: e.x + 10, y: e.y + 4, text: e.text })); });
+    var hair = s('line', { class: 'hair', y1: T, y2: H - B, x1: 0, x2: 0, visibility: 'hidden' });
+    svg.appendChild(hair);
+    var hit = s('rect', { class: 'hit', x: L - 10, y: 0, width: W - L - R + 20, height: H });
+    hit.addEventListener('mousemove', function (e) {
+      var r = svg.getBoundingClientRect(), px = (e.clientX - r.left) * W / r.width;
+      var i = n === 1 ? 0 : Math.max(0, Math.min(n - 1, Math.round((px - L) / ((W - L - R) / (n - 1)))));
+      hair.setAttribute('x1', x(i)); hair.setAttribute('x2', x(i)); hair.setAttribute('visibility', 'visible');
+      CB.tip(e, o.tipTitle ? o.tipTitle(i) : o.labels[i], o.series.map(function (se) { return se.name + ': ' + fmt(se.vals[i]); })
+        .concat(o.tipExtra ? o.tipExtra(i) : []));
+    });
+    hit.addEventListener('mouseleave', function () { CB.untip(); hair.setAttribute('visibility', 'hidden'); });
+    svg.appendChild(hit);
+    return svg;
+  };
+  // Horizontal bars. o: {items:[{label, value, cls, tip, onclick}], max, fmt, width, labelWidth, aria}
+  CB.barChart = function (o) {
+    var items = o.items, W = o.width || 460, row = 30, L = o.labelWidth || 150, R = 56, H = items.length * row + 6;
+    var max = Math.max.apply(null, items.map(function (it) { return it.value; }).concat([o.max || 0, 1e-9]));
+    var fmt = o.fmt || CB.num;
+    var svg = s('svg', { class: 'chart', viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': o.aria });
+    items.forEach(function (it, i) {
+      var y = i * row + 4, w = Math.max(3, (W - L - R) * it.value / max), cut = Math.floor(L / 7.2);
+      var lbl = it.label.length > cut ? it.label.slice(0, cut - 1) + '…' : it.label;
+      svg.appendChild(s('text', { class: 'lbl', x: L - 10, y: y + 15, 'text-anchor': 'end', text: lbl }));
+      svg.appendChild(s('rect', { class: 'track', x: L, y: y + 4, width: W - L - R, height: row - 12, rx: 4 }));
+      svg.appendChild(s('rect', { class: 'bar ' + (it.cls || ''), x: L, y: y + 4, width: w, height: row - 12, rx: 4 }));
+      svg.appendChild(s('text', { class: 'val', x: L + w + 8, y: y + 15, text: fmt(it.value) }));
+      var hit = s('rect', { class: 'hit' + (it.onclick ? ' click' : ''), x: 0, y: y, width: W, height: row });
+      hit.addEventListener('mousemove', function (e) { CB.tip(e, it.label, it.tip || [fmt(it.value)]); });
+      hit.addEventListener('mouseleave', CB.untip);
+      if (it.onclick) hit.addEventListener('click', it.onclick);
+      svg.appendChild(hit);
+    });
+    return svg;
+  };
+  // Tiny trend line for stat tiles.
+  CB.spark = function (vals, max) {
+    var pts = vals.filter(function (v) { return v != null; });
+    if (pts.length < 2) return null;
+    var W = 120, H = 34, top = max || Math.max.apply(null, pts.concat([1e-9])), lo = max ? 0 : Math.min.apply(null, pts.concat([0]));
+    var x = function (i) { return 2 + i * (W - 4) / (pts.length - 1); };
+    var y = function (v) { return H - 3 - (v - lo) / ((top - lo) || 1) * (H - 6); };
+    var d = pts.map(function (v, i) { return (i ? 'L' : 'M') + x(i) + ' ' + y(v); }).join(' ');
+    return s('svg', { class: 'spark', viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'none', 'aria-hidden': 'true' },
+      s('path', { class: 'sparkarea', d: d + ' L' + x(pts.length - 1) + ' ' + H + ' L' + x(0) + ' ' + H + ' Z' }),
+      s('path', { class: 'sparkline', d: d }), s('circle', { class: 'sparkdot', cx: x(pts.length - 1), cy: y(pts[pts.length - 1]), r: 3 }));
+  };
+  // Sortable table. cols: [{key, label, num, render(row), sortValue(row), sortable}]
+  CB.table = function (cols, rows, opts) {
+    opts = opts || {};
+    var sortKey = opts.sort || null, dir = opts.dir || -1;
+    var wrap = h('div', { class: 'scroll' }), tbl = h('table', {}), body = h('tbody', {}), headRow = h('tr', {});
+    cols.forEach(function (c) {
+      var th = h('th', { class: c.num ? 'n' : null, scope: 'col' });
+      if (c.sortable === false || opts.plain) th.textContent = c.label;
+      else th.appendChild(h('button', { class: 'sorter', type: 'button', text: c.label, onclick: function () {
+        dir = sortKey === c.key ? -dir : (c.num ? -1 : 1); sortKey = c.key; draw(); } }));
+      headRow.appendChild(th);
+    });
+    function val(r, c) { return c.sortValue ? c.sortValue(r) : r[c.key]; }
+    function draw() {
+      CB.clear(body);
+      var list = rows.slice();
+      if (sortKey) {
+        var col = cols.filter(function (c) { return c.key === sortKey; })[0];
+        list.sort(function (a, b) {
+          var x = val(a, col), y = val(b, col);
+          if (x == null) return 1;
+          if (y == null) return -1;
+          return (x > y ? 1 : x < y ? -1 : 0) * dir;
+        });
+      }
+      Array.prototype.forEach.call(headRow.children, function (th, i) {
+        th.setAttribute('aria-sort', cols[i].key === sortKey ? (dir > 0 ? 'ascending' : 'descending') : 'none');
+      });
+      if (!list.length) body.appendChild(h('tr', {}, h('td', { colspan: cols.length, class: 'none', text: opts.empty || 'Nothing to show.' })));
+      list.forEach(function (r) {
+        body.appendChild(h('tr', {}, cols.map(function (c) {
+          var v = c.render ? c.render(r) : r[c.key];
+          return h('td', { class: c.num ? 'n' : null }, v == null || v === '' ? '–' : v);
+        })));
+      });
+    }
+    tbl.appendChild(h('thead', {}, headRow)); tbl.appendChild(body); wrap.appendChild(tbl); draw();
+    wrap.redraw = function (newRows) { rows = newRows; draw(); };
+    return wrap;
+  };
+  CB.csv = function (name, head, rows) {
+    var esc = function (v) { v = v == null ? '' : String(v); if (/^[=+\-@]/.test(v)) v = "'" + v; return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var text = [head].concat(rows).map(function (r) { return r.map(esc).join(','); }).join('\n');
+    var url = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));
+    var a = h('a', { href: url, download: name }); document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  };
+
+  /* ---------- sign-in with Apify (OAuth, PKCE) ---------- */
+  function store(k, v) { try { if (v == null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch (e) {} }
+  function stored(k) { try { return sessionStorage.getItem(k) || ''; } catch (e) { return ''; } }
+  function q(o) { return Object.keys(o).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(o[k]); }).join('&'); }
+  function b64u(buf) { var t = '', a = new Uint8Array(buf); for (var i = 0; i < a.length; i++) t += String.fromCharCode(a[i]); return btoa(t).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+  function rnd(n) { var a = new Uint8Array(n); crypto.getRandomValues(a); return b64u(a); }
+  function redirectUri() { return OA.redirectUri || (location.origin + location.pathname); }
+  CB.signIn = function () {
+    var verifier = rnd(48), st = rnd(16); store('cb.v', verifier); store('cb.s', st);
+    crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)).then(function (d) {
+      location.assign(OA.authorize + '?' + q({ response_type: 'code', client_id: OA.clientId, redirect_uri: redirectUri(),
+        scope: OA.scope || 'full_api_access', state: st, code_challenge: b64u(d), code_challenge_method: 'S256' }));
+    });
+  };
+  function tokenCall(params) {
+    params.client_id = OA.clientId;
+    return fetch(OA.token, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: q(params) })
+      .then(function (r) { return r.json().catch(function () { return {}; }); })
+      .then(function (j) { if (!j || !j.access_token) return false; CB.token = j.access_token; store('cb.t', CB.token); if (j.refresh_token) store('cb.r', j.refresh_token); return true; })
+      .catch(function () { return false; });
+  }
+  function renew() { var r = stored('cb.r'); return r ? tokenCall({ grant_type: 'refresh_token', refresh_token: r }) : Promise.resolve(false); }
+  CB.forget = function () { CB.token = ''; ['cb.t', 'cb.r', 'cb.v', 'cb.s'].forEach(function (k) { store(k, null); }); cache = {}; };
+  // Resolves to 'demo' | 'in' | 'out' | 'failed' | 'cancelled'
+  CB.startAuth = function () {
+    if (CB.demo) return Promise.resolve('demo');
+    CB.token = stored('cb.t');
+    if (QS.get('code')) {
+      var ok = QS.get('state') && QS.get('state') === stored('cb.s'), ver = stored('cb.v'), code = QS.get('code');
+      store('cb.v', null); store('cb.s', null);
+      history.replaceState(null, '', location.pathname + location.hash);
+      if (!ok || !ver) return Promise.resolve('failed');
+      return tokenCall({ grant_type: 'authorization_code', code: code, redirect_uri: redirectUri(), code_verifier: ver })
+        .then(function (good) { return good ? 'in' : 'failed'; });
+    }
+    if (QS.get('error')) { history.replaceState(null, '', location.pathname + location.hash); return Promise.resolve('cancelled'); }
+    return Promise.resolve(CB.token ? 'in' : 'out');
+  };
+  CB.whoami = function () {
+    if (CB.demo) return Promise.resolve(null);
+    return fetch('https://api.apify.com/v2/users/me', { headers: { 'Authorization': 'Bearer ' + CB.token } })
+      .then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { return (j && j.data && j.data.username) || null; })
+      .catch(function () { return null; });
+  };
+
+  /* ---------- Citebase calls ---------- */
+  var cache = {};
+  CB.onSignedOut = function () {};
+  function call(tool, args, retried) {
+    if (CB.demo) return Promise.resolve(window.CB_DEMO.call(tool, args || {}));
+    return fetch(API + '/run', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CB.token },
+      body: JSON.stringify({ tool: tool, arguments: args || {} }) }).then(function (r) {
+      if (r.status === 401 && !retried) return renew().then(function (ok) { if (ok) return call(tool, args, true); CB.onSignedOut('Please sign in again.'); throw new Error('signed out'); });
+      return r.json().catch(function () { return { ok: false, error: 'Citebase sent a reply this page could not read. Try again.' }; }).then(function (j) {
+        if (!j.ok) throw new Error(j.error || 'Citebase could not answer. Try again.');
+        return j.result;
+      });
+    }, function () {
+      // Apify's gateway answers an expired token with a 401 that has no CORS headers; the browser sees a network error.
+      if (!retried && stored('cb.r')) return renew().then(function (ok) { if (ok) return call(tool, args, true); CB.onSignedOut('Please sign in again.'); throw new Error('signed out'); });
+      throw new Error('Could not reach Citebase. Check your connection and try again.');
+    });
+  }
+  CB.history = function (project, fresh) {
+    var key = project || '';
+    if (!fresh && cache[key]) return Promise.resolve(cache[key]);
+    return call('get_history', project ? { project: project } : {}).then(function (r) { cache[key] = r; return r; });
+  };
+  CB.saveTodo = function (project, items) {
+    return call('save_results', { project: project, todo: items }).then(function (r) { delete cache[project]; delete cache['']; return r; });
+  };
+  CB.refresh = function () { cache = {}; };
+})();

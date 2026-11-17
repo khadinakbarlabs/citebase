@@ -434,3 +434,26 @@ class RunnerTests(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DashboardBreakdownTests(Base):
+    """The per-engine and per-question numbers the dashboard charts."""
+
+    def test_rounds_carry_per_engine_numbers_and_questions_show_change(self):
+        run(hist.save_results("acme-site", runs("baseline", {"p1"}) + runs("baseline", set(), platform="perplexity"), PANEL))
+        run(hist.save_results("acme-site", runs("2026-12", {"p1", "p2"}) + runs("2026-12", {"p1"}, platform="perplexity"), None))
+        h = run(hist.history("acme-site"))
+        last = h["snapshots"][-1]
+        self.assertEqual(sorted(last["by_engine"]), ["chatgpt", "perplexity"])
+        self.assertGreater(last["by_engine"]["chatgpt"]["recommendation_share"],
+                           last["by_engine"]["perplexity"]["recommendation_share"])
+        q = {x["prompt_id"]: x for x in h["questions"]}
+        self.assertEqual(q["p2"]["recommended"], 3)
+        self.assertEqual(q["p2"]["before"], {"answers": 6, "recommended": 0})
+        self.assertEqual(q["p1"]["engines"]["perplexity"]["recommended"], 3)
+
+    def test_a_single_round_has_no_before(self):
+        run(hist.save_results("acme-site", runs("baseline", {"p1"}), PANEL))
+        h = run(hist.history("acme-site"))
+        self.assertTrue(h["questions"])
+        self.assertTrue(all(x["before"] is None for x in h["questions"]))

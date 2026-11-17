@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.5
+- Dashboard data: `get_history` now returns `by_engine` for each round (recommended, mentioned and cited per AI engine) and `questions` (each test question in the latest round, per engine, with the round before), so a dashboard can show which engine and which question moved.
 - Search Console import: paste the Performance export (Queries tab) into `save_results` (`gsc_csv`) to see which questions people search, where the site is seen but rarely clicked, and which searches to test in AI assistants. Only a short summary is kept, with no Google sign-in. Shown in `get_history`.
 - Schedules are always created by the user in Apify Console: `schedule_checks` no longer lets an assistant create one, because a schedule runs outside the approval and spending checks.
 - Only Citebase's own Actors: `import_ai_results` refuses a dataset made by another creator's Actor, and the server instructions and every quote tell the assistant to run only the named `khadinakbar/*` Actors. A job quoted with zero requests now still counts the per-run request fee, and the approval gate recognises sends under more tool names.
