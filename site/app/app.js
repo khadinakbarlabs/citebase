@@ -35,9 +35,13 @@
   function stat(k, v, tone) { return h('div', { class: 'stat' + (tone ? ' ' + tone : '') }, h('div', { class: 'k', text: k }), h('div', { class: 'v', text: v })); }
 
   /* ---------- top bar ---------- */
-  function topbar(current) {
+  var NAV = [['#/', 'Projects'], ['#/activity', 'Activity'], ['#/schedules', 'Schedules'], ['#/account', 'Account']];
+  function topbar(current, section) {
     CB.clear(crumbs);
-    crumbs.appendChild(h('a', { href: '#/', text: 'Projects' }));
+    section = section || 'projects';
+    NAV.forEach(function (n) {
+      crumbs.appendChild(h('a', { href: n[0], class: 'navlink', 'aria-current': n[1].toLowerCase() === section ? 'page' : null, text: n[1] }));
+    });
     if (!current) return;
     crumbs.appendChild(h('span', { 'aria-hidden': 'true', text: '/' }));
     if (projectsCache && projectsCache.length > 1) {
@@ -69,8 +73,12 @@
       h('span', { class: 'eyebrow', text: 'Your dashboard' }),
       h('h1', { text: 'See how AI search treats your brand' }),
       h('p', { class: 'lead', text: msg || 'Sign in with Apify to open every project your assistant saved with Citebase: where AI recommends you, which questions you win, the sites cited instead of you, and what to do next.' }),
-      h('div', { class: 'row' }, h('button', { class: 'btn big', type: 'button', text: 'Sign in with Apify', onclick: CB.signIn }),
-        h('a', { class: 'btn ghost big', href: '?demo=1', text: 'Explore the sample' })),
+      h('div', { class: 'row' }, h('button', { class: 'btn big apify', type: 'button', onclick: CB.signIn }, h('span', { class: 'apify-mark', 'aria-hidden': 'true' }), 'Sign in with Apify')),
+      h('p', { class: 'small-note', text: 'No Apify account yet? The sign-in page lets you create one.' }),
+      h('ol', { class: 'journey' },
+        h('li', {}, h('b', { text: 'Sign in' }), h('span', { text: 'Apify asks you to allow this page.' })),
+        h('li', {}, h('b', { text: 'Add a project' }), h('span', { text: 'Your site, brand and competitors.' })),
+        h('li', {}, h('b', { text: 'See where you stand' }), h('span', { text: 'Site score, AI answers, next steps.' }))),
       h('ul', { class: 'trust' }, h('li', { text: 'Data stays in your Apify account' }), h('li', { text: 'Nothing stored on our side' }), h('li', { text: 'Sign out any time' })),
       h('details', { class: 'more' }, h('summary', { text: 'What does signing in allow?' }),
         h('p', { text: 'Apify asks you to let this page use your account. The page then reads the store "citebase-projects" in your own account through Citebase, and saves your to-do changes back there. The permission is kept in this browser tab only and ends when you close it or sign out.' }),
@@ -98,10 +106,14 @@
     CB.history().then(function (r) {
       page(); banner();
       var list = projectsCache = r.projects || [];
+      var newBtn = h('button', { type: 'button', class: 'btn', text: '+ New project', onclick: openNew });
       main.appendChild(h('div', { class: 'head' }, h('div', {}, h('h1', { text: 'Your projects' }),
-        h('p', { text: list.length ? 'Saved in the "citebase-projects" store in your Apify account.' : 'Nothing saved yet.' }))));
+        h('p', { text: list.length ? 'Saved in the "citebase-projects" store in your Apify account.' : 'Nothing saved yet.' })), h('div', { class: 'tools' }, newBtn)));
+      if (!CB.demo) main.appendChild(CB.pages.onboarding(list, openNew));
       if (!list.length) {
-        main.appendChild(empty('No projects yet', 'Ask your assistant: "Check my website with Citebase and save it as a project." It appears here after the first check.'));
+        main.appendChild(h('section', { class: 'card hero-empty' }, h('h3', { text: 'Start with your website' }),
+          h('p', { text: 'Add a project and Citebase checks your site straight away. Then ask the AI engines your buying questions.' }),
+          h('button', { type: 'button', class: 'btn big', text: '+ New project', onclick: openNew })));
         return;
       }
       var due = list.reduce(function (n, p) { return n + (p.due || []).length; }, 0), todos = list.reduce(function (n, p) { return n + (p.open_todos || 0); }, 0);
@@ -122,6 +134,7 @@
       main.appendChild(grid); draw();
     }, function (e) { failed(e, overview); });
   }
+  function openNew() { CB.flows.newProject(function (p) { projectsCache = null; location.hash = '#/p/' + encodeURIComponent(p) + '/overview'; }); }
   function ring(score) {
     var r = 22, c = 2 * Math.PI * r, v = score == null ? 0 : score;
     var tone = score == null ? 'none' : v >= 80 ? 'good' : v >= 60 ? 'warn' : 'bad';
@@ -158,6 +171,17 @@
       h('h1', { text: brand.name || slug }),
       h('p', {}, site ? h('a', { href: site, rel: 'noopener noreferrer', target: '_blank', text: CB.host(site) + ' ↗' }) : slug,
         ' · ' + (d.panel_prompts || 0) + ' test questions · ' + snaps.length + (snaps.length === 1 ? ' AI round' : ' AI rounds') + ' · ' + audits.length + (audits.length === 1 ? ' site check' : ' site checks')))));
+    var F = CB.flows, reload = function () { CB.refresh(); projectsCache = null; route(); };
+    var act = function (label, fn, primary) { return h('button', { type: 'button', class: 'btn' + (primary ? '' : ' ghost') + ' small', text: label, onclick: fn }); };
+    main.appendChild(h('div', { class: 'actions' },
+      act('Run AI check', function () { F.aiCheck(slug, d, reload); }, true),
+      act('Check site', function () { F.checkSite(slug, site, reload); }),
+      act('Next steps', function () { F.nextSteps(slug, reload); }),
+      act('Schedule', function () { F.schedule(slug, function () { CB.toast('See it under Schedules'); }); }),
+      act('Share report', function () { F.report(slug); })));
+    var live = h('div', { class: 'live' });
+    main.appendChild(live);
+    watchRuns(slug, live);
     var openTodos = (d.todo || []).filter(function (t) { return t.status === 'open'; }).length;
     main.appendChild(h('nav', { class: 'tabs', 'aria-label': 'Project sections' }, TABS.map(function (t) {
       return h('a', { href: '#/p/' + encodeURIComponent(slug) + '/' + t[0], 'aria-current': t[0] === tab ? 'page' : null }, t[1],
@@ -167,6 +191,27 @@
     main.appendChild(body);
     var draw = { overview: tabOverview, answers: tabAnswers, questions: tabQuestions, site: tabSite, traffic: tabTraffic, todo: tabTodo }[tab] || tabOverview;
     draw(body, d, slug);
+  }
+
+  var watchTimer = null;
+  function watchRuns(slug, live) {
+    clearTimeout(watchTimer);
+    if (!CB.flows.pending().some(function (x) { return x.project === slug; })) return;
+    CB.flows.watch(slug).then(function (st) {
+      if (!st || !document.body.contains(live)) return;
+      CB.clear(live);
+      if (st.imported || st.error) {
+        live.appendChild(h('div', { class: 'livebox ' + (st.error ? 'bad' : 'good') }, h('b', { text: st.error ? 'AI check finished with a problem' : 'AI check finished' }),
+          h('span', { text: st.error || 'Saved as round "' + st.job.round + '". The charts below are up to date.' })));
+        if (st.imported) setTimeout(route, 1200);
+        return;
+      }
+      var bar = h('span', { class: 'fill' }); bar.style.width = Math.round(st.done / st.total * 100) + '%';
+      live.appendChild(h('div', { class: 'livebox' }, h('span', { class: 'spin', 'aria-hidden': 'true' }),
+        h('div', {}, h('b', { text: 'AI check running: ' + st.done + ' of ' + st.total + ' runs finished' }), h('span', { text: 'Results are saved here automatically when all runs finish. You can leave this page.' })),
+        h('span', { class: 'track' }, bar)));
+      watchTimer = setTimeout(function () { watchRuns(slug, live); }, 15000);
+    }, function (e) { CB.clear(live).appendChild(h('div', { class: 'livebox bad' }, h('b', { text: 'Could not check the runs' }), h('span', { text: e.message }))); });
   }
 
   /* ---------- plain-words summary ---------- */
@@ -361,7 +406,10 @@
   function tabQuestions(body, d, slug) {
     var qs = d.questions || [];
     if (!qs.length) {
-      body.appendChild(empty('Questions', (d.snapshots || []).length ? 'Per-question results appear once Citebase is updated in your Apify account.' : 'Shown after the first AI round.'));
+      body.appendChild(card('Test questions', null, h('div', { class: 'empty' },
+        h('p', { text: (d.panel_prompts || 0) ? d.panel_prompts + ' questions saved. Run an AI check to see how each one does.' : 'No questions yet. Add the buying questions your customers ask an AI, then run an AI check.' }),
+        (d.panel_prompts || 0) ? h('button', { type: 'button', class: 'btn', text: 'Run AI check', onclick: function () { CB.flows.aiCheck(slug, d, function () { CB.refresh(); route(); }); } })
+          : h('button', { type: 'button', class: 'btn', text: 'Add questions', onclick: function () { CB.flows.addQuestions(slug, function () { route(); }); } }))));
       return;
     }
     var engines = CB.ENGINES.map(function (e) { return e[0]; }).filter(function (k) { return qs.some(function (q) { return q.engines && q.engines[k]; }); });
@@ -555,8 +603,19 @@
   /* ---------- routing and start ---------- */
   function route() {
     CB.untip();
+    clearTimeout(watchTimer);
     var m = /^#\/p\/([^/]+)(?:\/(\w+))?/.exec(location.hash);
-    if (m) project(decodeURIComponent(m[1]), m[2] || 'overview'); else overview();
+    if (m) { project(decodeURIComponent(m[1]), m[2] || 'overview'); return; }
+    var page = (/^#\/(activity|schedules|account)/.exec(location.hash) || [])[1];
+    if (!page) { overview(); return; }
+    topbar(null, page);
+    page === 'account' ? (function () { CB.untip(); CB.clear(main); banner(); CB.pages.account(main); })() : withProjects(function (list) {
+      CB.untip(); CB.clear(main); banner(); CB.pages[page](main, list); });
+  }
+  function withProjects(fn) {
+    loading('Loading…');
+    (projectsCache ? Promise.resolve(projectsCache) : CB.history().then(function (r) { projectsCache = r.projects || []; return projectsCache; }))
+      .then(fn, function (e) { failed(e, route); });
   }
   window.addEventListener('hashchange', route);
   CB.startAuth().then(function (state) {

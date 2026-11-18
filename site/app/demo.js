@@ -123,6 +123,34 @@
       });
       return { project: args.project, todo: p.todo };
     }
-    throw new Error('Not available in the sample.');
+    if (tool === 'save_results' || tool === 'import_ai_results') return { project: args.project, warnings: [], summary: { rows: 0 } };
+    if (tool === 'audit_site') return { status: 'ok', health_score: 88 };
+    if (tool === 'next_steps') return { tip: 'Start with the step marked "now"; it moves the most answers.', steps: [
+      { step: 'Pitch capterra.com for the payroll comparison page', why: 'It was cited for rivals in 7 answers without naming you.', who: 'you', effort: '1 hour', urgency: 'now' },
+      { step: 'Write a page for "payroll with hr and time off"', why: 'No engine recommends you there yet, and people search it.', who: 'you', effort: '3 hours', urgency: 'do first' },
+      { step: 'Re-check in 30 days', why: 'Shows whether the work moved the number.', who: 'Claude', effort: '5 minutes', urgency: 'later' }] };
+    if (tool === 'make_report') return { share_url: null, note: 'In the sample there is no real report. Signed in, you get a link anyone can open.' };
+    if (tool === 'quote_cost') return { total_usd: 0, ready_runs: [] };
+    if (tool === 'schedule_checks') return { when: 'on the 1st of every month at 08:00', cron: '0 8 1 * *', free_site_check: { input: {} }, ai_checks: { runs: [] } };
+    throw new Error('Not available in the sample. Sign in with Apify to do this for real.');
+  }, apify: function (method, path) {
+    if (method !== 'GET') throw new Error('Not available in the sample. Sign in with Apify to do this for real.');
+    var day = function (n) { return new Date(Date.now() - n * 864e5).toISOString(); };
+    if (/^actor-runs/.test(path)) return { items: [
+      { id: 's1', actId: 'bm', status: 'RUNNING', startedAt: day(0.01) },
+      { id: 's2', actId: 'aio', status: 'SUCCEEDED', startedAt: day(1), finishedAt: day(0.99), defaultDatasetId: 'd2' },
+      { id: 's3', actId: 'bm', status: 'SUCCEEDED', startedAt: day(1), finishedAt: day(0.98), defaultDatasetId: 'd3' },
+      { id: 's4', actId: 'cb', status: 'SUCCEEDED', startedAt: day(3), finishedAt: day(2.99) },
+      { id: 's5', actId: 'cb', status: 'FAILED', startedAt: day(6), finishedAt: day(5.99) },
+      { id: 's6', actId: 'cb', status: 'SUCCEEDED', startedAt: day(9), finishedAt: day(8.99) }] };
+    var acts = { bm: ['ai-search-brand-monitor', 'AI Search Brand Monitor'], aio: ['google-ai-overviews-scraper', 'Google AI Overviews Scraper'], cb: ['citebase', 'Citebase'] };
+    var m = /^acts\/([^/?]+)/.exec(path);
+    if (m && acts[m[1]]) return { id: m[1], username: 'khadinakbar', name: acts[m[1]][0], title: acts[m[1]][1] };
+    if (/^schedules/.test(path)) return { items: [{ id: 'sc1', name: 'citebase-acme-payroll', title: 'Citebase: acme-payroll', cronExpression: '0 8 1 * *', timezone: 'Europe/London',
+      isEnabled: true, nextRunAt: day(-12), lastRunAt: day(18), actions: [{}, {}, {}] }] };
+    if (path === 'users/me') return { username: 'sample-user', plan: { id: 'STARTER', dataRetentionDays: 14 } };
+    if (path === 'users/me/limits') return { monthlyUsageCycle: { startAt: day(20), endAt: day(-10) }, current: { monthlyUsageUsd: 9 }, limits: { maxMonthlyUsageUsd: 30 } };
+    if (/^key-value-stores/.test(path)) return { id: 'sample-store' };
+    throw new Error('Not in the sample.');
   } };
 })();

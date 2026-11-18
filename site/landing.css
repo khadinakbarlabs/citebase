@@ -63,3 +63,4 @@ details p{color:var(--ink-2);margin:.7rem 0 0;font-size:.97rem}
 .foot a{text-decoration:none;color:var(--muted)}
 .foot a:hover{color:var(--ink)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.fine{font-size:.85rem;color:var(--muted);margin:1.4rem 0 0}

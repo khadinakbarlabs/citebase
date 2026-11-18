@@ -267,6 +267,22 @@
       throw new Error('Could not reach Citebase. Check your connection and try again.');
     });
   }
+  CB.tool = function (tool, args) { return call(tool, args || {}); };
+  // Apify's own API with the visitor's token (runs, schedules, account). Same refresh rule as Citebase calls.
+  function apify(method, path, body, retried) {
+    if (CB.demo) return Promise.resolve().then(function () { return window.CB_DEMO.apify(method, path, body); });
+    var init = { method: method, headers: { 'Authorization': 'Bearer ' + CB.token } };
+    if (body !== undefined) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(body); }
+    return fetch('https://api.apify.com/v2/' + path, init).then(function (r) {
+      if (r.status === 401 && !retried) return renew().then(function (ok) { if (ok) return apify(method, path, body, true); CB.onSignedOut('Please sign in again.'); throw new Error('signed out'); });
+      if (r.status === 204) return null;
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok) throw new Error((j.error && j.error.message) || 'Apify answered with an error (' + r.status + ').');
+        return j.data !== undefined ? j.data : j;
+      });
+    }, function () { throw new Error('Could not reach Apify. Check your connection and try again.'); });
+  }
+  CB.apify = apify;
   CB.history = function (project, fresh) {
     var key = project || '';
     if (!fresh && cache[key]) return Promise.resolve(cache[key]);
