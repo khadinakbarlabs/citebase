@@ -10,179 +10,66 @@
 <link rel="canonical" href="__SITE__/">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="landing.css">
-<meta name="theme-color" content="#f6f3ec">
+<meta name="theme-color" content="#fbfaf7">
 </head>
 <body>
 <header class="top">
-  <a class="brand" href="./"><img src="favicon.svg" alt="" width="28" height="28"><span>Citebase</span></a>
+  <a class="brand" href="./"><img src="favicon.svg" alt="" width="24" height="24"><span>Citebase</span></a>
   <nav aria-label="Main">
-    <a href="#how">How it works</a>
     <a href="#install">Install</a>
-    <a href="#dashboard">Dashboard</a>
     <a href="https://github.com/khadinakbarlabs/citebase" rel="noopener">GitHub</a>
+    <a class="signin" href="app/">Sign in</a>
   </nav>
-  <a class="btn small" href="app/">Sign in with Apify</a>
 </header>
 
 <main>
-<section class="hero" aria-labelledby="h1">
-  <div class="hero-copy">
-    <p class="eyebrow">AI search visibility, in your own assistant</p>
-    <h1 id="h1">When people ask AI what to buy, <em>is your name in the answer?</em></h1>
-    <p class="lede">Citebase asks ChatGPT, Google AI Overviews, Perplexity, Gemini and Claude the questions your buyers ask, counts how often you are recommended, shows which sites they trust instead, and gives you the next fix. Then it checks again.</p>
+  <section class="hero" aria-labelledby="h1">
+    <h1 id="h1">Find out if AI recommends you.</h1>
+    <p class="lede">Citebase asks ChatGPT, Google AI Overviews, Perplexity, Gemini and Claude the questions your buyers ask, shows how often you are recommended, and tells you what to fix next.</p>
     <div class="cta">
-      <a class="btn" href="#install">Add it to your assistant</a>
-      <a class="btn ghost" href="app/?demo=1">See a sample dashboard</a>
+      <a class="btn" href="#install">Get started</a>
+      <a class="link" href="app/?demo=1">See a sample dashboard →</a>
     </div>
-    <ul class="ticks">
-      <li>Works inside Claude, ChatGPT, Cursor and Claude Code</li>
-      <li>Your data stays in your own Apify account</li>
-      <li>Paid checks run only after you say yes</li>
-    </ul>
-  </div>
-  <figure class="hero-card" aria-label="Example: recommendation share rising over four monthly checks">
-    <div class="card-head"><span class="dot"></span>acme-payroll · Recommendation share</div>
-    <p class="big">31%<span class="up">▲ 19 pts since baseline</span></p>
-    <svg viewBox="0 0 320 130" role="img" aria-label="Line rising from 12% to 31% over four rounds">
-      <path class="band" d="M10 112 L110 96 L210 72 L310 52 L310 82 L210 98 L110 118 L10 124 Z"/>
-      <path class="grid" d="M10 30 H310 M10 70 H310 M10 110 H310"/>
-      <path class="line" d="M10 118 L110 107 L210 86 L310 67"/>
-      <circle cx="10" cy="118" r="4"/><circle cx="110" cy="107" r="4"/><circle cx="210" cy="86" r="4"/><circle class="last" cx="310" cy="67" r="5"/>
-    </svg>
-    <div class="axis"><span>Baseline</span><span>Dec</span><span>Jan</span><span>Feb</span></div>
-    <ul class="mini">
-      <li><b>Fixed</b> 6 site issues</li>
-      <li><b>Cited for rivals</b> g2.com, capterra.com</li>
-      <li><b>Next</b> answer "best payroll for 10 staff"</li>
-    </ul>
-    <figcaption>Sample data</figcaption>
-  </figure>
-</section>
+  </section>
 
-<section class="strip" aria-label="Engines checked">
-  <span>Checks answers from</span><b>ChatGPT</b><b>Google AI Overviews</b><b>Google AI Mode</b><b>Perplexity</b><b>Gemini</b><b>Claude</b>
-</section>
+  <section class="steps" aria-label="How it works">
+    <div><span>01</span><h2>Check</h2><p>Your site and the real buying questions, across the AI engines that matter.</p></div>
+    <div><span>02</span><h2>Fix</h2><p>One clear next step: a page to write, a site to get listed on, a bot to unblock.</p></div>
+    <div><span>03</span><h2>Track</h2><p>Re-check monthly and see what really moved, in a dashboard you can read in seconds.</p></div>
+  </section>
 
-<section id="how" class="how" aria-labelledby="how-h">
-  <h2 id="how-h">A loop, not a one-off report</h2>
-  <ol class="steps">
-    <li><span>1</span><h3>Check the site</h3><p>Can AI crawlers read your pages? Titles, structure, schema, speed and blocked bots, scored with a short fix list.</p></li>
-    <li><span>2</span><h3>Ask the real questions</h3><p>20+ buying questions, frozen so every round is comparable. Each engine is asked more than once, because answers change.</p></li>
-    <li><span>3</span><h3>Fix one thing</h3><p>The page to write, the site that keeps getting cited instead of you, the bot you are blocking. One step at a time.</p></li>
-    <li><span>4</span><h3>Measure the change</h3><p>Re-check monthly. Citebase shows the move with a range, so a lucky answer is never sold to you as progress.</p></li>
-  </ol>
-</section>
-
-<section class="bento" aria-labelledby="feat-h">
-  <h2 id="feat-h">What you get</h2>
-  <div class="grid">
-    <article class="tile wide"><h3>Recommendation share</h3><p>The share of buying questions where an AI actually recommends you, not just mentions you. Brand-name questions are kept apart so they cannot flatter the number.</p></article>
-    <article class="tile"><h3>Citation gap</h3><p>The sites AI cites for your rivals while leaving you out. Your outreach list, ranked.</p></article>
-    <article class="tile"><h3>Site health</h3><p>A crawl that scores technical, on-page and AI-search readiness, and remembers what you fixed.</p></article>
-    <article class="tile"><h3>Real demand</h3><p>Paste your Search Console export: see the questions people type and the pages you should write.</p></article>
-    <article class="tile"><h3>AI bot visits</h3><p>Paste a server log: see which AI bots read your site and which ones you are turning away.</p></article>
-    <article class="tile wide"><h3>Memory across chats</h3><p>Every project, round and to-do is saved in a store in your own Apify account. Open a new chat next month and your assistant picks up where you left off.</p></article>
-    <article class="tile"><h3>Spend only on yes</h3><p>Every paid check is named first and capped. Reading history and planning never run one.</p></article>
-  </div>
-</section>
-
-<section class="preview" aria-labelledby="pv-h">
-  <div class="pv-copy">
-    <p class="eyebrow">The dashboard</p>
-    <h2 id="pv-h">Every answer, in plain words</h2>
-    <p>Sign in with Apify and each project opens with a short summary you can read in ten seconds, then the detail when you want it.</p>
-    <ul class="pv-points">
-      <li><b>In plain words.</b> "ChatGPT recommends you most; Google AI Overviews least."</li>
-      <li><b>Every question.</b> Which buying questions you win, newly win or lost, per engine.</li>
-      <li><b>Compare rounds.</b> Pick any two checks and see what really moved, with the normal swing marked.</li>
-      <li><b>Manage the work.</b> Tick to-dos off; your assistant sees the same list next time.</li>
-    </ul>
-    <a class="btn" href="app/?demo=1">Open the sample dashboard</a>
-  </div>
-  <figure class="window" aria-label="Preview of the Citebase dashboard with sample data">
-    <div class="win-bar"><i></i><i></i><i></i><span>Acme Payroll</span></div>
-    <div class="win-tabs"><b>Overview</b><span>AI answers</span><span>Questions</span><span>Site</span><span>To-do</span></div>
-    <div class="win-body">
-      <ul class="win-story">
-        <li class="good">AI recommends Acme Payroll in 31% of buying questions, a clear rise from 12%.</li>
-        <li>ChatGPT recommends you most (39%); Google AI Overviews least (20%).</li>
-        <li class="warn">capterra.com was cited for rivals 7 times without naming you.</li>
-      </ul>
-      <div class="win-grid" role="img" aria-label="Question grid: darker cells mean more answers recommended you">
-        <span class="h">Question</span><span class="h">ChatGPT</span><span class="h">AI Overviews</span><span class="h">Perplexity</span>
-        <span class="q">best payroll for a 10 person company</span><i class="l3"></i><i class="l3"></i><i class="l2"></i>
-        <span class="q">cheapest payroll for startups</span><i class="l2"></i><i class="l3"></i><i class="l3"></i>
-        <span class="q">payroll for contractors and staff</span><i class="l0"></i><i class="l0"></i><i class="l1"></i>
-        <span class="q">payroll with hr and time off</span><i class="l0"></i><i class="l0"></i><i class="l0"></i>
-      </div>
-    </div>
-    <figcaption>Sample data</figcaption>
-  </figure>
-</section>
-
-<section id="install" class="install" aria-labelledby="install-h">
-  <h2 id="install-h">Two ways to use it</h2>
-  <p class="sub">Same tools, same saved projects. Pick the one that fits your assistant.</p>
-  <div class="ways">
-    <article class="way">
-      <p class="tag">For Claude Code</p>
-      <h3>Plugin from GitHub</h3>
-      <p>Installs the playbooks, specialist agents and the MCP connector in one go. The code is public on GitHub, so you can read every line.</p>
-      <pre><code>claude plugin marketplace add khadinakbarlabs/citebase
+  <section id="install" class="install" aria-labelledby="install-h">
+    <h2 id="install-h">Two ways in</h2>
+    <div class="ways">
+      <article>
+        <h3>Claude Code plugin</h3>
+        <p>Playbooks, agents and the connector in one install. Code on GitHub.</p>
+        <pre><code>claude plugin marketplace add khadinakbarlabs/citebase
 claude plugin install citebase@citebase</code></pre>
-      <p class="note">Then type <code>/citebase:start</code> and give it your website.</p>
-      <a class="btn ghost" href="https://github.com/khadinakbarlabs/citebase" rel="noopener">View on GitHub</a>
-    </article>
-    <article class="way">
-      <p class="tag">For Claude, ChatGPT, Cursor and any MCP app</p>
-      <h3>Connector via Apify</h3>
-      <p>Add one address as a custom connector, press Connect and sign in with Apify. No token to copy.</p>
-      <pre><code>https://mcp.apify.com/?actors=khadinakbar/citebase&amp;tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,get-key-value-store-record,abort-actor-run</code></pre>
-      <ul class="note">
-        <li><b>Claude:</b> Settings → Connectors → Add custom connector.</li>
-        <li><b>ChatGPT:</b> Settings → Connectors → Developer mode → new connector, OAuth.</li>
-        <li><b>Cursor:</b> add it under <code>mcpServers</code> in the settings file.</li>
-      </ul>
-      <a class="btn ghost" href="https://apify.com/khadinakbar/citebase" rel="noopener">Open on Apify</a>
-    </article>
-  </div>
-</section>
-
-<section id="dashboard" class="dash" aria-labelledby="dash-h">
-  <div>
-    <p class="eyebrow light">Dashboard</p>
-    <h2 id="dash-h">All your projects, charted</h2>
-    <p>Sign in with Apify and see every project your assistant saved: recommendation share over time, site health, the sites cited instead of you, bot visits, search demand and what is due next. Tick off to-dos as you go. Nothing passes through our servers.</p>
-    <div class="cta">
-      <a class="btn light" href="app/">Sign in with Apify</a>
-      <a class="btn ghost light" href="app/?demo=1">Try the sample</a>
+      </article>
+      <article>
+        <h3>Connector via Apify</h3>
+        <p>For Claude, ChatGPT, Cursor or any MCP app. Add as a custom connector and sign in with Apify.</p>
+        <pre><code>https://mcp.apify.com/?actors=khadinakbar/citebase&amp;tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,get-key-value-store-record,abort-actor-run</code></pre>
+      </article>
     </div>
-  </div>
-  <ul class="trust">
-    <li><b>Your account</b> Data is read straight from the Citebase store in your Apify account.</li>
-    <li><b>No password here</b> Apify signs you in. The permission lives in this tab only.</li>
-    <li><b>Sign out any time</b> Closing the tab ends it too.</li>
-  </ul>
-</section>
+  </section>
 
-<section class="faq" aria-labelledby="faq-h">
-  <h2 id="faq-h">Questions</h2>
-  <details><summary>Do I need an Apify account?</summary><p>Yes. Citebase runs on Apify, and your projects are saved in your own Apify account. Signing up at apify.com takes a minute.</p></details>
-  <details><summary>What does it cost?</summary><p>Data checks (AI answers, crawls, keyword data) are paid on your own Apify account, and your assistant asks you first every time. Ask it what a specific check costs and it will tell you before running anything.</p></details>
-  <details><summary>Which engines does it check?</summary><p>ChatGPT, Google AI Overviews, Google AI Mode, Perplexity, Gemini and Claude. Start with ChatGPT and Google; add the rest when you need them.</p></details>
-  <details><summary>Does Citebase keep my data?</summary><p>No. Saved projects live in a store called <code>citebase-projects</code> in your own Apify account. You can read, export or delete it in Apify Console.</p></details>
-  <details><summary>Can it set up monthly re-checks?</summary><p>It plans them and tells you exactly how to add the schedule in Apify Console, with a spending cap on every run. You stay in control of the switch.</p></details>
-</section>
+  <section class="faq" aria-labelledby="faq-h">
+    <h2 id="faq-h">Questions</h2>
+    <details><summary>Where is my data kept?</summary><p>In a store called <code>citebase-projects</code> in your own Apify account. Nothing is kept on our side.</p></details>
+    <details><summary>What does it cost?</summary><p>Data checks are paid on your own Apify account, and your assistant asks you first every time. Ask it what a specific check costs and it tells you before running anything.</p></details>
+    <details><summary>Do I need an Apify account?</summary><p>Yes. Citebase runs on Apify, and the dashboard signs you in with it.</p></details>
+  </section>
 </main>
 
 <footer class="foot">
-  <a class="brand" href="./"><img src="favicon.svg" alt="" width="22" height="22"><span>Citebase</span></a>
+  <span>Citebase</span>
   <nav aria-label="Footer">
     <a href="app/">Dashboard</a>
     <a href="https://github.com/khadinakbarlabs/citebase" rel="noopener">GitHub</a>
     <a href="https://apify.com/khadinakbar/citebase" rel="noopener">Apify</a>
   </nav>
-  <p>Built on Apify. Not affiliated with OpenAI, Google, Perplexity or Anthropic.</p>
 </footer>
 </body>
 </html>
