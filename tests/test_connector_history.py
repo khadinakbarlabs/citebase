@@ -457,3 +457,55 @@ class DashboardBreakdownTests(Base):
         h = run(hist.history("acme-site"))
         self.assertTrue(h["questions"])
         self.assertTrue(all(x["before"] is None for x in h["questions"]))
+
+
+class RivalBoardTests(Base):
+    """Share of voice, position and sentiment the dashboard charts."""
+
+    def rows(self, snapshot, you_ids, rivals_by_id, sentiment="positive"):
+        out = []
+        for p in PANEL:
+            for r in (1, 2):
+                named = p["prompt_id"] in you_ids
+                out.append({"snapshot": snapshot, "prompt_id": p["prompt_id"], "platform": "chatgpt", "repeat": r,
+                            "mentioned": named, "recommended": named, "position": 2 if named else "",
+                            "sentiment": sentiment if named else "", "competitors": rivals_by_id.get(p["prompt_id"], "")})
+        return out
+
+    def test_share_of_voice_counts_buying_answers_and_compares_rounds(self):
+        run(hist.save_results("acme-site", self.rows("baseline", {"p1"}, {"p1": "Rival;Other", "p2": "Rival"}), PANEL,
+                              brand={"name": "Acme"}))
+        run(hist.save_results("acme-site", self.rows("2026-12", {"p1", "p2", "p3"}, {"p1": "Rival"}), None))
+        rv = run(hist.history("acme-site"))["rivals"]
+        self.assertEqual(rv["round"], "2026-12")
+        self.assertEqual(rv["answers"], 8)  # 4 buying questions x 2 repeats; control questions left out
+        board = {b["name"]: b for b in rv["brands"]}
+        self.assertEqual(board["Acme"]["answers"], 6)
+        self.assertTrue(board["Acme"]["you"])
+        self.assertEqual(board["Acme"]["before"], 0.25)
+        self.assertEqual(board["Rival"]["answers"], 2)
+        self.assertEqual(rv["avg_position"], 2.0)
+        self.assertEqual(rv["sentiment"], {"positive": 6})
+        self.assertIn("more buying answers than any rival", rv["note"])
+
+    def test_sentiment_is_kept_only_when_named_and_only_known_words(self):
+        rows = self.rows("baseline", {"p1"}, {}, sentiment="ecstatic")
+        run(hist.save_results("acme-site", rows, PANEL))
+        self.assertEqual(run(hist.history("acme-site"))["rivals"]["sentiment"], {})
+
+    def test_no_round_means_no_board(self):
+        run(hist.save_results("acme-site", [], PANEL))
+        self.assertIsNone(run(hist.history("acme-site"))["rivals"])
+
+
+class ImportKeepsSentimentTests(unittest.TestCase):
+    def test_brand_monitor_sentiment_reaches_the_row(self):
+        panel = [{"prompt_id": "p1", "prompt": "best payroll app", "type": "consideration"}]
+        items = [{"platform": "chatgpt", "query": "best payroll app", "brand_mentioned": True, "sentiment": "negative",
+                  "competitor_mentions": ["Rival"]},
+                 {"platform": "perplexity", "query": "best payroll app", "brand_mentioned": False, "sentiment": "positive"}]
+        rows = importer.convert(items, panel, "baseline", {"name": "Acme"})["runs"]
+        by = {r["platform"]: r for r in rows}
+        self.assertEqual(by["chatgpt"]["sentiment"], "negative")
+        self.assertNotIn("sentiment", by["perplexity"])  # not named: no feeling to record
+        self.assertEqual(by["chatgpt"]["competitors"], "Rival")

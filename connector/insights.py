@@ -252,3 +252,74 @@ def rank_changes(records: list[dict]) -> list[dict]:
         out.append({"keyword": row["keyword"], "engine": row["engine"], "now": row["position"],
                     "before": old if key in before else None, "checked_before": key in before, "moved_up_by": move})
     return sorted(out, key=lambda r: (r["now"] is None, r["now"] or 0, r["keyword"]))
+
+
+# ---------------------------------------------------------------- who AI names: you against your rivals
+MAX_RIVALS = 12
+
+
+def _round_board(runs: list[dict], types: dict, snapshot: str) -> dict | None:
+    rows = [r for r in runs if r["snapshot"] == snapshot and types.get(r["prompt_id"]) in BUYING]
+    if not rows:
+        return None
+    names: dict[str, list] = {}  # lower-case name -> [display name, answers]
+    you = 0
+    positions: list[float] = []
+    feeling = Counter()
+    for row in rows:
+        if _truthy(row.get("mentioned")):
+            you += 1
+            try:
+                pos = float(str(row.get("position") or "").strip())
+                if 0 < pos < 100:
+                    positions.append(pos)
+            except ValueError:
+                pass
+            mood = str(row.get("sentiment") or "").strip().lower()
+            if mood:
+                feeling[mood] += 1
+        raw = row.get("competitors")
+        parts = [str(v) for v in raw] if isinstance(raw, (list, tuple)) else re.split(r"[;,|]", str(raw or ""))
+        for name in dict.fromkeys(n.strip()[:80] for n in parts if n.strip()):
+            entry = names.setdefault(name.lower(), [name, 0])
+            entry[1] += 1
+    return {"answers": len(rows), "you": you, "rivals": {k: v for k, v in names.items()},
+            "avg_position": round(sum(positions) / len(positions), 1) if positions else None, "sentiment": dict(feeling)}
+
+
+def rivals(runs: list[dict], panel: list[dict], brand: dict | None, order: list[str]) -> dict | None:
+    """Share of voice in the latest round: of the buying answers, how many named you and how many named each rival,
+    with the round before for comparison. Also your average position when named (lower is better) and how the answers
+    spoke about you. None when there is no round. Rival names come from what the checks reported."""
+    if not order:
+        return None
+    types = {p["prompt_id"]: p.get("type") for p in panel}
+    now = _round_board(runs, types, order[-1])
+    if not now:
+        return None
+    before = _round_board(runs, types, order[-2]) if len(order) > 1 else None
+    me = str((brand or {}).get("name") or "You")
+    total = now["answers"]
+
+    def share(n: int, of: int) -> float:
+        return round(n / of, 4) if of else 0.0
+    board = [{"name": me, "answers": now["you"], "share": share(now["you"], total), "you": True,
+              "before": share(before["you"], before["answers"]) if before else None}]
+    ranked = sorted(now["rivals"].items(), key=lambda kv: (-kv[1][1], kv[0]))[:MAX_RIVALS]
+    for key, (name, count) in ranked:
+        if key == me.lower():
+            continue
+        old = before["rivals"].get(key) if before else None
+        board.append({"name": name, "answers": count, "share": share(count, total), "you": False,
+                      "before": share(old[1], before["answers"]) if before and old else (0.0 if before else None)})
+    board.sort(key=lambda b: (-b["share"], not b["you"], b["name"].lower()))
+    leader = next((b for b in board if not b["you"]), None)
+    note = (f"{leader['name']} is named in more buying answers than you." if leader and leader["share"] > board_you(board)
+            else "You are named in more buying answers than any rival." if leader else
+            "No rival was named in these answers, so there is nothing to compare.")
+    return {"round": order[-1], "answers": total, "brands": board, "avg_position": now["avg_position"],
+            "sentiment": now["sentiment"], "previous_round": order[-2] if before else None, "note": note}
+
+
+def board_you(board: list[dict]) -> float:
+    return next((b["share"] for b in board if b["you"]), 0.0)

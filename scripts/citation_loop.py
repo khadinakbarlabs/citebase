@@ -35,7 +35,7 @@ from collections import defaultdict
 
 PANEL_COLS = ["prompt_id", "prompt", "type", "topic"]
 RUN_COLS = ["run_id", "snapshot", "date", "prompt_id", "platform", "repeat", "mentioned", "cited",
-            "recommended", "position", "competitors", "cited_domains", "metric_version",
+            "recommended", "position", "competitors", "cited_domains", "metric_version", "sentiment",
             "engine_version", "country", "language", "device", "source", "answered_at"]
 EXP_COLS = ["exp_id", "date", "action", "mechanism", "target_prompt_ids", "url", "status", "recheck_after", "notes"]
 TYPES = ("awareness", "consideration", "brand", "control")
@@ -291,6 +291,15 @@ def clean_prov(field: str, value) -> str:
     return text.lower()
 
 
+SENTIMENTS = ("positive", "neutral", "mixed", "negative")
+
+
+def clean_sentiment(value) -> str:
+    """How the answer spoke about the brand, when the check reported it: one of SENTIMENTS, else ''."""
+    text = str(value or "").strip().lower()
+    return text if text in SENTIMENTS else ""
+
+
 def normalise_run(raw: dict, panel: dict[str, dict], snapshot: str, n: int) -> dict:
     row = {ALIASES.get(k, k): v for k, v in raw.items()}
     pid = str(row.get("prompt_id", "")).strip()
@@ -311,7 +320,7 @@ def normalise_run(raw: dict, panel: dict[str, dict], snapshot: str, n: int) -> d
            "mentioned": max(to_bool(row.get("mentioned", 0)), rec), "cited": to_bool(row.get("cited", 0)),
            "recommended": rec, "position": row.get("position", ""),
            "competitors": row.get("competitors", ""), "cited_domains": row.get("cited_domains", ""),
-           "metric_version": version}
+           "metric_version": version, "sentiment": clean_sentiment(row.get("sentiment"))}
     out.update({field: clean_prov(field, row.get(field)) for field in PROVENANCE})
     out["answered_at"] = answered_at
     return out

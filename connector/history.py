@@ -625,7 +625,7 @@ async def overview() -> dict:
         nxt = ("No projects yet. Start with audit_site and pass a project name (for example the site's name) so the "
                "check is saved.")
     return {"project": None, "brand": {}, "panel_prompts": 0, "snapshots": [], "audits": [], "experiments": [],
-            "ai_bot_visits": None, "ai_traffic": None, "search_demand": None, "ranks": None, "questions": [], "citation_gap": None,
+            "ai_bot_visits": None, "ai_traffic": None, "search_demand": None, "ranks": None, "questions": [], "rivals": None, "citation_gap": None,
             "projects": projects, "markdown": "\n".join(lines), "next": nxt}
 
 
@@ -681,6 +681,7 @@ async def history(project: str | None = None) -> dict:
             "search_demand": signals["search"][-1] if signals["search"] else None,
             "ranks": ranks_view(signals["ranks"]),
             "questions": question_view(data, snaps),
+            "rivals": insights.rivals(data["runs"], data["panel"], meta.get("brand"), [x["snapshot"] for x in snaps]),
             "citation_gap": insights.citation_gap(data["runs"], data["panel"], meta.get("brand"),
                                                   snaps[-1]["snapshot"] if snaps else None),
             "projects": None, "markdown": "\n".join(lines), "next": nxt}

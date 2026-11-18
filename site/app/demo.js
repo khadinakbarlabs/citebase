@@ -58,6 +58,13 @@
       { step: 'Pitch capterra.com for the payroll comparison', status: 'open', updated: '2027-02-14' }, { step: 'Fix the slow image on the home page', status: 'open', updated: '2027-02-10' },
       { step: 'Write a page for "payroll with hr and time off"', status: 'open', updated: '2027-02-14' }],
     due: [], questions: questions(),
+    rivals: { round: '2027-02', answers: 198, previous_round: '2027-01', avg_position: 2.3, sentiment: { positive: 61, neutral: 30, mixed: 4, negative: 4 },
+      note: 'Gusto is named in more buying answers than you.', brands: [
+        { name: 'Gusto', answers: 112, share: .566, you: false, before: .61 },
+        { name: 'Acme Payroll', answers: 99, share: .5, you: true, before: .41 },
+        { name: 'Rippling', answers: 71, share: .359, you: false, before: .38 },
+        { name: 'ADP', answers: 44, share: .222, you: false, before: .25 },
+        { name: 'Paychex', answers: 21, share: .106, you: false, before: .09 }] },
     citation_gap: { round: '2027-02', answers_with_sources: 71,
       note: 'These sites were cited in answers that named a rival and not you. Getting a fair mention there is the most direct way into those answers.', sites: [
         { site: 'capterra.com', answers_citing_it: 14, answers_for_rivals_without_you: 7, answers_that_recommend_you: 2, engines: ['perplexity', 'google-aio'], rivals_named: ['Gusto', 'Rippling'], example_questions: ['best payroll software for a 10 person company'] },

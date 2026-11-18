@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.5
+- Share of voice: `get_history` returns `rivals` for the latest round (how many buying answers name you and each rival, the round before, your average position when named, and how the answers spoke about you). Imported AI Brand Monitor results now keep each answer's sentiment.
 - Dashboard data: `get_history` now returns `by_engine` for each round (recommended, mentioned and cited per AI engine) and `questions` (each test question in the latest round, per engine, with the round before), so a dashboard can show which engine and which question moved.
 - Search Console import: paste the Performance export (Queries tab) into `save_results` (`gsc_csv`) to see which questions people search, where the site is seen but rarely clicked, and which searches to test in AI assistants. Only a short summary is kept, with no Google sign-in. Shown in `get_history`.
 - Schedules are always created by the user in Apify Console: `schedule_checks` no longer lets an assistant create one, because a schedule runs outside the approval and spending checks.

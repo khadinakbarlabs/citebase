@@ -79,6 +79,20 @@
     return box;
   };
 
+  // Finished AI-answer runs newer than every saved round: results waiting to be imported into a project.
+  P.waiting = function (projects) {
+    var box = h('div', {});
+    if (!projects.length) return box;
+    var newest = projects.map(function (p) { return p.last_round_saved || ''; }).sort().pop() || '';
+    P.citebaseRuns(100).then(function (runs) {
+      var fresh = runs.filter(function (r) { return r.status === 'SUCCEEDED' && IMPORTABLE.indexOf(r.actorName) >= 0 && (r.finishedAt || '').slice(0, 10) > newest; });
+      if (!fresh.length) return;
+      box.appendChild(h('div', { class: 'livebox' }, h('div', {}, h('b', { text: fresh.length + ' finished AI check' + (fresh.length > 1 ? 's are' : ' is') + ' not in a project yet' }),
+        h('span', { text: 'Import them so they count in your charts.' })), h('a', { class: 'btn small', href: '#/activity', text: 'Review and import' })));
+    }, function () {});
+    return box;
+  };
+
   /* ---------- activity ---------- */
   P.activity = function (main, projects) {
     main.appendChild(head('Activity', 'Runs of Citebase and its data checks in your Apify account.'));

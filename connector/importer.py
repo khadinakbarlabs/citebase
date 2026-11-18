@@ -287,9 +287,10 @@ def platform_of(item: dict) -> str:
 # ---------------------------------------------------------------- one adapter per kind
 # Each returns the judged part of a row: platform, mentioned, cited, recommended, position, competitors,
 # cited_domains, plus review = None (nothing to check) or {sentiment, mention_count, reason, context}.
-def judged(platform, mentioned, cited, position="", competitors="", cited_domains=(), review=None, recommended=False):
+def judged(platform, mentioned, cited, position="", competitors="", cited_domains=(), review=None, recommended=False,
+           sentiment=""):
     return {"platform": platform, "mentioned": mentioned, "cited": cited, "recommended": recommended,
-            "position": position, "competitors": competitors,
+            "position": position, "competitors": competitors, "sentiment": sentiment if mentioned else "",
             "cited_domains": ";".join(sorted({d for d in cited_domains if d}))[:500], "review": review}
 
 
@@ -309,7 +310,7 @@ def adapt_brand_monitor(item: dict, brand, tally: Tally) -> dict:
                               sentiment or "unknown")
     return judged(platform, mentioned, bool(item.get("is_cited_as_source")), item.get("mention_position_score") or "",
                   ";".join(str(c) for c in (item.get("competitor_mentions") or []))[:300], map(domain_of, urls), review,
-                  recommended)
+                  recommended, sentiment)
 
 
 def adapt_ai_overviews(item: dict, brand, tally: Tally) -> dict:
@@ -483,6 +484,7 @@ def convert(items: list[dict], panel: list[dict], snapshot: str, brand: dict | N
             "snapshot": snapshot, "prompt_id": pid, "platform": platform, "repeat": seq[(pid, platform)],
             "mentioned": row["mentioned"], "cited": row["cited"], "recommended": row["recommended"],
             "position": row["position"], "competitors": row["competitors"], "cited_domains": row["cited_domains"],
+            "sentiment": row.get("sentiment") or None,
             "date": day.isoformat() if day else None, "metric_version": METRIC_VERSION, **stamp})
         if row["review"]:
             review.append({"prompt_id": pid, "platform": platform, "auto_recommended": False, **row["review"]})

@@ -110,6 +110,7 @@
       main.appendChild(h('div', { class: 'head' }, h('div', {}, h('h1', { text: 'Your projects' }),
         h('p', { text: list.length ? 'Saved in the "citebase-projects" store in your Apify account.' : 'Nothing saved yet.' })), h('div', { class: 'tools' }, newBtn)));
       if (!CB.demo) main.appendChild(CB.pages.onboarding(list, openNew));
+      main.appendChild(CB.pages.waiting(list));
       if (!list.length) {
         main.appendChild(h('section', { class: 'card hero-empty' }, h('h3', { text: 'Start with your website' }),
           h('p', { text: 'Add a project and Citebase checks your site straight away. Then ask the AI engines your buying questions.' }),
@@ -178,7 +179,8 @@
       act('Check site', function () { F.checkSite(slug, site, reload); }),
       act('Next steps', function () { F.nextSteps(slug, reload); }),
       act('Schedule', function () { F.schedule(slug, function () { CB.toast('See it under Schedules'); }); }),
-      act('Share report', function () { F.report(slug); })));
+      act('Share report', function () { F.report(slug); }),
+      act('Export', function () { exportProject(slug, d); })));
     var live = h('div', { class: 'live' });
     main.appendChild(live);
     watchRuns(slug, live);
@@ -214,6 +216,15 @@
     }, function (e) { CB.clear(live).appendChild(h('div', { class: 'livebox bad' }, h('b', { text: 'Could not check the runs' }), h('span', { text: e.message }))); });
   }
 
+  function exportProject(slug, d) {
+    var file = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(file), a = h('a', { href: url, download: slug + '-citebase.json' });
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    CB.csv(slug + '-rounds.csv', ['Round', 'Saved', 'Questions', 'Recommended', 'Low', 'High', 'Mentioned', 'Cited'],
+      (d.snapshots || []).map(function (x) { return [x.snapshot, x.saved_on, x.prompts, x.recommendation_share, x.rs_low, x.rs_high, x.mentioned_rate, x.cited_rate]; }));
+    CB.toast('Downloaded the project (JSON) and its rounds (CSV)');
+  }
+
   /* ---------- plain-words summary ---------- */
   function story(d) {
     var snaps = d.snapshots || [], audits = d.audits || [], out = [], name = (d.brand || {}).name || 'you';
@@ -237,6 +248,15 @@
       var gained = qs.filter(function (q) { return q.before && q.before.recommended === 0 && q.recommended > 0; }).length;
       var lost = qs.filter(function (q) { return q.before && q.before.recommended > 0 && q.recommended === 0; }).length;
       out.push([won ? 'info' : 'bad', 'Recommended at least once on ' + won + ' of ' + qs.length + ' questions' + (gained ? ', ' + gained + ' new this round' : '') + (lost ? '; lost ' + lost : '') + '.']);
+    }
+    var rv = d.rivals;
+    if (rv && rv.brands && rv.brands.length > 1) {
+      var lead = rv.brands.filter(function (b) { return !b.you; })[0], mine = rv.brands.filter(function (b) { return b.you; })[0];
+      if (lead && mine) out.push([lead.share > mine.share ? 'warn' : 'good', lead.share > mine.share
+        ? lead.name + ' is named in ' + pct(lead.share) + ' of buying answers; you in ' + pct(mine.share) + '.'
+        : 'You lead your rivals: named in ' + pct(mine.share) + ' of buying answers, ' + lead.name + ' in ' + pct(lead.share) + '.']);
+      var sm = rv.sentiment || {};
+      if (sm.negative) out.push(['bad', sm.negative + ' answers spoke about you negatively. Open AI answers to see where.']);
     }
     var gap = d.citation_gap;
     if (gap && gap.sites && gap.sites.length) out.push(['warn', gap.sites[0].site + ' was cited for rivals ' + gap.sites[0].answers_for_rivals_without_you + ' times without naming you. A fair mention there is the most direct way in.']);
@@ -355,7 +375,29 @@
     body.appendChild(h('div', { class: 'controls' }, segHolder, chips));
     body.appendChild(holder); draw();
     body.appendChild(compareCard(snaps, engines));
+    body.appendChild(rivalsCard(d.rivals));
     body.appendChild(gapCard(d.citation_gap));
+  }
+  function rivalsCard(rv) {
+    if (!rv || !rv.brands || rv.brands.length < 2) return empty('You vs rivals', rv ? rv.note : 'Shown after the first AI round. Add competitors to the project so the checks look for them.');
+    var chart = CB.barChart({ aria: 'Share of buying answers that name each brand', width: 820, labelWidth: 200, fmt: pct, max: 1,
+      items: rv.brands.map(function (b) {
+        return { label: b.you ? b.name + ' (you)' : b.name, value: b.share, cls: b.you ? '' : 'dim',
+          tip: [b.answers + ' of ' + rv.answers + ' buying answers name ' + (b.you ? 'you' : b.name)].concat(b.before != null ? ['Round before: ' + pct(b.before)] : []) }; }) });
+    var tbl = CB.table([{ key: 'name', label: 'Brand', render: function (b) { return b.you ? b.name + ' (you)' : b.name; } },
+      { key: 'share', label: 'Share of answers', num: true, render: function (b) { return pct(b.share); } },
+      { key: 'answers', label: 'Answers', num: true },
+      { key: 'chg', label: 'Change', num: true, sortValue: function (b) { return b.before == null ? null : b.share - b.before; }, render: function (b) { return b.before == null ? '–' : arrow((b.share - b.before) * 100, ' pts'); } }],
+      rv.brands, { sort: 'share' });
+    var t = tableToggle(chart, tbl);
+    var s = rv.sentiment || {}, total = ['positive', 'neutral', 'mixed', 'negative'].reduce(function (n, k) { return n + (s[k] || 0); }, 0);
+    var mood = total ? h('div', { class: 'mood' }, h('span', { class: 'k', text: 'How AI talks about you' }),
+      h('div', { class: 'moodbar', role: 'img', 'aria-label': 'Sentiment of answers that name you' }, ['positive', 'neutral', 'mixed', 'negative'].filter(function (k) { return s[k]; }).map(function (k) {
+        var seg = h('span', { class: 'm-' + k, title: k + ': ' + s[k] + ' answers' }); seg.style.width = (s[k] / total * 100) + '%'; return seg; })),
+      h('div', { class: 'legend' }, ['positive', 'neutral', 'mixed', 'negative'].filter(function (k) { return s[k]; }).map(function (k) { return h('span', {}, h('i', { class: 'm-' + k }), k + ' ' + Math.round(s[k] / total * 100) + '%'); }))) : null;
+    var pos = rv.avg_position != null ? h('div', { class: 'posbox' }, h('span', { class: 'k', text: 'Average position when named' }), h('b', { text: '#' + rv.avg_position }), h('small', { text: '1 means named first' })) : null;
+    return card('You vs rivals', 'Share of buying answers that name each brand (' + (rv.round === 'baseline' ? 'baseline' : 'round ' + rv.round) + '). ' + rv.note,
+      h('div', {}, t.body, (mood || pos) ? h('div', { class: 'rivalfacts' }, pos, mood) : null), t.button);
   }
   function compareCard(snaps, engines) {
     if (snaps.length < 2) return empty('Compare two rounds', 'Needs two AI rounds. Re-check in about a month to see what moved.');
@@ -409,7 +451,7 @@
       body.appendChild(card('Test questions', null, h('div', { class: 'empty' },
         h('p', { text: (d.panel_prompts || 0) ? d.panel_prompts + ' questions saved. Run an AI check to see how each one does.' : 'No questions yet. Add the buying questions your customers ask an AI, then run an AI check.' }),
         (d.panel_prompts || 0) ? h('button', { type: 'button', class: 'btn', text: 'Run AI check', onclick: function () { CB.flows.aiCheck(slug, d, function () { CB.refresh(); route(); }); } })
-          : h('button', { type: 'button', class: 'btn', text: 'Add questions', onclick: function () { CB.flows.addQuestions(slug, function () { route(); }); } }))));
+          : h('button', { type: 'button', class: 'btn', text: 'Add questions', onclick: function () { CB.flows.addQuestions(slug, function () { route(); }, suggestionsFrom(d)); } }))));
       return;
     }
     var engines = CB.ENGINES.map(function (e) { return e[0]; }).filter(function (k) { return qs.some(function (q) { return q.engines && q.engines[k]; }); });
@@ -464,6 +506,12 @@
     body.appendChild(card('Every test question', 'Latest round. Hover a cell for details, click a column to sort.',
       h('div', {}, h('div', { class: 'controls' }, filterBar, h('div', { class: 'row' }, topics.length > 1 ? topicSel : null, search)), table,
         h('p', { class: 'note', text: 'Darker cells: more answers recommended you. Questions you never win are the best ideas for new pages.' })), exportBtn));
+  }
+
+  function suggestionsFrom(d) {
+    var sd = d.search_demand || {}, seen = {};
+    return [].concat(sd.test_in_ai || [], (sd.gaps || []).map(function (g) { return g.query; }), (sd.top_questions || []).map(function (g) { return g.query; }))
+      .filter(function (q) { var k = String(q).toLowerCase(); if (seen[k]) return false; seen[k] = 1; return true; }).slice(0, 30);
   }
 
   /* ---------- tab: site ---------- */

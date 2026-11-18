@@ -187,7 +187,7 @@
 
   /* ---------- schedules: created by the visitor, in their own account ---------- */
   F.schedule = function (project, done) {
-    var freq = h('select', {}, h('option', { value: 'monthly', text: 'Monthly' }), h('option', { value: 'weekly', text: 'Weekly' }));
+    var freq = h('select', {}, h('option', { value: 'monthly', text: 'Monthly' }), h('option', { value: 'weekly', text: 'Weekly' }), h('option', { value: 'daily', text: 'Daily' }));
     var withAi = h('input', { type: 'checkbox' });
     var plan = h('p', { class: 'muted', text: 'Getting the plan…' });
     var err = h('p', { class: 'form-err', role: 'alert' });
@@ -266,13 +266,18 @@
       if (r.note) body.appendChild(h('p', { class: 'muted', text: r.note }));
     }, function (e) { errorIn(body, e); });
   };
-  F.addQuestions = function (project, done) {
+  F.addQuestions = function (project, done, suggestions) {
     var qs = h('textarea', { rows: '10', placeholder: 'One buying question per line' });
+    var ideas = (suggestions || []).length ? h('div', { class: 'ideas' }, h('p', { class: 'muted', text: 'Ideas from what people search (Search Console). Click to add:' }),
+      h('div', { class: 'chipline' }, suggestions.map(function (q) {
+        var c = h('button', { type: 'button', class: 'chip-btn', text: q });
+        c.addEventListener('click', function () { qs.value = (qs.value.trim() ? qs.value.trim() + '\n' : '') + q; c.disabled = true; });
+        return c; }))) : null;
     var err = h('p', { class: 'form-err', role: 'alert' }), review = h('div', {});
     var ready = false;
     F.dialog('Add test questions', h('div', { class: 'form' },
       h('p', { class: 'muted', text: 'Write them as a buyer would ask an AI, without your brand name. 20 or more gives a reliable number. The list is frozen once saved, so every round stays comparable.' }),
-      qs, review, err), [{ label: 'Cancel', ghost: true }, { label: 'Check the list', onclick: function (close, btn) {
+      ideas, qs, review, err), [{ label: 'Cancel', ghost: true }, { label: 'Check the list', onclick: function (close, btn) {
         var list = lines(qs.value).slice(0, 60);
         if (!list.length) { err.textContent = 'Add at least one question.'; return; }
         var panel = list.map(function (q, i) { return { prompt_id: 'q' + (i + 1), prompt: q, type: 'consideration' }; });
