@@ -42,6 +42,10 @@ The extra tools in this address let your assistant run the paid data jobs you ap
     }
   }
   ```
+- **VS Code (Copilot agent mode):** add to `.vscode/mcp.json`: `{"servers": {"citebase": {"type": "http", "url": "<setup address>"}}}`, then start the server when VS Code asks.
+- **Windsurf:** add to `mcp_config.json`: `{"mcpServers": {"citebase": {"serverUrl": "<setup address>"}}}`.
+- **Codex CLI:** add to `~/.codex/config.toml`: a `[mcp_servers.citebase]` table with `url = "<setup address>"` and `bearer_token_env_var = "APIFY_TOKEN"`.
+- **Gemini CLI:** add to `settings.json`: `{"mcpServers": {"citebase": {"httpUrl": "<setup address>"}}}`.
 - **Direct connection (advanced):** use this Actor's own Standby address (the one ending in `/mcp`, shown on this Actor's API tab in Apify Console). It needs the token header and does not offer a sign-in button.
 
 **Check that it works.** Paste your website address and ask for a quick health check. Your assistant should come back with a score in words and a short list of fixes. Citebase adds no fee for this; Apify's small run cost applies.

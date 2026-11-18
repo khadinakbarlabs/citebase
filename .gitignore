@@ -5,3 +5,5 @@ __pycache__/
 .citebase/
 *.tmp
 .env
+site-build*/
+.vercel/

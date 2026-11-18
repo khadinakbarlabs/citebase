@@ -34,6 +34,8 @@ class PinTests(unittest.TestCase):
 
     def test_ci_installs_the_same_ranges(self):
         ci = read(".github", "workflows", "ci.yml")
+        if "-r connector/requirements.txt" in ci:
+            return  # CI installs the file itself, so the ranges cannot drift
         for name, line in requirements().items():
             if name == "apify":
                 continue  # the Apify SDK is not needed for the tests

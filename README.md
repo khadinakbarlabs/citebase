@@ -1,22 +1,16 @@
 # Citebase
 
-### Get cited by AI.
+**Get your brand recommended by AI.** Citebase checks whether ChatGPT, Google AI Overviews, Perplexity, Gemini and Claude recommend your brand, shows which sites they trust instead, tells you the next fix, and re-checks to prove it worked. It runs inside the AI assistant you already use, with one sign-in: Apify.
 
-**The open-source agent that gets your brand recommended, cited and featured by ChatGPT, Claude, Gemini and Perplexity.**
-
-When someone asks an AI "what's the best X for Y?", it answers from what it finds said about brands across the web: search results, press, review sites, creator content, podcasts, community threads. Citebase measures where AI stands on your brand today, finds the gaps on live data, plans the pages, press, partnerships and outreach emails that close them, and then re-measures to see whether it worked. It works inside the AI assistant you already use.
-
-One sign-in with Apify. Every paid data job is quoted before it runs, and you pay only per result. In Claude Code each run also has a spending cap that Apify enforces; on the web your assistant asks you before it runs anything. No subscriptions, no five API keys.
+[![ci](https://github.com/khadinakbarlabs/citebase/actions/workflows/ci.yml/badge.svg)](https://github.com/khadinakbarlabs/citebase/actions/workflows/ci.yml) · MIT licence · Python 3.11+
 
 ```
 /citebase:start https://yourbrand.com
 ```
 
-## Connect Citebase to your AI assistant (MCP setup and sign-in)
+## Set it up (2 minutes)
 
-Citebase is also an MCP server, so it works in assistants without plugins. Add it once, sign in once, then ask for help in plain words.
-
-**You need:** an Apify account and an assistant that supports MCP connectors (Claude, ChatGPT, Cursor and others). Create an Apify account at apify.com if you do not have one. The account you sign in with pays the small run cost and any data jobs you approve.
+**You need:** an Apify account and an AI assistant. Create an Apify account at apify.com if you do not have one. The account you sign in with pays the small run cost and any data jobs you approve.
 
 **Setup address (use this everywhere):**
 
@@ -24,107 +18,94 @@ Citebase is also an MCP server, so it works in assistants without plugins. Add i
 https://mcp.apify.com/?actors=khadinakbar/citebase&tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,get-key-value-store-record,abort-actor-run
 ```
 
-The extra tools in this address let your assistant run the paid data jobs you approve. On the web nothing but your assistant's own confirmation prompt stops a run, so approve only the Actor and the cost it quoted. If your assistant cannot run data jobs, add the connector again using the setup address.
+The extra tools in this address let your assistant run the paid data jobs you approve. If your assistant cannot run data jobs, add the connector again using the setup address.
 
-| Way to sign in | Use it when | What you do |
-|---|---|---|
-| Apify sign-in (OAuth), recommended | Your assistant has a "Connect" or "Sign in" button. ChatGPT only supports this way. | Add the setup address, press Connect, sign in to Apify, press Allow. No token to copy. |
-| Apify API token | Your assistant or script cannot do OAuth | Send the header `Authorization: Bearer YOUR_APIFY_TOKEN`. Find the token in Apify Console under Settings, then API and integrations. |
+| Assistant | How to add Citebase |
+|---|---|
+| **Claude Code (plugin, recommended)** | `claude plugin marketplace add khadinakbarlabs/citebase` then `claude plugin install citebase@citebase`. Run `/mcp`, pick `plugin:citebase:apify`, press Authenticate and sign in with Apify. Includes the playbooks, agents and spending guardrails. |
+| **Claude (claude.ai, Desktop)** | Settings → Connectors → Add custom connector. Name it `Citebase`, paste the setup address, press Connect, sign in with Apify. |
+| **ChatGPT** | Settings → Connectors → turn on Developer mode → create a connector, paste the setup address, choose OAuth, sign in with Apify. |
+| **Claude Code (connector only)** | Run the command below, then `/mcp`, pick `citebase` and sign in. |
+| **Cursor** | Add the JSON block below to your MCP settings (`mcpServers`). |
+| **VS Code (Copilot agent mode)** | Add to `.vscode/mcp.json`: `{"servers": {"citebase": {"type": "http", "url": "<setup address>"}}}` and start the server when asked. |
+| **Windsurf** | Add to `mcp_config.json`: `{"mcpServers": {"citebase": {"serverUrl": "<setup address>"}}}`. |
+| **Codex CLI** | Add to `~/.codex/config.toml`: `[mcp_servers.citebase]`, `url = "<setup address>"`, `bearer_token_env_var = "APIFY_TOKEN"`. |
+| **Gemini CLI** | Add to `settings.json`: `{"mcpServers": {"citebase": {"httpUrl": "<setup address>"}}}`. |
+| **Web dashboard** | No assistant needed: open the Citebase dashboard and sign in with Apify (see [Dashboard](#dashboard)). |
 
-Steps per assistant (menu names can differ a little by plan and app version):
+```bash
+claude mcp add --transport http citebase "https://mcp.apify.com/?actors=khadinakbar/citebase&tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,get-key-value-store-record,abort-actor-run"
+```
 
-- **Claude (claude.ai and Claude Desktop):** Settings, then Connectors, then Add custom connector. Name it `Citebase`, paste the setup address, press Connect and sign in to Apify.
-- **ChatGPT:** Settings, then Connectors, turn on Developer mode, create a new connector, paste the setup address, choose OAuth, then sign in to Apify.
-- **Claude Code:** run the command below, then type `/mcp` inside Claude Code, pick `citebase` and sign in. To use a token instead, add `--header "Authorization: Bearer YOUR_APIFY_TOKEN"`.
-
-  ```bash
-  claude mcp add --transport http citebase "https://mcp.apify.com/?actors=khadinakbar/citebase&tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,get-key-value-store-record,abort-actor-run"
-  ```
-- **Cursor and other apps with a JSON settings file:** add this block. Leave out `headers` to sign in with OAuth when the app supports it. Field names can differ slightly by app.
-
-  ```json
-  {
-    "mcpServers": {
-      "citebase": {
-        "url": "https://mcp.apify.com/?actors=khadinakbar/citebase&tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,get-key-value-store-record,abort-actor-run",
-        "headers": { "Authorization": "Bearer YOUR_APIFY_TOKEN" }
-      }
+```json
+{
+  "mcpServers": {
+    "citebase": {
+      "url": "https://mcp.apify.com/?actors=khadinakbar/citebase&tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,get-key-value-store-record,abort-actor-run"
     }
   }
-  ```
-- **Direct connection (advanced):** `https://khadinakbar--citebase.apify.actor/mcp`. It needs the token header and has no sign-in button.
+}
+```
 
-**Check that it works.** Paste your website address and ask for a quick health check. Your assistant should come back with a score in words and a short list of fixes. Citebase adds no fee for this; Apify's small run cost applies.
+Menu names and file names can differ a little by app version. Apps that cannot sign in with OAuth can send the header `Authorization: Bearer YOUR_APIFY_TOKEN` instead (Apify Console → Settings → API and integrations). Prefer the sign-in: a token opens your whole Apify account. Never paste a token into a chat; if one leaks, delete it in Apify Console.
 
-**Keep your token safe.** Prefer the sign-in route, because a token gives access to your whole Apify account. Never type a token into a chat or a tool field. If one leaks, delete it in Apify Console and make a new one.
+**Check that it works.** Paste your website address and ask for a quick health check. You should get a score in words and a short list of fixes. Citebase adds no fee for this; Apify's small run cost applies.
 
-## Why this one
+## What it does
 
-| | Typical SEO plugins | SEO / GEO SaaS suites | Citebase |
-|---|---|---|---|
-| Setup | 3–5 API keys | Account + a monthly subscription | One "Sign in with Apify"; the site check and checklists need no account |
-| Goal | Rankings | Dashboards | **Getting cited and recommended by AI**; Google rankings support it |
-| Data | Whatever keys you pay for | Their index | Live: SERPs, keywords, backlinks, server-HTML audits, AI answers |
-| AI search | Checklists | Paid add-on | A frozen prompt panel run repeatedly across ChatGPT, Perplexity, Gemini, Claude and Google AI, reported as Recommendation Share with confidence intervals and control prompts |
-| Cost control | Unknown until the bill | Fixed plan | Quote before every call; in Claude Code also a cap that Apify enforces per run, a daily ceiling and a ledger per site; on the web your assistant's own confirmation prompt |
-| After the audit | "Here are your issues" | Reports | Page plan, vetted link and PR targets, pitches, approval-gated outreach, experiments you can re-measure |
-| Advice quality | Generic | Generic | Every tactic graded A/B/C from ~600 expert videos; disputed ones labelled |
-
-## What it does today
+1. **Checks your site** for what stops AI crawlers and search engines from reading it, with a 0–100 score and a fix list.
+2. **Asks the AI engines** the buying questions your customers ask, several times each, and reports **Recommendation Share**: how often you are actually recommended, with a likely range so a lucky answer is never sold as progress.
+3. **Finds the gaps**: the sites AI cites for your rivals but not you, the questions people search but you never win, the AI bots your server turns away.
+4. **Plans the work**: page briefs, link and PR targets, honest outreach drafts, one ranked next step at a time.
+5. **Re-checks** monthly and shows what really moved.
 
 | Skill (`/citebase:<name>`) | Outcome |
 |---|---|
 | `start` | Start here: picks the right workflow, prioritises, 30/60/90-day plan |
-| `seo-audit` | Weighted health score with sub-scores across technical, on-page, content, backlinks, competitors, local, AI search |
-| `seo-checklists` | On-page and off-page checklists pre-filled pass/fail for *your* site |
-| `keyword-research` | What people search for: suggestions, trends, questions, YouTube. Five groups, a page plan, one price for a ready-made pack |
-| `competitor-research` | Real SERP competitors, keyword + backlink gaps, weak pages you can outrank, page plan |
+| `seo-audit` | Weighted health score across technical, on-page, content, backlinks, competitors, local, AI search |
 | `ai-search-visibility` | What AI says about you, cited domains, wrong facts, and a plan to get cited |
-| `citation-loop` | Frozen prompt panel → repeat runs → Recommendation Share → logged experiments → re-measure |
-| `ai-content-check` | Local AI-writing pattern lint (density score); web tool `check_ai_content` |
-| `humanize-content` | Rewrite drafts to read human while keeping facts, quotes and numbers |
-| `eeat-audit` | Score Experience / Expertise / Authoritativeness / Trust; white-hat fixes only |
-| `content-optimize` | Refresh a page for SEO + AI citation readiness with human voice |
-| `content-brief` | Entity-aware brief with outline, snippet answer and do-not-fabricate list |
-| `entity-seo` | Entity map, multi-entity JSON-LD, profile reinforcement, relationship checks |
-| `programmatic-seo` | Safe pSEO templates with data-sufficiency and anti-spam gates |
-| `platform-presence` | Genuine high-authority profiles (white-hat alternative to parasite SEO) |
-| `directory-listings` | Relevant directory / listing plan with consistent NAP and blurbs |
-| `social-content` | Organic LinkedIn / YouTube / Reddit / newsletter copy and short calendars |
-| `social-listening` | Reddit, YouTube and newsletter research → themes, questions, outreach leads |
-| `link-building` | Backlink audit, gap vs competitors, vetted prospects (listicles, resource pages, broken links, mentions) |
-| `press-release` | News angle → wire-ready release, journalists who covered the topic recently, data-led pitches |
-| `creator-outreach` | Influencers, YouTubers, podcasts, newsletters: find, vet with a score, honest disclosure, tracking |
-| `outreach` | Contacts → verified emails → personalised drafts → your approval → send from your own email connector → follow-ups |
+| `citation-loop` | Frozen question list → repeated runs → Recommendation Share → logged changes → re-measure |
+| `keyword-research` | What people search for: suggestions, trends, questions, a page plan |
+| `competitor-research` | Real competitors, keyword and backlink gaps, weak pages you can outrank |
+| `link-building` | Backlink audit, gap vs competitors, vetted prospects |
+| `press-release` | News angle, release draft, journalists who covered the topic recently |
+| `outreach` | Contacts → verified emails → personalised drafts → your approval → send from your own email connector |
+| `seo-checklists`, `content-brief`, `content-optimize`, `entity-seo`, `eeat-audit`, `programmatic-seo`, `platform-presence`, `directory-listings`, `social-content`, `social-listening`, `creator-outreach`, `ai-content-check`, `humanize-content` | Focused playbooks for each job |
 
 Specialist agents run in parallel with restricted tools: `technical-auditor`, `backlink-analyst`, `competitor-analyst`, `geo-analyst`, `outreach-writer` (drafts only, cannot send).
 
-## Coming next
-- Cheaper AI-check tiers, alerts after scheduled runs, more engines, sentiment / share-of-voice.
-- Deeper crawls (JS rendering) through owned Apify Actors already in the price table.
-- Optional interoperability with open dashboards (Elmo / Ansvisor) as a planning layer — still Apify auth for Citebase.
+## Dashboard
+
+A web dashboard for everything Citebase saves, built on the same tools: sign in with Apify and see each project's Recommendation Share over time, results per engine and per question, site health, the sites cited instead of you, AI bot visits, AI traffic, Search Console demand and to-dos. You can add projects, run checks (paid ones are named as paid and capped per run), import results, and create or pause re-check schedules in your own Apify account. It is static files with no server of its own; build it with `python3 scripts/build_site.py --site https://your-domain` (source in `site/`).
 
 ## What it costs
 
-Needs no account: the local crawler (30+ checks), all checklists, writing (page briefs, releases, emails), analysis of your own exports (Search Console, GA4, or exports from any SEO tool you already use).
+Needs no account: the local crawler (30+ checks), all checklists, writing (briefs, releases, emails) and analysis of your own exports (Search Console, Google Analytics, server logs, exports from any SEO tool).
 
-Live data runs on your Apify account at each Actor's own published price. The agent quotes each run before starting it, tells you when a check is paid, and waits for your yes. Ask it for the price of any job and it will say.
+Live data runs on your own Apify account at each Actor's published price. The assistant tells you when a check is paid and waits for your yes; ask it what a specific job costs and it will say. AI answers are the expensive part, so they come with a smaller first-look option before the full baseline. Apify also bills a small amount of compute on some jobs; it is included in the quote. Keyword and backlink Actors charge a per-request fee on top of per-row prices, so runs are batched.
 
-AI answers are the expensive part, so those checks come with a smaller first-look option before the full baseline. Apify also bills a small amount of compute on some jobs; it is included in the quote. Keyword and backlink Actors charge a per-request fee on top of per-row prices, so runs are batched. New Apify accounts include free monthly credit.
+## Connector tools
 
-## Install
+The MCP server in `connector/` is published as the Apify Actor `khadinakbar/citebase`. All twelve tools add no fee of their own, have typed inputs and outputs, and save nothing unless you give a project name (then it goes into a store called `citebase-projects` in your own Apify account).
 
-```bash
-claude plugin marketplace add khadinakbarlabs/citebase
-claude plugin install citebase@citebase
-```
-Local checkout: `claude plugin marketplace add ./citebase` or `claude --plugin-dir ./citebase`.
+| Tool | Returns |
+|---|---|
+| `get_playbook` | The skills and references of this plugin, as text |
+| `audit_site` | Health score, scores per area, top problems; with a project name it is saved, with what was fixed since last time |
+| `quote_cost` | Paid jobs, run plans and the spending cap per run |
+| `measure_recommendation_share` | Recommendation Share with ranges, control questions and verdicts per change |
+| `next_steps` | A plain-language, ranked to-do list |
+| `check_outreach_draft` | Whether an email is ready to send, with fixes |
+| `check_ai_content` | AI-writing pattern density for a draft (local lint, not a commercial detector) |
+| `save_results` | Saves rounds, question lists, brand, settings, to-dos, server logs, analytics and Search Console exports |
+| `get_history` | Every project and what is due; per project: rounds, results per engine and per question, site checks, signals, to-dos |
+| `make_report` | A one-page shareable report with a trend chart |
+| `import_ai_results` | Turns finished AI-check runs (by dataset id) into a saved round |
+| `schedule_checks` | The plan for automatic re-checks in Apify Schedules |
 
-**Connect data (once):** run `/mcp`, choose `plugin:citebase:apify`, click **Authenticate** and sign in with Apify. No key to copy.
-**claude.ai / Claude Desktop / ChatGPT / Cursor:** use the web connector described below. Hooks do not run there, so the spending and send guardrails below rely on the playbooks' instructions and each product's own confirmation prompts.
-**Email sending (optional):** connect any email connector you already use. Citebase does not recommend or sell one. Without one you get copy-paste drafts.
+## Claude Code settings
 
-Settings (`/plugin configure citebase@citebase`):
+`/plugin configure citebase@citebase`:
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -133,61 +114,35 @@ Settings (`/plugin configure citebase@citebase`):
 | `daily_send_cap` | 20 | Maximum recipients per day (to + cc + bcc) |
 | `allowed_actors` | empty | Extra `owner/name` Actors besides `khadinakbar/*` |
 
-## Use it on the web: the Citebase connector
+Workspace files go to `seo-workspace/<domain>/` (audit, checklists, question list, prospects, drafts, outreach log, a ledger of every paid run). Add `seo-workspace/` to `.gitignore` in public projects: it holds contact lists.
 
-For assistants without plugins (ChatGPT, claude.ai, Cursor, any MCP client) this repo also contains an open-source MCP server in `connector/`, published as the Apify Actor `khadinakbar/citebase`.
-
-Connect it with the steps near the top of this page, then paste your website address and ask for a quick health check.
-
-| Tool | Returns |
-|---|---|
-| `get_playbook` | The skills and references of this plugin, as text |
-| `audit_site` | Health score, scores per area, top problems. With a project name: saved, with what was fixed since last time |
-| `quote_cost` | Cost of paid Apify jobs and the cap to use |
-| `measure_recommendation_share` | Recommendation Share with ranges, controls and experiment verdicts |
-| `next_steps` | A plain-language, ranked to-do list |
-| `check_outreach_draft` | Whether an email is ready to send, with fixes |
-| `check_ai_content` | AI-writing pattern density for a draft (local lint, not a commercial detector) |
-| `save_results` | Saves rounds and site checks under a project name in your own Apify account |
-| `get_history` | With no project: every saved project and what is due. With a project: Recommendation Share, site score, settings, to-dos, logged changes |
-| `make_report` | One-page shareable report with a trend chart |
-| `import_ai_results` | Converts results of AI Brand Monitor, Google AI Overviews, Google AI Mode and the tracker Actors into saved rows; a first round goes in with one call |
-| `schedule_checks` | Steps, the Actor runs to add (assistants repeated 1 to 5 times, Google answers once) and the worst-case monthly cost for automatic re-checks in Apify Schedules; the website comes from the saved project |
-
-All twelve add no fee of their own. Nothing is stored unless you give a project name; then it goes into a named store in your own Apify account. Each has described inputs, a typed output schema and tool annotations. Paid data comes from the author's public Apify Actors, listed with prices in `.actor/ACTOR_README.md`; the connector only quotes them and never runs them. Run your own copy with `apify push` from the repo root (`.actor/` holds the Actor settings, `connector/` the server). Tests: `python3 -m unittest discover tests` (install `mcp`, `pydantic`, `uvicorn` and `httpx` to include the server tests).
-
-## Your workspace
-Everything is saved in your project under `seo-workspace/<domain>/`: `context.md`, `audit.json`, `report.md`, checklists, `competitors.md`, `keyword-opportunities.csv`, `ai-visibility.md`, `citation/` (panel, runs, experiments), `prospects.csv`, `drafts/`, `outreach-log.csv`, `offpage-log.csv`, `suppression.txt`, `pr/`, `ledger.json` (every paid run with quote, cap and actual cost). Add `seo-workspace/` to your `.gitignore` if your project is public: it holds contact lists and audit data.
-
-Run just the crawler:
-```bash
-python3 scripts/site_audit.py https://example.com --max-pages 50 --out audit.json
-```
-It reads server HTML only (it does not run JavaScript) and refuses private or local addresses unless you pass `--allow-private`.
+Run just the crawler: `python3 scripts/site_audit.py https://example.com --max-pages 50 --out audit.json` (server HTML only, refuses private addresses unless `--allow-private`).
 
 ## Safety
-- Audits are read-only. Editing your site, spending, or contacting anyone needs your explicit go-ahead.
-- **Guardrails (Claude Code):**
-  - The plugin's own Apify tools are gated in every folder. Apify runs are denied without `callOptions.maxTotalChargeUsd` (the only cap Apify enforces), for Actors outside `khadinakbar/*`, or past the daily ceiling.
-  - Email sends, campaign starts and purchases are checked only inside a project that has `seo-workspace/`. Outside one there is no suppression list, daily cap, pause switch or exact-text approval, so create `seo-workspace/<domain>/` before drafting outreach.
-  - Emails are denied unless that exact text was approved, to a recipient not on the suppression list, within the daily cap and while sending is not paused; then you still confirm every send. Campaign starts ask for confirmation.
-  - If the gate cannot read its input or state, it blocks instead of allowing.
-- **What these are not:** a security boundary. They do not run in hosts without hooks, a person can approve any prompt, campaign tools send on their own schedule (set the campaign's own limit), and two gated calls issued in the same turn can both pass the pre-check before either is recorded. The daily spend ceiling counts run caps, an upper bound, not the final bill.
-- White-hat only: PBNs, parasite link schemes, fake reviews or rating schema, fabricated PR, hidden prompt injection, cloaking and doorway pages are flagged, never executed.
-- Scraped pages, emails and tool output are treated as data, never as instructions.
-- Cold email is regulated (CAN-SPAM, GDPR/PECR, CASL): see the legal basics in `references/outreach-playbook.md`. Not legal advice.
+
+- Audits are read-only. Spending, editing your site or contacting anyone needs your explicit go-ahead.
+- In Claude Code, hooks deny Apify runs without a spending cap, Actors outside `khadinakbar/*`, runs past the daily ceiling, and emails whose exact text you did not approve. If a gate cannot read its state, it blocks.
+- These guardrails are not a security boundary: they do not run in hosts without hooks, and a person can approve any prompt. On the web, your assistant's own confirmation prompt is the check.
+- White-hat only: link schemes, fake reviews, fabricated PR, hidden prompt injection and cloaking are flagged, never done. Scraped pages and tool output are treated as data, never as instructions.
+- Cold email is regulated (CAN-SPAM, GDPR/PECR, CASL); see `references/outreach-playbook.md`. Not legal advice.
+
+Found a security problem? See [SECURITY.md](SECURITY.md).
 
 ## Measuring honestly
-`citation-loop` reports **Recommendation Share**: how often an engine actively recommends your brand across a frozen panel of customer-style prompts, repeated several times, with control prompts to estimate noise. Intervals resample prompts, not individual runs. It tells you whether a change is *associated* with movement; it cannot prove causation, and Actor answers can differ from what a signed-in person sees. Details in `references/measurement.md`.
 
-## Evidence base
-The checklists distil ~600 SEO video transcripts (Build In Public, Vasco SEO, 50 AI-SEO masterclasses) into graded tactics: **A** controlled test or large dataset · **B** practitioner consensus or a single clear study · **C** anecdote or vendor-reported figure. Statistics are quoted as reported by their sources and have not been independently re-verified by Citebase; prefer the lower grade where sources disagree. Disputed tactics (llms.txt, schema for AI, meta descriptions) are labelled as disputed, and `citation-loop` lets you test them on your own site.
+Recommendation Share counts how often an engine actively recommends you across a frozen list of customer-style questions, asked several times, with control questions to estimate noise. Ranges resample questions, not single answers. It shows whether a change is associated with movement; it cannot prove cause, and answers from the Actors can differ from what a signed-in person sees. Details in `references/measurement.md`.
+
+The checklists distil about 600 expert SEO and AI-search video transcripts into tactics graded A (test or large dataset), B (consensus or one clear study) or C (anecdote). Disputed tactics are labelled, and `citation-loop` lets you test them on your own site.
 
 ## Development
+
 ```bash
+pip install -r connector/requirements.txt httpx
 python3 -m unittest discover tests
 ```
-Standard library only. Scripts: `site_audit.py` (crawler), `approval_gate.py` (hook), `outreach_ledger.py` (approvals, suppression, pause), `citation_loop.py` (measurement), `cb_state.py` (shared state in `~/.citebase`, override with `CITEBASE_HOME`).
 
-## License
+`scripts/`: `site_audit.py` (crawler), `approval_gate.py` (hook), `outreach_ledger.py`, `citation_loop.py` (measurement), `build_site.py` (dashboard). `connector/`: the MCP server. `.actor/`: Apify Actor settings; deploy your own copy with `apify push`.
+
+## Licence
+
 MIT
