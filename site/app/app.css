@@ -462,3 +462,8 @@ dialog.dlg[open]{animation:pop .25s cubic-bezier(.16,1,.3,1)}
 .mood .legend{margin-top:.45rem;text-transform:capitalize}
 .ideas{display:grid;gap:.4rem}
 .ideas .chip-btn:disabled{opacity:.45;cursor:default}
+
+:root{--e8:#e34948}
+@media (prefers-color-scheme:dark){:root{--e7:#9085e9;--e8:#e66767}}
+:root{--e7:#6250d6}
+.dot.e8,.legend i.e8{background:var(--e8)}.chart .ln.e8{stroke:var(--e8)}.chart .pt.e8,.chart .bar.e8{fill:var(--e8)}

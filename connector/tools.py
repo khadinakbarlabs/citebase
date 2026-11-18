@@ -451,7 +451,7 @@ MONITOR_MAX_QUERIES = 20  # the AI Brand Monitor takes at most 20 questions per 
 # Engines a schedule can plan, in the order a baseline round lists them. The assistants are checked by the AI Brand
 # Monitor (no repeat setting: a repeat is the same run added again); Google AI Overviews and AI Mode are one answer
 # per search, so they are planned once.
-ASSISTANT_ENGINES = ("perplexity", "chatgpt", "gemini", "claude")
+ASSISTANT_ENGINES = ("perplexity", "chatgpt", "gemini", "claude", "grok", "deepseek")
 GOOGLE_ENGINES = {"google-aio": ("ai_overview", "Google AI Overviews"), "google-aimode": ("ai_mode", "Google AI Mode")}
 ENGINE_ORDER = (*ASSISTANT_ENGINES, *GOOGLE_ENGINES)
 PACK_ENGINES = ("perplexity", "chatgpt", "gemini", "google-aio")  # what the ai_check pack buys

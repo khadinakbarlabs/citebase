@@ -46,7 +46,8 @@
   CB.safeUrl = function (u) { try { var x = new URL(u); return /^https?:$/.test(x.protocol) ? x.href : null; } catch (e) { return null; } };
   // Engines keep one colour each everywhere (colour follows the engine, never its rank).
   CB.ENGINES = [['chatgpt', 'ChatGPT', 'e1'], ['google-aio', 'Google AI Overviews', 'e2'], ['perplexity', 'Perplexity', 'e3'],
-    ['gemini', 'Gemini', 'e4'], ['claude', 'Claude', 'e5'], ['google-aimode', 'Google AI Mode', 'e6']];
+    ['gemini', 'Gemini', 'e4'], ['claude', 'Claude', 'e5'], ['google-aimode', 'Google AI Mode', 'e6'],
+    ['grok', 'Grok', 'e7'], ['deepseek', 'DeepSeek', 'e8']];
   function engineRow(k) { return CB.ENGINES.filter(function (x) { return x[0] === k; })[0]; }
   CB.engine = function (k) { var e = engineRow(k); return e ? e[1] : k; };
   CB.ecls = function (k) { var e = engineRow(k); return e ? e[2] : 'e7'; };

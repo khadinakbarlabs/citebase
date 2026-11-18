@@ -59,7 +59,7 @@ If sign-in fails, see the troubleshooting table near the end of this page.
 
 ## What is Citebase?
 
-Citebase is a connector that helps a brand get **recommended and cited by AI assistants** such as ChatGPT, Claude, Gemini and Perplexity. You connect it to your own AI assistant and ask for help in plain words. It returns step-by-step guidelines, a website health check, price quotes for paid data jobs, "how often does AI recommend me" results, a short to-do list, a check for outreach emails, saved history, a shareable report and a plan for automatic re-checks. Citebase itself adds no fee; the data jobs cost money and come from separate Actors listed below, always with a price quote and a spending cap first.
+Citebase is a connector that helps a brand get **recommended and cited by AI assistants** such as ChatGPT, Claude, Gemini and Perplexity. You connect it to your own AI assistant and ask for help in plain words. It returns step-by-step guidelines, a website health check, price quotes for paid data jobs, "how often does AI recommend me" results, a short to-do list, your share of voice against rivals, a check for outreach emails, saved history, a shareable report and a plan for automatic re-checks. Citebase itself adds no fee; the data jobs cost money and come from separate Actors listed below, always with a price quote and a spending cap first.
 
 Built for founders, marketers and small agencies who want to show up when people ask an AI "what is the best X for Y?" and do not want to learn SEO jargon first.
 
@@ -164,7 +164,7 @@ Citebase never runs these itself and never calls other people's Actors. It tells
 | `keyword_volume` | [Keyword Research](https://apify.com/khadinakbar/dataforseo-keyword-research) | Exact search volume, cost per click and competition for keywords you already have |
 | `backlinks` | [Website Backlink Checker](https://apify.com/khadinakbar/website-backlink-checker) | Who links to a site: backlinks, referring domains and anchor text |
 | `backlink_prospects` | [Backlink Opportunity Finder](https://apify.com/khadinakbar/backlink-opportunity-finder) | Link prospects: resource pages, best-of lists and guest-post sites |
-| `ai_brand_check` | [AI Brand Monitor](https://apify.com/khadinakbar/ai-search-brand-monitor) | Does an AI assistant mention or recommend your brand? Checks ChatGPT, Perplexity, Claude and Gemini answers |
+| `ai_brand_check` | [AI Brand Monitor](https://apify.com/khadinakbar/ai-search-brand-monitor) | Does an AI assistant mention or recommend your brand? Checks ChatGPT, Perplexity, Claude, Gemini, Grok and DeepSeek answers |
 | `ai_page_citation` | [AI Search Visibility Tracker](https://apify.com/khadinakbar/ai-search-visibility-tracker) | Which of your pages AI assistants cite, and which competitors they cite instead |
 | `ai_citation_scan` | [AI Citations Tracker](https://apify.com/khadinakbar/ai-citations-tracker) | The sources behind a Perplexity answer |
 | `ai_overview` | [Google AI Overviews Scraper](https://apify.com/khadinakbar/google-ai-overviews-scraper) | Google AI Overviews for a search, and whether your domain is among the sources |

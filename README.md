@@ -1,6 +1,6 @@
 # Citebase
 
-**Get your brand recommended by AI.** Citebase checks whether ChatGPT, Google AI Overviews, Perplexity, Gemini and Claude recommend your brand, shows which sites they trust instead, tells you the next fix, and re-checks to prove it worked. It runs inside the AI assistant you already use, with one sign-in: Apify.
+**Get your brand recommended by AI.** Citebase checks whether ChatGPT, Google AI Overviews, Google AI Mode, Perplexity, Gemini, Claude, Grok and DeepSeek recommend your brand, shows which sites they trust instead, tells you the next fix, and re-checks to prove it worked. It runs inside the AI assistant you already use, with one sign-in: Apify.
 
 [![ci](https://github.com/khadinakbarlabs/citebase/actions/workflows/ci.yml/badge.svg)](https://github.com/khadinakbarlabs/citebase/actions/workflows/ci.yml) · MIT licence · Python 3.11+
 
@@ -55,7 +55,7 @@ Menu names and file names can differ a little by app version. Apps that cannot s
 
 1. **Checks your site** for what stops AI crawlers and search engines from reading it, with a 0–100 score and a fix list.
 2. **Asks the AI engines** the buying questions your customers ask, several times each, and reports **Recommendation Share**: how often you are actually recommended, with a likely range so a lucky answer is never sold as progress.
-3. **Finds the gaps**: the sites AI cites for your rivals but not you, the questions people search but you never win, the AI bots your server turns away.
+3. **Finds the gaps**: your share of voice against each rival, how AI talks about you, the sites AI cites for your rivals but not you, the questions people search but you never win, the AI bots your server turns away.
 4. **Plans the work**: page briefs, link and PR targets, honest outreach drafts, one ranked next step at a time.
 5. **Re-checks** monthly and shows what really moved.
 
