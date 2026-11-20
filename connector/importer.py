@@ -242,7 +242,7 @@ class Tally:
         entry["example"] = entry["example"] or str(example)[:120]
 
 
-def provenance(item: dict, tally: Tally) -> dict[str, str]:
+def provenance(item: dict, tally: Tally, use_context: bool = True) -> dict[str, str]:
     """Model, country, language, device, collection method and time of one answer, from the item or the run settings."""
     out = {}
     for field, keys in PROVENANCE_KEYS.items():
@@ -250,7 +250,7 @@ def provenance(item: dict, tally: Tally) -> dict[str, str]:
                       and not isinstance(item.get(k), bool) and str(item[k]).strip()), "")
         limit = cl.ANSWERED_AT_LIMIT if field == "answered_at" else cl.PROVENANCE_LIMITS[field]
         out[field] = " ".join(str(value).split())[:limit]
-    for field in CONTEXT_STAMPED:
+    for field in CONTEXT_STAMPED if use_context else ():
         given = tally.context.get(field)
         if not given:
             continue
@@ -296,6 +296,17 @@ def judged(platform, mentioned, cited, position="", competitors="", cited_domain
 
 def review_entry(reason: str, context: str = "", count: int = 0, sentiment: str = "unknown") -> dict:
     return {"sentiment": sentiment, "mention_count": count, "reason": reason, "context": str(context)[:300]}
+
+
+def evidence_urls(item, shape):
+    from fact_checks import safe_evidence_urls
+    fields = {BRAND_MONITOR: ("cited_urls",), AI_OVERVIEWS: ("sources",), AI_MODE: ("citations",),
+              VISIBILITY: ("cited_pages",), CITATIONS: ("trackedCitationUrls", "citations")}
+    if shape == AI_OVERVIEWS and item.get("aioPresent") is False:
+        return []
+    candidates = [url_of(v) for field in fields[shape] if isinstance(item.get(field), list)
+                  for v in item[field][:30]]
+    return safe_evidence_urls(candidates)
 
 
 def adapt_brand_monitor(item: dict, brand, tally: Tally) -> dict:
@@ -436,7 +447,7 @@ def notes_for(tally: Tally, shapes: dict[str, int]) -> list[str]:
 
 
 def convert(items: list[dict], panel: list[dict], snapshot: str, brand: dict | None = None,
-            context: dict | None = None) -> dict:
+            context: dict | None = None, *, google_context_only: bool = False, item_origins: list[str] | None = None) -> dict:
     """Maps AI-check results to run rows.
 
     Returns {runs, unmatched_queries, needs_review, summary, skipped, detected, notes, context}. Raises ValueError,
@@ -449,7 +460,7 @@ def convert(items: list[dict], panel: list[dict], snapshot: str, brand: dict | N
     seq: dict[tuple[str, str], int] = defaultdict(int)
     shapes: dict[str, int] = defaultdict(int)
     runs, unmatched, review = [], [], []
-    for item in items:
+    for item_index, item in enumerate(items):
         if not isinstance(item, dict):
             tally.skip("not_an_item", type(item).__name__)
             continue
@@ -478,14 +489,26 @@ def convert(items: list[dict], panel: list[dict], snapshot: str, brand: dict | N
         platform = row["platform"]
         seq[(pid, platform)] += 1
         shapes[shape] += 1
-        stamp = provenance(item, tally)
+        stamp = provenance(item, tally, not google_context_only or shape in (AI_OVERVIEWS, AI_MODE))
         day = cl.parse_date(stamp["answered_at"])
+        answer = first_text(item, ("ai_response_summary",)) if shape == BRAND_MONITOR else (
+            first_text(item, TEXT_KEYS) if shape in (AI_OVERVIEWS, AI_MODE) else "")
+        if shape == AI_OVERVIEWS and item.get("aioPresent") is False:
+            answer = ""
         runs.append({
             "snapshot": snapshot, "prompt_id": pid, "platform": platform, "repeat": seq[(pid, platform)],
             "mentioned": row["mentioned"], "cited": row["cited"], "recommended": row["recommended"],
             "position": row["position"], "competitors": row["competitors"], "cited_domains": row["cited_domains"],
             "sentiment": row.get("sentiment") or None,
+            "answer_text": answer[:cl.ANSWER_TEXT_LIMIT] or None,
+            "answer_truncated": (item.get("answer_truncated") is True or len(answer) > cl.ANSWER_TEXT_LIMIT)
+            if answer else None,
             "date": day.isoformat() if day else None, "metric_version": METRIC_VERSION, **stamp})
+        if item_origins:
+            runs[-1]["source_dataset_id"] = item_origins[item_index]
+        urls = evidence_urls(item, shape)
+        if urls:
+            runs[-1]["cited_urls"] = urls
         if row["review"]:
             review.append({"prompt_id": pid, "platform": platform, "auto_recommended": False, **row["review"]})
         for warning in (w for w in (item.get("warnings") or []) if isinstance(w, str) and w):

@@ -7,23 +7,47 @@
 <meta name="referrer" content="no-referrer">
 <title>Citebase dashboard</title>
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/geist-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../appearance.css">
+<script src="../appearance.js"></script>
 <link rel="stylesheet" href="app.css">
-<meta name="theme-color" content="#f6f3ec">
+<link rel="stylesheet" href="records.css">
+<link rel="stylesheet" href="focus.css">
+<link rel="stylesheet" href="usage.css">
+<link rel="stylesheet" href="guide.css">
+<link rel="stylesheet" href="onboarding.css">
+<meta name="theme-color" content="#faf9ff">
 </head>
 <body>
+<a class="skip-link" id="skip-content" href="#main">Skip to content</a>
 <header class="bar">
   <a class="brand" href="../"><img src="../favicon.svg" alt="" width="26" height="26"><span>Citebase</span></a>
-  <nav id="crumbs" aria-label="Breadcrumb"></nav>
+  <nav id="crumbs" aria-label="Workspace"></nav>
+  <button type="button" data-theme-toggle hidden aria-label="Dark appearance" aria-pressed="false"><svg aria-hidden="true"><use href="../assets/icons.svg#moon"></use></svg></button>
   <div id="who" class="who"></div>
 </header>
+<section id="workspace-guide" class="tour-guide" aria-label="Guided dashboard tour" hidden></section>
 <main id="main" tabindex="-1"></main>
 <div id="tip" class="tip" role="tooltip" hidden></div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 <script src="config.js"></script>
+<script src="session.js"></script>
 <script src="core.js"></script>
+<script src="usage.js"></script>
+<script src="prepaid.js"></script>
 <script src="demo.js"></script>
+<script src="sample-work.js"></script>
 <script src="flows.js"></script>
+<script src="history-ui.js"></script>
+<script src="work.js"></script>
 <script src="pages.js"></script>
+<script src="focus.js"></script>
+<script src="guide.js"></script>
+<script src="google.js"></script>
+<script src="citation-outreach.js"></script>
+<script src="research-collection.js"></script>
+<script src="plan.js"></script>
+<script src="onboarding.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

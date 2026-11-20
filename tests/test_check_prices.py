@@ -43,6 +43,11 @@ def drifts(rows):
 
 
 class LivePricing(unittest.TestCase):
+    def test_tiered_event_uses_the_largest_public_price_for_the_cap(self):
+        item = {"pricingPerEvent":{"actorChargeEvents":{"row":{"eventTieredPricingUsd":{
+            "FREE":{"tieredEventPriceUsd":0.025},"SILVER":{"tieredEventPriceUsd":0.020}}}}}}
+        self.assertEqual(cp.event_prices(item), {"row":0.025})
+
     def test_current_entry_is_the_latest_one_that_has_started(self):
         data = actor(SERP_LIVE)["data"]
         data["pricingInfos"] = [entry({"a": 3}, started="2026-12-01T00:00:00.000Z"),

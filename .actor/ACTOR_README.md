@@ -96,6 +96,7 @@ Built for founders, marketers and small agencies who want to show up when people
 | `get_playbook` | Citebase's guidelines: the list of names, or one playbook's text (22 workflows and 12 guides and checklists) | No Citebase fee |
 | `audit_site` | 0-100 health score, scores per area, the top problems with example pages. With a project name it is saved and shows what was fixed since the last check | No Citebase fee |
 | `quote_cost` | Cost of each paid job, the total and the spending cap to use | No Citebase fee |
+| `get_account_usage` | Your signed-in account’s monthly Apify usage, included credits remaining and spending limit where available. Open Apify Billing for your full balance. | No Citebase fee |
 | `measure_recommendation_share` | How often AI recommends the brand, with ranges, a noise check and a verdict per change | No Citebase fee |
 | `next_steps` | Ranked to-do list: what, why, who, how long | No Citebase fee |
 | `check_outreach_draft` | Ready yes/no, problems to fix, warnings, a fingerprint of the exact text | No Citebase fee |
@@ -152,9 +153,13 @@ Plain JSON call, `POST /run` (what an assistant sends through `mcp.apify.com`):
 
 You can also run this Actor normally with the same two fields as input: `tool` (one of the twelve names, or `scheduled_check`: the site check plus report refresh, meant for an Apify Schedule) and `arguments` (a JSON object). A bad input ends the run as failed and the dataset item says what to fix.
 
+Use the signed-in dashboard or MCP server to import answers, review private evidence and create report links.
+For a direct project API request, configure the platform bearer in `X-Apify-Authorization` and the project bearer in `X-Citebase-Authorization` in your HTTPS client's private settings.
+For private project work through Apify's managed MCP, use `call-actor` with an encrypted request such as `{"tool":"project_work","private_request":{"project":"acme-site","operation":"project_focus"}}`. Use the same field for `save_results` and `get_history`. Keep project details out of regular `arguments`. Read `OUTPUT` with the signed-in `get-key-value-store-record` tool, then read the record identified by `private_result.store_id` and `private_result.key`. This normal Actor run incurs Apify compute. The dashboard handles schedule changes with the customer's schedule permissions.
+
 ## Actors Citebase uses for paid data
 
-Citebase never runs these itself and never calls other people's Actors. It tells your assistant which one fits, what it will cost and which spending cap to set; you approve and the assistant runs it on your own Apify account. All are public Actors by the same author.
+For one-off checks, your assistant gets a spending cap, asks for your approval and starts the run on your Apify account. If you create a recurring AI schedule, its Citebase action starts the capped checks and saves their results. All listed Actors are owned by the same author.
 
 | Job name | Actor | What it gets you |
 |---|---|---|
@@ -192,6 +197,7 @@ Citebase never runs these itself and never calls other people's Actors. It tells
 | `creator_report` | [Creator Intelligence Report](https://apify.com/khadinakbar/influencer-marketing-intelligence-scraper) | A report on a creator's audience fit and recent posts |
 | `newsletter_post` | [Substack Posts Scraper](https://apify.com/khadinakbar/substack-posts-scraper) | Posts from newsletters on your topic |
 | `traffic_rank` | [Website Traffic and Rank](https://apify.com/khadinakbar/similarweb-traffic-rank-scraper) | Estimated traffic and rank of a website |
+| `domain_ranked_keywords` | [Keyword and Backlink Analyzer](https://apify.com/khadinakbar/ahrefs-alternative) | Competitor ranking pages, search positions and estimated organic visits for individual keywords |
 | `tech_stack` | [Website Technology Detector](https://apify.com/khadinakbar/website-tech-stack-detector) | What a site is built with |
 | `bing_rank` | [Bing Rank Tracker](https://apify.com/khadinakbar/bing-rank-tracker) | Where a domain ranks on Bing for your keywords |
 | `crawl_page` | [Website SEO Crawler](https://apify.com/khadinakbar/website-seo-spider) | A full-site crawl, page by page |

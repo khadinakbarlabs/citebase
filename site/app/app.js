@@ -1,15 +1,38 @@
-/* Citebase dashboard screens: project list, and per project the tabs Overview, AI answers, Questions, Site,
-   Traffic and To-do. Uses window.CB from core.js. */
+/* Citebase dashboard screens and project navigation. Uses window.CB from core.js. */
 (function () {
   'use strict';
   var CB = window.CB, h = CB.h, pct = CB.pct, num = CB.num, day = CB.day, short = CB.short;
   var main = document.getElementById('main'), crumbs = document.getElementById('crumbs'), who = document.getElementById('who');
-  var TABS = [['overview', 'Overview'], ['answers', 'AI answers'], ['questions', 'Questions'], ['site', 'Site'], ['traffic', 'Traffic'], ['todo', 'To-do']];
+  var SECTIONS = [
+    { tabs: CB.hasProjectWork ? [['overview', 'Overview'], ['setup', 'Project setup']] : [['overview', 'Overview']] },
+    { label: 'Measure', tabs: [['answers', 'AI answers'], ['questions', 'Questions'], ['site', 'Site'], ['traffic', 'Traffic']] },
+    { label: 'Act', tabs: CB.hasProjectWork ? [['evidence', 'Evidence'], ['todo', 'Actions'], ['outreach', 'Outreach']] : [['todo', 'Actions']] }
+  ];
+  var TABS = SECTIONS.reduce(function (tabs, group) { return tabs.concat(group.tabs); }, []);
   var METRICS = [['recommendation_share', 'Recommended'], ['mentioned_rate', 'Mentioned'], ['cited_rate', 'Cited']];
-  var view = { metric: 'recommendation_share', engines: null, qFilter: 'all', qTopic: '', qSearch: '', todoFilter: 'open' };
-  var projectsCache = null, currentTab = 'overview';
+  function interfaceIcon(name) {
+    return CB.s('svg', { class: 'interface-icon', viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' },
+      CB.s('use', { href: '../assets/icons.svg#' + name }));
+  }
+  var sectionIcons = { overview:'overview', answers:'answers', questions:'questions', site:'site',
+    traffic:'traffic', evidence:'evidence', todo:'action', outreach:'outreach' };
+  var metricIcons = { recommendation_share:'results', mentioned_rate:'mention', cited_rate:'sources', site_health:'health' };
+  function initialView() { return { metric: 'recommendation_share', engines: null, qFilter: 'all', qTopic: '', qSearch: '' }; }
+  var view = initialView(), viewProject = null;
+  var mountedProject = null, navigation = 0, access = 'checking';
+  var skipLink = document.getElementById('skip-content');
+  if (skipLink) skipLink.addEventListener('click', function (event) {
+    event.preventDefault(); (mountedProject ? mountedProject.body : main).focus();
+  });
 
-  function page() { CB.untip(); CB.clear(main); main.classList.remove('enter'); void main.offsetWidth; main.classList.add('enter'); }
+  function page() {
+    CB.untip(); CB.clear(main); mountedProject = null;
+    main.removeAttribute('aria-busy'); main.classList.remove('project-page', 'enter'); void main.offsetWidth; main.classList.add('enter');
+  }
+  function currentRequest() {
+    var revision = navigation, address = location.hash, session = CB.sessionId();
+    return function () { return revision === navigation && address === location.hash && session === CB.sessionId(); };
+  }
   function card(title, sub, body, tools, cls) {
     return h('section', { class: 'card' + (cls ? ' ' + cls : '') },
       h('div', { class: 'card-top' }, h('div', {}, h('h3', { text: title }), sub ? h('p', { class: 'sub', text: sub }) : null), tools ? h('div', { class: 'tools' }, tools) : null),
@@ -23,7 +46,8 @@
   }
   function legend(items) { return h('div', { class: 'legend' }, items.map(function (it) { return h('span', {}, h('i', { class: it[1] }), it[0]); })); }
   function arrow(dlt, unit) {
-    if (dlt == null || !Math.round(dlt)) return h('span', { class: 'flat', text: '= same' });
+    if (!Number.isFinite(dlt)) return h('span', { class: 'flat', text: '–' });
+    if (!Math.round(dlt)) return h('span', { class: 'flat', text: '= same' });
     return h('span', { class: 'delta ' + (dlt > 0 ? 'up' : 'down'), text: (dlt > 0 ? '▲ ' : '▼ ') + Math.abs(Math.round(dlt)) + (unit || '') });
   }
   function tableToggle(chart, table) {
@@ -36,53 +60,76 @@
 
   /* ---------- top bar ---------- */
   var NAV = [['#/', 'Projects'], ['#/activity', 'Activity'], ['#/schedules', 'Schedules'], ['#/account', 'Account']];
-  function topbar(current, section) {
+  function topbar(section) {
     CB.clear(crumbs);
     section = section || 'projects';
     NAV.forEach(function (n) {
       crumbs.appendChild(h('a', { href: n[0], class: 'navlink', 'aria-current': n[1].toLowerCase() === section ? 'page' : null, text: n[1] }));
     });
-    if (!current) return;
-    crumbs.appendChild(h('span', { 'aria-hidden': 'true', text: '/' }));
-    if (projectsCache && projectsCache.length > 1) {
-      var sel = h('select', { class: 'switch', 'aria-label': 'Switch project' }, projectsCache.map(function (p) {
-        return h('option', { value: p.project, selected: p.project === current, text: p.brand || p.project }); }));
-      sel.addEventListener('change', function () { location.hash = '#/p/' + encodeURIComponent(sel.value) + '/' + currentTab; });
-      crumbs.appendChild(sel);
-    } else crumbs.appendChild(h('span', { text: current }));
   }
   function accountBar() {
     CB.clear(who);
     who.appendChild(h('button', { class: 'btn icon', type: 'button', title: 'Reload from Apify', 'aria-label': 'Reload from Apify', text: '↻',
-      onclick: function () { CB.refresh(); projectsCache = null; route(); CB.toast('Reloaded'); } }));
+      onclick: function () { CB.refresh(); if (!CB.demo) CB.usage.read(true).catch(function () {}); route(); } }));
     if (CB.demo) {
-      who.appendChild(h('span', { class: 'pill', text: 'Sample data' }));
-      if (CB.api) who.appendChild(h('a', { class: 'btn link', href: './', text: 'Use my data' }));
+      who.appendChild(h('span', { class: 'pill', title: 'Sample projects. Sign in with Apify to save changes or start checks.', text: 'Sample data' }));
+      if (CB.api) who.appendChild(h('a', { class: 'btn link',
+        href: CB.cfg.oauth && CB.cfg.oauth.session === false ? './?signin=1' : '/api/session/?start', text: 'Use my data' }));
       return;
     }
-    var signOut = h('button', { class: 'btn link', type: 'button', text: 'Sign out', onclick: function () { signedOut('You are signed out.'); } });
-    who.appendChild(signOut);
-    CB.whoami().then(function (name) { if (name) who.insertBefore(h('span', { class: 'me', text: name }), signOut); });
+    var signOut = h('button', { class: 'btn link', type: 'button', text: 'Sign out', onclick: async function () {
+      signOut.disabled = true;
+      try { await CB.signOut(); }
+      catch (_) { signOut.disabled = false; CB.toast('Could not sign out. Check your connection and try again.', true); }
+    } });
+    var account = CB.sessionId();
+    var usage = h('a', {class:'usage-shortcut',href:'#/account',text:'Apify usage',title:'View account credits and spending limit'});
+    var whoName = h('span', {class:'me'});
+    who.append(usage, whoName, signOut);
+    CB.usage.onUpdate = function (snapshot) {
+      if (account !== CB.sessionId() || !who.contains(signOut)) return;
+      usage.textContent = CB.usage.compact(snapshot);
+      whoName.textContent = snapshot.username || '';
+      whoName.title = whoName.textContent;
+    };
+    CB.usage.read().catch(function () {});
   }
 
   /* ---------- signed out ---------- */
   function signedOut(msg) {
-    CB.forget(); page(); CB.clear(crumbs); CB.clear(who);
+    var leaving = access === 'in' || access === 'demo';
+    CB.usage.reset();
+    access = 'out'; navigation++; clearTimeout(watchTimer); CB.forget();
+    view = initialView(); viewProject = null;
+    Array.from(document.querySelectorAll('dialog.dlg')).reverse().forEach(function (dialog) {
+      if (dialog.open) dialog.close();
+      dialog.remove();
+    });
+    CB.clear(document.getElementById('tip'));
+    var toast = document.getElementById('toast');
+    CB.clear(toast); toast.className = 'toast';
+    if (leaving) history.replaceState(null, '', location.pathname);
+    page(); CB.clear(crumbs); CB.clear(who); document.title = 'Sign in · Citebase';
+    document.getElementById('workspace-guide').hidden = true;
+    var signIn = h('button', { class: 'btn big apify', type: 'button', onclick: function () { CB.markSignedOut(false); CB.signIn(); } },
+      h('span', { class: 'apify-mark', 'aria-hidden': 'true' }), 'Sign in with Apify');
     main.appendChild(h('div', { class: 'signin' },
-      h('div', { class: 'signin-art', 'aria-hidden': 'true' }, h('span'), h('span'), h('span'), h('span'), h('span')),
+      h('div', { class: 'signin-symbol', 'aria-hidden': 'true' }, interfaceIcon('target')),
       h('span', { class: 'eyebrow', text: 'Your dashboard' }),
       h('h1', { text: 'See how AI search treats your brand' }),
-      h('p', { class: 'lead', text: msg || 'Sign in with Apify to open every project your assistant saved with Citebase: where AI recommends you, which questions you win, the sites cited instead of you, and what to do next.' }),
-      h('div', { class: 'row' }, h('button', { class: 'btn big apify', type: 'button', onclick: CB.signIn }, h('span', { class: 'apify-mark', 'aria-hidden': 'true' }), 'Sign in with Apify')),
-      h('p', { class: 'small-note', text: 'No Apify account yet? The sign-in page lets you create one.' }),
+      h('p', { class: 'lead', text: msg || 'Open your saved projects to see which AI answers recommend your business, what evidence they cite, and which page to improve next.' }),
+      h('div', { class: 'row' }, signIn),
+      h('p', { class: 'small-note' }, 'Apify verifies your account and returns you here. ', h('a',{href:CB.guide.tourUrl,text:'Take the dashboard tour first.'})),
       h('ol', { class: 'journey' },
         h('li', {}, h('b', { text: 'Sign in' }), h('span', { text: 'Apify asks you to allow this page.' })),
         h('li', {}, h('b', { text: 'Add a project' }), h('span', { text: 'Your site, brand and competitors.' })),
         h('li', {}, h('b', { text: 'See where you stand' }), h('span', { text: 'Site score, AI answers, next steps.' }))),
-      h('ul', { class: 'trust' }, h('li', { text: 'Data stays in your Apify account' }), h('li', { text: 'Nothing stored on our side' }), h('li', { text: 'Sign out any time' })),
+      h('ul', { class: 'trust' }, h('li', { text: 'Projects stay in your Apify account' }), h('li', { text: 'Sign out any time' })),
       h('details', { class: 'more' }, h('summary', { text: 'What does signing in allow?' }),
-        h('p', { text: 'Apify asks you to let this page use your account. The page then reads the store "citebase-projects" in your own account through Citebase, and saves your to-do changes back there. The permission is kept in this browser tab only and ends when you close it or sign out.' }),
-        h('p', { text: 'Opening a project starts Citebase in your Apify account for a few seconds, which uses a little of your Apify platform usage. The dashboard never runs paid data checks.' }))));
+        h('p', { text: 'Apify lets Citebase read your projects and save the changes you choose. ' +
+          (CB.cfg.oauth && CB.cfg.oauth.session === false ? 'This local development session lasts until you close the tab.' : 'This browser remembers your sign-in for up to 90 days. You can sign out any time.') }),
+        h('p', { text: 'Opening a project starts Citebase in your Apify account for a few seconds, which uses a little of your Apify platform usage. Paid AI checks require your confirmation.' }))));
+    if (leaving) { window.scrollTo(0, 0); signIn.focus({ preventScroll: true }); }
   }
   CB.onSignedOut = signedOut;
   function loading(text) {
@@ -92,50 +139,139 @@
   }
   function failed(err, retry) {
     if (err.message === 'signed out') return;
+    var billingError = CB.usage.errorDetails(err);
+    if (billingError) {
+      page();
+      main.appendChild(h('section', {class:'card'}, h('h2', {text:'Apify billing needs attention'}), billingError,
+        h('div',{class:'billing-links'},h('a',{class:'ext',href:'#/account',text:'View account usage'}),
+          h('button',{class:'btn tiny',type:'button',text:'Refresh',onclick:function () { CB.usage.read(true).catch(function () {}); retry(); }}))));
+      return;
+    }
     page(); main.appendChild(h('div', { class: 'err' }, h('h3', { text: 'Something went wrong' }), h('p', { text: err.message || String(err) }),
       h('button', { class: 'btn', type: 'button', text: 'Try again', onclick: retry })));
   }
   function banner() {
-    if (CB.demo) main.appendChild(h('div', { class: 'banner' }, h('b', { text: 'Sample data. ' }), 'Filters, charts and to-dos all work here. Sign in with Apify to see your own projects.'));
+    if (CB.demo) main.appendChild(h('div', { class: 'banner' }, h('b', { text: 'Sample data. ' }), 'Explore the charts and project workflows. Sign in with Apify to save changes or start checks.'));
   }
 
   /* ---------- project list ---------- */
+  var portfolioView;
+  function projectHealth(project) {
+    var score = project.health_score;
+    return Number.isFinite(score) && score >= 0 && score <= 100 ? score : null;
+  }
+  function hasSiteAudit(project) { return !!project.last_site_check || projectHealth(project) !== null; }
+  function projectNameOrder(a, b) { return String(a.brand || a.project).localeCompare(String(b.brand || b.project)); }
+  var portfolioFilters = [
+    ['all', 'All projects', function () { return true; }],
+    ['due', 'Due for a check', function (p) { return !!(p.due || []).length; }],
+    ['unaudited', 'No site audit', function (p) { return !hasSiteAudit(p); }],
+    ['unmeasured', 'No AI rounds', function (p) { return !p.rounds; }]
+  ];
+  var portfolioOrders = {
+    priority: function (a, b) { return (b.due || []).length - (a.due || []).length || String(b.updated || '').localeCompare(String(a.updated || '')); },
+    audited: function (a, b) { return String(b.last_site_check || '').localeCompare(String(a.last_site_check || '')); },
+    health: function (a, b) { return (projectHealth(a) ?? 101) - (projectHealth(b) ?? 101); },
+    name: projectNameOrder
+  };
+  function projectRow(p) {
+    var name = p.brand || p.project, due = p.due || [], score = projectHealth(p);
+    function section(tab, label) { return h('a', { href: projectUrl(p.project, tab), text: label }); }
+    function cell(label, content) {
+      return h('td', {}, h('span', { class: 'portfolio-cell-label', 'aria-hidden': 'true', text: label }), content);
+    }
+    return h('tr', {},
+      h('th', { scope: 'row' }, section('overview', name),
+        h('span', { class: 'portfolio-domain', text: p.site ? CB.host(p.site) : p.project }),
+        due.length ? h('span', { class: 'portfolio-due', title: due.join(' '), text: due.length + (due.length === 1 ? ' check due' : ' checks due') }) : null),
+      cell('Site health', score === null ? h('span', { class: 'portfolio-missing', text: hasSiteAudit(p) ? 'Unavailable' : 'Not audited' }) :
+        h('span', { class: 'portfolio-score' }, h('b', { text: String(score) }), h('span', { text: '/100' }),
+          h('meter', { min: '0', max: '100', low: '60', high: '80', optimum: '100', value: String(score), 'aria-hidden': 'true' }))),
+      cell('Last site audit', p.last_site_check ? h('time', { datetime: p.last_site_check, text: day(p.last_site_check) }) :
+        h('span', { class: 'portfolio-missing', text: score === null ? 'None saved' : 'Date unavailable' })),
+      cell('AI rounds', h('span', { class: 'portfolio-rounds' }, h('b', { text: String(p.rounds || 0) }),
+        p.last_round_saved ? h('small', { text: short(p.last_round_saved), title: day(p.last_round_saved) }) : null)),
+      h('td', { class: 'portfolio-links' }, h('div', { role: 'group', 'aria-label': 'Open sections for ' + name },
+        section('site', 'Site audit'), section('answers', 'AI answers'), section('todo', 'Actions'))));
+  }
+  function projectDirectory(list) {
+    if (!portfolioView || portfolioView.session !== CB.sessionId()) {
+      portfolioView = { session: CB.sessionId(), filter: 'all', sort: 'priority', search: '' };
+    }
+    var state = portfolioView, body = h('tbody', {}), count = h('span', { class: 'portfolio-count', role: 'status' });
+    var search = h('input', { type: 'search', placeholder: 'Find a project', 'aria-label': 'Find a project', value: state.search });
+    var order = h('select', { 'aria-label': 'Sort projects' }, [
+      ['priority', 'Checks due first'], ['audited', 'Latest site audit'], ['health', 'Lowest site health'], ['name', 'Project name A–Z']
+    ].map(function (item) { return h('option', { value: item[0], selected: state.sort === item[0], text: item[1] }); }));
+    var reset = h('button', { type: 'button', class: 'btn small ghost', text: 'Clear filters', onclick: function () {
+      state.search = ''; search.value = ''; state.filter = 'all'; draw(); search.focus();
+    } });
+    var none = h('div', { class: 'portfolio-no-results', hidden: true }, h('strong', { text: 'No matching projects' }), reset);
+    var filterIcons = { all:'portfolio', due:'calendar', unaudited:'site', unmeasured:'answers' };
+    var filters = portfolioFilters.map(function (item) {
+      return h('button', { type: 'button', onclick: function () { state.filter = item[0]; draw(); } },
+        interfaceIcon(filterIcons[item[0]]), h('span', {class:'filter-name', text:item[1]}),
+        h('strong', {class:'filter-count', text:String(list.filter(item[2]).length)}));
+    });
+    var table = h('table', { class: 'portfolio-table', role: 'table', 'aria-label': 'Saved projects' },
+      h('thead', {}, h('tr', {}, ['Project', 'Site health', 'Last site audit', 'AI rounds', 'Open section'].map(function (label) {
+        return h('th', { scope: 'col', text: label });
+      }))), body);
+    function draw() {
+      var term = state.search.trim().toLowerCase(), match = portfolioFilters.find(function (item) { return item[0] === state.filter; })[2];
+      var rows = list.filter(function (p) {
+        return match(p) && [p.project, p.brand, p.site].join(' ').toLowerCase().includes(term);
+      }).sort(function (a, b) { return portfolioOrders[state.sort](a, b) || projectNameOrder(a, b); });
+      CB.clear(body); rows.forEach(function (p) { body.appendChild(projectRow(p)); });
+      table.hidden = !rows.length; none.hidden = !!rows.length;
+      count.textContent = rows.length === list.length ? rows.length + (rows.length === 1 ? ' project' : ' projects') : rows.length + ' of ' + list.length + ' projects';
+      filters.forEach(function (button, i) { button.setAttribute('aria-pressed', String(portfolioFilters[i][0] === state.filter)); });
+    }
+    search.addEventListener('input', function () { state.search = search.value; draw(); });
+    order.addEventListener('change', function () { state.sort = order.value; draw(); });
+    draw();
+    return h('section', { class: 'portfolio-directory', 'aria-label': 'Project directory' },
+      h('div', { class: 'portfolio-filter-bar', role: 'group', 'aria-label': 'Filter projects' }, filters),
+      h('div', { class: 'portfolio-toolbar' }, h('label', { class: 'portfolio-search' },
+        CB.s('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }, CB.s('circle', { cx: 10, cy: 10, r: 6 }), CB.s('path', { d: 'm15 15 5 5' })), search),
+        h('label', { class: 'portfolio-sort' }, h('span', { text: 'Sort by' }), order), count), table, none);
+  }
   function overview() {
-    topbar(null);
+    var current = currentRequest();
+    topbar('projects'); document.title = 'Projects · Citebase';
     loading('Opening Citebase in your Apify account… the first look can take a few seconds.');
     CB.history().then(function (r) {
-      page(); banner();
-      var list = projectsCache = r.projects || [];
-      var newBtn = h('button', { type: 'button', class: 'btn', text: '+ New project', onclick: openNew });
-      main.appendChild(h('div', { class: 'head' }, h('div', {}, h('h1', { text: 'Your projects' }),
-        h('p', { text: list.length ? 'Saved in the "citebase-projects" store in your Apify account.' : 'Nothing saved yet.' })), h('div', { class: 'tools' }, newBtn)));
-      if (!CB.demo) main.appendChild(CB.pages.onboarding(list, openNew));
+      if (!current()) return;
+      page();
+      var list = r.projects || [];
+      var newBtn = CB.demo && CB.api ? h('a', { class: 'btn', href: './?signin=1#/new', text: 'Add your own project' }) :
+        h('button', { type: 'button', class: 'btn', text: '+ New project', onclick: openNew });
+      main.appendChild(h('header', { class: 'portfolio-head' }, h('h1', { text: CB.demo ? 'Sample projects' : 'Your projects' }), list.length ? newBtn : null));
+      if (!CB.demo) main.appendChild(CB.guide.workspaceGuide(list, CB.justSignedIn));
+      else if (!new URLSearchParams(location.search).has('tour')) main.appendChild(h('p',{class:'sample-tour-link'},h('a',{class:'ext',href:CB.guide.tourUrl,text:'Take the dashboard tour →'})));
       main.appendChild(CB.pages.waiting(list));
       if (!list.length) {
-        main.appendChild(h('section', { class: 'card hero-empty' }, h('h3', { text: 'Start with your website' }),
-          h('p', { text: 'Add a project and Citebase checks your site straight away. Then ask the AI engines your buying questions.' }),
-          h('button', { type: 'button', class: 'btn big', text: '+ New project', onclick: openNew })));
-        return;
+        main.appendChild(h('section', { class: 'portfolio-start' }, h('h2', { text: 'Add your first website' }),
+          h('p', { text: 'Create a project to check your site and track how often AI answers recommend your brand.' }), newBtn));
+      } else main.appendChild(projectDirectory(list));
+      if (!CB.demo) {
+        var setup = h('details', { class: 'portfolio-setup' }, h('summary', { text: 'Project setup checklist' }));
+        setup.addEventListener('toggle', function () {
+          if (setup.open && setup.children.length === 1) setup.appendChild(CB.pages.onboarding(list, openNew));
+        });
+        main.appendChild(setup);
       }
-      var due = list.reduce(function (n, p) { return n + (p.due || []).length; }, 0), todos = list.reduce(function (n, p) { return n + (p.open_todos || 0); }, 0);
-      main.appendChild(h('div', { class: 'stats' }, stat('Projects', String(list.length)), stat('Checks due', String(due), due ? 'warn' : 'good'),
-        stat('Open to-dos', String(todos)), stat('AI rounds saved', String(list.reduce(function (n, p) { return n + (p.rounds || 0); }, 0)))));
-      var search = h('input', { class: 'search', type: 'search', placeholder: 'Find a project', 'aria-label': 'Find a project' });
-      var grid = h('div', { class: 'projects' });
-      function draw() {
-        CB.clear(grid);
-        var t = search.value.trim().toLowerCase();
-        list.filter(function (p) { return !t || (p.project + ' ' + (p.brand || '') + ' ' + (p.site || '')).toLowerCase().indexOf(t) >= 0; })
-          .sort(function (a, b) { return (b.due || []).length - (a.due || []).length || String(b.updated).localeCompare(String(a.updated)); })
-          .forEach(function (p) { grid.appendChild(projectCard(p)); });
-        if (!grid.children.length) grid.appendChild(h('p', { class: 'empty', text: 'No project matches.' }));
+      if (!CB.demo && location.hash === '#/new') {
+        history.replaceState(null, '', location.pathname + location.search + '#/');
+        openNew();
       }
-      search.addEventListener('input', draw);
-      if (list.length > 3) main.appendChild(search);
-      main.appendChild(grid); draw();
-    }, function (e) { failed(e, overview); });
+    }, function (e) { if (current()) failed(e, route); });
   }
-  function openNew() { CB.flows.newProject(function (p) { projectsCache = null; location.hash = '#/p/' + encodeURIComponent(p) + '/overview'; }); }
+  function openNew() {
+    CB.flows.newProject(function (p) { if(CB.hasProjectWork) CB.newSetupProject=p; location.hash = projectUrl(p, CB.hasProjectWork ? 'setup' : 'overview'); }, function () {
+      if (access === 'in' && (!location.hash || location.hash === '#/')) route();
+    });
+  }
   function ring(score) {
     var r = 22, c = 2 * Math.PI * r, v = score == null ? 0 : score;
     var tone = score == null ? 'none' : v >= 80 ? 'good' : v >= 60 ? 'warn' : 'bad';
@@ -144,68 +280,150 @@
         CB.s('circle', { class: 'rv', cx: 28, cy: 28, r: r, 'stroke-dasharray': (c * v / 100) + ' ' + c, transform: 'rotate(-90 28 28)' })),
       h('span', { text: score == null ? '–' : String(v) }));
   }
-  function projectCard(p) {
-    return h('a', { class: 'pcard', href: '#/p/' + encodeURIComponent(p.project) + '/overview' },
-      h('div', { class: 'pc-top' }, h('div', {}, h('h2', { text: p.brand || p.project }), h('p', { class: 'site', text: p.site ? CB.host(p.site) : p.project })), ring(p.health_score)),
-      h('dl', {}, h('div', {}, h('dt', { text: 'AI rounds' }), h('dd', { text: String(p.rounds || 0) })),
-        h('div', {}, h('dt', { text: 'Open to-dos' }), h('dd', { text: String(p.open_todos || 0) })),
-        h('div', {}, h('dt', { text: 'Last round' }), h('dd', { class: 'small', text: p.last_round_saved ? short(p.last_round_saved) : 'none' }))),
-      (p.due && p.due.length) ? h('div', { class: 'due' }, h('b', { text: p.due.length === 1 ? '1 check due' : p.due.length + ' checks due' }), h('span', { text: p.due[0] }))
-        : h('p', { class: 'ok', text: 'Nothing due · updated ' + day(p.updated) }),
-      h('span', { class: 'go', 'aria-hidden': 'true', text: 'Open →' }));
-  }
 
   /* ---------- one project ---------- */
+  function projectUrl(slug, tab) { return '#/p/' + encodeURIComponent(slug) + '/' + tab; }
+
   function project(slug, tab) {
-    currentTab = tab;
-    topbar(slug);
-    loading('Loading ' + slug + '…');
-    var need = projectsCache ? Promise.resolve() : CB.history().then(function (r) { projectsCache = r.projects || []; }, function () {});
-    Promise.all([CB.history(slug), need]).then(function (res) {
-      topbar(slug); page(); banner(); drawProject(slug, res[0], tab);
-    }, function (e) { failed(e, function () { project(slug, tab); }); });
+    var current = currentRequest();
+    if (viewProject !== slug) { viewProject = slug; view = initialView(); }
+    if (!mountedProject || mountedProject.slug !== slug) {
+      topbar('projects');
+      loading('Loading ' + slug + '…');
+    } else main.setAttribute('aria-busy', 'true');
+    // The project can render while the independent project switcher is still loading.
+    var directory = CB.history().then(function (r) { return r.projects || []; }, function () { return []; });
+    CB.history(slug).then(function (d) {
+      if (!current()) return;
+      if (!mountedProject || mountedProject.data !== d || mountedProject.slug !== slug) {
+        page();
+        mountedProject = projectShell(slug, d);
+      }
+      var shell = mountedProject;
+      renderSection(shell, tab);
+      main.removeAttribute('aria-busy');
+      directory.then(function (list) {
+        if (current() && shell === mountedProject) projectSwitcher(shell, list);
+      });
+    }, function (e) { if (current()) failed(e, route); });
   }
-  function drawProject(slug, d, tab) {
-    var brand = d.brand || {}, snaps = d.snapshots || [], audits = d.audits || [];
-    var site = CB.safeUrl(brand.site || (brand.domain ? 'https://' + brand.domain : ''));
-    main.appendChild(h('div', { class: 'head' }, h('div', {},
-      h('h1', { text: brand.name || slug }),
-      h('p', {}, site ? h('a', { href: site, rel: 'noopener noreferrer', target: '_blank', text: CB.host(site) + ' ↗' }) : slug,
-        ' · ' + (d.panel_prompts || 0) + ' test questions · ' + snaps.length + (snaps.length === 1 ? ' AI round' : ' AI rounds') + ' · ' + audits.length + (audits.length === 1 ? ' site check' : ' site checks')))));
-    var F = CB.flows, reload = function () { CB.refresh(); projectsCache = null; route(); };
-    var act = function (label, fn, primary) { return h('button', { type: 'button', class: 'btn' + (primary ? '' : ' ghost') + ' small', text: label, onclick: fn }); };
-    main.appendChild(h('div', { class: 'actions' },
-      act('Run AI check', function () { F.aiCheck(slug, d, reload); }, true),
-      act('Check site', function () { F.checkSite(slug, site, reload); }),
-      act('Next steps', function () { F.nextSteps(slug, reload); }),
-      act('Schedule', function () { F.schedule(slug, function () { CB.toast('See it under Schedules'); }); }),
-      act('Share report', function () { F.report(slug); }),
-      act('Export', function () { exportProject(slug, d); })));
-    var live = h('div', { class: 'live' });
-    main.appendChild(live);
-    watchRuns(slug, live);
-    var openTodos = (d.todo || []).filter(function (t) { return t.status === 'open'; }).length;
-    main.appendChild(h('nav', { class: 'tabs', 'aria-label': 'Project sections' }, TABS.map(function (t) {
-      return h('a', { href: '#/p/' + encodeURIComponent(slug) + '/' + t[0], 'aria-current': t[0] === tab ? 'page' : null }, t[1],
-        t[0] === 'todo' && openTodos ? h('span', { class: 'badge', text: String(openTodos) }) : null);
-    })));
-    var body = h('div', { class: 'tabbody' });
-    main.appendChild(body);
-    var draw = { overview: tabOverview, answers: tabAnswers, questions: tabQuestions, site: tabSite, traffic: tabTraffic, todo: tabTodo }[tab] || tabOverview;
-    draw(body, d, slug);
+
+  function projectSwitcher(shell, projects) {
+    if (shell.projects === projects) return;
+    shell.projects = projects;
+    CB.clear(shell.switcher);
+    if (projects.length < 2) return;
+    var select = h('select', { class: 'project-switch', 'aria-label': 'Switch project' },
+      h('option', { value: '', selected: true, disabled: true, hidden: true, text: 'Switch project' }),
+      projects.map(function (p) { return h('option', { value: p.project, text: p.brand || p.project }); }));
+    select.addEventListener('change', function () {
+      var target = select.value;
+      select.value = '';
+      if (target) location.hash = projectUrl(target, shell.tab);
+    });
+    shell.switcher.appendChild(select);
+  }
+
+  function projectTools(slug, d, site, reload) {
+    var F = CB.flows, summary = h('summary', { class: 'project-tool-trigger', text: 'Project tools' });
+    var list = h('div', { class: 'project-tool-list' }), menu = h('details', { class: 'project-tools' }, summary, list);
+    function action(label, run) {
+      list.appendChild(h('button', { type: 'button', text: label, onclick: function () {
+        menu.open = false; summary.focus(); run();
+      } }));
+    }
+    action('Check site', function () { F.checkSite(slug, site, reload); });
+    action('Next steps', function () { F.nextSteps(slug, reload); });
+    action('Schedule', function () { F.schedule(slug, reload); });
+    action('Connect an AI assistant', function () { location.hash = CB.guide.assistantRoute(slug); });
+    action('Share report', function () { F.report(slug); });
+    if (CB.hasProjectWork && (d.snapshots || []).some(function (round) { return !round.older_metric; })) {
+      action('Prospect audit', function () { F.report(slug, true); });
+    }
+    action('Export', function () { exportProject(slug, d); });
+    menu.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && menu.open) { menu.open = false; summary.focus(); event.preventDefault(); }
+    });
+    menu.addEventListener('focusout', function (event) {
+      if (event.relatedTarget && !menu.contains(event.relatedTarget)) menu.open = false;
+    });
+    return menu;
+  }
+  document.addEventListener('pointerdown', function (event) {
+    var menu = document.querySelector('.project-tools[open]');
+    if (menu && !menu.contains(event.target)) menu.open = false;
+  });
+
+  function projectNavigation(slug) {
+    var links = [], select = h('select', { 'aria-label': 'Project section' });
+    var desktop = h('div', { class: 'project-nav-links' });
+    SECTIONS.forEach(function (group) {
+      var section = h('div', { class: 'project-nav-group' }, group.label ? h('span', { class: 'project-nav-label', text: group.label }) : null);
+      var options = group.label ? h('optgroup', { label: group.label }) : select;
+      group.tabs.forEach(function (t) {
+        var link = h('a', { href: projectUrl(slug, t[0]), 'data-tab': t[0] }, interfaceIcon(sectionIcons[t[0]]), t[1]);
+        links.push(link); section.appendChild(link);
+        options.appendChild(h('option', { value: t[0], text: t[1] }));
+      });
+      if (group.label) select.appendChild(options);
+      desktop.appendChild(section);
+    });
+    select.addEventListener('change', function () { location.hash = projectUrl(slug, select.value); });
+    var mobile = h('label', { class: 'project-section-picker' }, h('span', { text: 'Project section' }), select);
+    return { node: h('nav', { class: 'project-navigation', 'aria-label': 'Project sections' }, desktop, mobile),
+      show: function (tab) {
+        links.forEach(function (link) {
+          if (link.dataset.tab === tab) link.setAttribute('aria-current', 'page');
+          else link.removeAttribute('aria-current');
+        });
+        select.value = tab;
+      } };
+  }
+  function projectShell(slug, d) {
+    var brand = d.brand || {}, site = CB.safeUrl(brand.site || (brand.domain ? 'https://' + brand.domain : ''));
+    var name = brand.name || slug, switcher = h('span', { class: 'project-switch-holder' });
+    function reload() { CB.refresh(); route(); }
+    main.classList.add('project-page');
+    main.appendChild(h('header', { class: 'project-masthead' },
+      h('div', { class: 'project-identity' },
+        h('h1', { text: name }),
+        h('div', { class: 'project-meta' }, site ? h('a', { href: site, rel: 'noopener noreferrer', target: '_blank' }, CB.host(site), h('span', { 'aria-hidden': 'true', text: ' ↗' })) : h('span', { text: slug }), switcher)),
+      h('div', { class: 'project-commands' },
+        h('button', { type: 'button', class: 'btn start-check', text: 'Run AI check', onclick: function () { CB.flows.aiCheck(slug, d, reload); } }),
+        CB.hasProjectWork ? h('a', { class: 'btn ghost resume-setup', href: projectUrl(slug, 'setup'), text: 'Resume project setup' }) : null, projectTools(slug, d, site, reload))));
+    var navigation = projectNavigation(slug), body = h('div', { class: 'tabbody', role: 'region', tabindex: '-1' });
+    var live = h('div', { class: 'live', role: 'status' });
+    main.appendChild(h('div', { class: 'project-layout' }, navigation.node, h('div', { class: 'project-content' }, live, body)));
+    return { slug: slug, name: name, data: d, body: body, navigation: navigation, switcher: switcher, live: live };
+  }
+  function renderSection(shell, tab) {
+    var selected = TABS.find(function (t) { return t[0] === tab; }) || TABS[0];
+    var contentHadFocus = shell.body.contains(document.activeElement);
+    shell.tab = selected[0]; shell.navigation.show(shell.tab);
+    main.dataset.projectTab = shell.tab;
+    document.title = selected[1] + ' · ' + shell.name + ' · Citebase';
+    shell.body.setAttribute('aria-label', selected[1] + ' for ' + shell.name);
+    CB.clear(shell.body); CB.untip();
+    var views = { setup: CB.onboarding, overview: tabOverview, answers: tabAnswers, questions: tabQuestions, site: tabSite, traffic: tabTraffic,
+      todo: CB.hasProjectWork ? CB.workUI.actions : CB.historyUI.actions, evidence: CB.workUI.evidence, outreach: CB.workUI.outreach };
+    views[shell.tab](shell.body, shell.data, shell.slug, route);
+    if (contentHadFocus && !new URLSearchParams(location.hash.split('?')[1]).has('record')) shell.body.focus({ preventScroll: true });
+    watchRuns(shell.slug, shell.live);
   }
 
   var watchTimer = null;
   function watchRuns(slug, live) {
     clearTimeout(watchTimer);
-    if (!CB.flows.pending().some(function (x) { return x.project === slug; })) return;
+    if (!live.isConnected || live.awaitingCheck || !CB.flows.pending().some(function (x) { return x.project === slug; })) return;
+    live.awaitingCheck = true;
     CB.flows.watch(slug).then(function (st) {
+      live.awaitingCheck = false;
       if (!st || !document.body.contains(live)) return;
       CB.clear(live);
       if (st.imported || st.error) {
         live.appendChild(h('div', { class: 'livebox ' + (st.error ? 'bad' : 'good') }, h('b', { text: st.error ? 'AI check finished with a problem' : 'AI check finished' }),
           h('span', { text: st.error || 'Saved as round "' + st.job.round + '". The charts below are up to date.' })));
-        if (st.imported) setTimeout(route, 1200);
+        if (st.imported) watchTimer = setTimeout(function () { if (live.isConnected) route(); }, 1200);
         return;
       }
       var bar = h('span', { class: 'fill' }); bar.style.width = Math.round(st.done / st.total * 100) + '%';
@@ -213,7 +431,10 @@
         h('div', {}, h('b', { text: 'AI check running: ' + st.done + ' of ' + st.total + ' runs finished' }), h('span', { text: 'Results are saved here automatically when all runs finish. You can leave this page.' })),
         h('span', { class: 'track' }, bar)));
       watchTimer = setTimeout(function () { watchRuns(slug, live); }, 15000);
-    }, function (e) { CB.clear(live).appendChild(h('div', { class: 'livebox bad' }, h('b', { text: 'Could not check the runs' }), h('span', { text: e.message }))); });
+    }, function (e) {
+      live.awaitingCheck = false;
+      if (live.isConnected) CB.clear(live).appendChild(h('div', { class: 'livebox bad' }, h('b', { text: 'Could not check the runs' }), h('span', { text: e.message })));
+    });
   }
 
   function exportProject(slug, d) {
@@ -225,158 +446,247 @@
     CB.toast('Downloaded the project (JSON) and its rounds (CSV)');
   }
 
-  /* ---------- plain-words summary ---------- */
-  function story(d) {
-    var snaps = d.snapshots || [], audits = d.audits || [], out = [], name = (d.brand || {}).name || 'you';
-    var last = snaps[snaps.length - 1], base = snaps.filter(function (x) { return !x.older_metric; })[0];
-    if (last) {
-      var line = 'AI recommends ' + name + ' in ' + pct(last.recommendation_share) + ' of buying questions (likely ' + pct(last.rs_low) + '–' + pct(last.rs_high) + ').', tone = 'info';
-      if (base && base !== last) {
-        var change = Math.round((last.recommendation_share - base.recommendation_share) * 100);
-        if (last.rs_low > base.rs_high) { line += ' A clear rise from ' + pct(base.recommendation_share) + ' at the start.'; tone = 'good'; }
-        else if (last.rs_high < base.rs_low) { line += ' A clear drop from ' + pct(base.recommendation_share) + ' at the start.'; tone = 'bad'; }
-        else line += ' ' + (change >= 0 ? '+' : '') + change + ' points since the start, still inside the normal swing.';
-      }
-      out.push([tone, line]);
-      var be = last.by_engine || {}, keys = Object.keys(be).sort(function (a, b) { return be[b].recommendation_share - be[a].recommendation_share; });
-      if (keys.length > 1) out.push(['info', CB.engine(keys[0]) + ' recommends you most (' + pct(be[keys[0]].recommendation_share) + '); ' +
-        CB.engine(keys[keys.length - 1]) + ' least (' + pct(be[keys[keys.length - 1]].recommendation_share) + ').']);
-    } else out.push(['info', 'No AI recommendation round yet. Ask your assistant for one; it will say it is a paid check and wait for your yes.']);
-    var qs = d.questions || [];
-    if (qs.length) {
-      var won = qs.filter(function (q) { return q.recommended > 0; }).length;
-      var gained = qs.filter(function (q) { return q.before && q.before.recommended === 0 && q.recommended > 0; }).length;
-      var lost = qs.filter(function (q) { return q.before && q.before.recommended > 0 && q.recommended === 0; }).length;
-      out.push([won ? 'info' : 'bad', 'Recommended at least once on ' + won + ' of ' + qs.length + ' questions' + (gained ? ', ' + gained + ' new this round' : '') + (lost ? '; lost ' + lost : '') + '.']);
+  /* ---------- project overview ---------- */
+  function measured(value) { return typeof value === 'number' && Number.isFinite(value); }
+  function rate(value) { return measured(value) && value >= 0 && value <= 1; }
+  function roundScope(last) {
+    if (!last) return '';
+    var engines = (last.engines || Object.keys(last.by_engine || {})).length;
+    var parts = [];
+    if (measured(last.prompts)) parts.push(num(last.prompts) + (last.prompts === 1 ? ' buying question' : ' buying questions'));
+    if (engines) parts.push(num(engines) + (engines === 1 ? ' engine' : ' engines'));
+    return parts.join(' · ');
+  }
+  function snapshotReadings(d) {
+    var snaps = d.snapshots || [], audits = d.audits || [], last = snaps[snaps.length - 1], audit = audits[audits.length - 1];
+    var name = (d.brand || {}).name || 'the brand', brandDomain = (d.brand || {}).domain || CB.host((d.brand || {}).site);
+    var current = last && last.prompts !== 0 ? last : {}, countMethod = !current.older_metric;
+    var byEngine = current.by_engine || {};
+    var engines = Object.keys(byEngine).filter(function (k) { return rate(byEngine[k].recommendation_share) && byEngine[k].prompts !== 0; })
+      .sort(function (a, b) { return byEngine[b].recommendation_share - byEngine[a].recommendation_share; });
+    var lead = engines[0], scope = roundScope(last), missing = 'An AI check with saved buying answers will fill in this reading.';
+    var hasRec = countMethod && rate(current.recommendation_share);
+    var recHeadline = 'Recommendation share is available for this round.';
+    if (lead) {
+      var completePanel = current.prompts > 0 && engines.length > 1 && engines.length === (current.engines || []).length &&
+        engines.every(function (k) { return current.engines.indexOf(k) >= 0 && byEngine[k].prompts === current.prompts; });
+      recHeadline = completePanel && byEngine[lead].recommendation_share > byEngine[engines[1]].recommendation_share
+        ? CB.engine(lead) + ' recommended ' + name + ' most often this round (' + pct(byEngine[lead].recommendation_share) + ').'
+        : CB.engine(lead) + ' recorded a ' + pct(byEngine[lead].recommendation_share) + ' recommendation share.';
     }
-    var rv = d.rivals;
-    if (rv && rv.brands && rv.brands.length > 1) {
-      var lead = rv.brands.filter(function (b) { return !b.you; })[0], mine = rv.brands.filter(function (b) { return b.you; })[0];
-      if (lead && mine) out.push([lead.share > mine.share ? 'warn' : 'good', lead.share > mine.share
-        ? lead.name + ' is named in ' + pct(lead.share) + ' of buying answers; you in ' + pct(mine.share) + '.'
-        : 'You lead your rivals: named in ' + pct(mine.share) + ' of buying answers, ' + lead.name + ' in ' + pct(lead.share) + '.']);
-      var sm = rv.sentiment || {};
-      if (sm.negative) out.push(['bad', sm.negative + ' answers spoke about you negatively. Open AI answers to see where.']);
+    else if (scope) recHeadline = 'Recommendation share across ' + scope.replace(' · ', ' and ') + '.';
+    var recDetail = 'For each buying question, Citebase calculates how often an answer recommends the brand. Every question then carries equal weight.';
+    if (rate(current.rs_low) && rate(current.rs_high) && current.rs_low <= current.rs_high && countMethod) {
+      recDetail += ' The likely range for this round is ' + pct(current.rs_low) + ' to ' + pct(current.rs_high) + '.';
     }
-    var gap = d.citation_gap;
-    if (gap && gap.sites && gap.sites.length) out.push(['warn', gap.sites[0].site + ' was cited for rivals ' + gap.sites[0].answers_for_rivals_without_you + ' times without naming you. A fair mention there is the most direct way in.']);
-    var a = audits[audits.length - 1];
-    if (a) {
-      var sub = a.subscores || {}, weak = Object.keys(sub).sort(function (x, y) { return sub[x] - sub[y]; })[0];
-      var moved = audits.length > 1 ? a.health_score - audits[0].health_score : null;
-      out.push([a.health_score >= 80 ? 'good' : 'warn', 'Site health is ' + a.health_score + ' of 100' + (moved != null ? ' (' + (moved >= 0 ? '+' : '') + moved + ' since the first check)' : '') +
-        (weak ? '. Weakest area: ' + weak.replace(/-/g, ' ') + ' (' + sub[weak] + ').' : '.')]);
-    }
-    var bots = d.ai_bot_visits;
-    if (bots && bots.bots) {
-      var refused = bots.bots.filter(function (b) { return b.kind === 'answer' && b.requests >= 5 && b.blocked / b.requests >= .5; });
-      if (refused.length) out.push(['bad', refused.map(function (b) { return b.bot; }).join(', ') + ' cannot read your site, so that assistant cannot use your pages.']);
-    }
-    (d.due || []).forEach(function (x) { out.push(['warn', x]); });
-    return out;
+
+    var own = (d.rivals && d.rivals.round === current.snapshot && d.rivals.brands || []).find(function (b) { return b.you; });
+    var named = own && measured(own.answers) && d.rivals.answers > 0
+      ? num(own.answers) + ' of ' + num(d.rivals.answers) + ' buying answers named ' + name + '.'
+      : 'Mentions count any buying answer that names ' + name + '.';
+    var gap = d.citation_gap && d.citation_gap.round === current.snapshot && d.citation_gap.sites && d.citation_gap.sites[0];
+    var cited = gap && gap.site && gap.answers_for_rivals_without_you > 0
+      ? gap.site + ' appeared in ' + num(gap.answers_for_rivals_without_you) + (gap.answers_for_rivals_without_you === 1 ? ' answer' : ' answers') + ' that named a rival and omitted ' + name + '.'
+      : 'Citations count buying answers that link to ' + (brandDomain || 'the project website') + '.';
+    var areas = audit && audit.subscores || {};
+    var weakest = Object.keys(areas).filter(function (k) { return measured(areas[k]); }).sort(function (a, b) { return areas[a] - areas[b]; })[0];
+    var area = weakest && auditArea(weakest);
+    var siteHeadline = area ? area + ' scored ' + num(areas[weakest]) + ' out of 100 in the latest site check.'
+      : 'Site health comes from the latest saved website check.';
+    return [
+      { key: 'recommendation_share', label: 'Recommended', value: hasRec ? pct(current.recommendation_share) : '–',
+        headline: hasRec ? recHeadline : current.older_metric ? 'This round used an earlier recommendation measure.' : 'No recommendation rate is available yet.',
+        detail: hasRec ? recDetail : current.older_metric ? 'Run a new AI check to establish a baseline with the current counting method.' : missing },
+      { key: 'mentioned_rate', label: 'Brand mentioned', value: rate(current.mentioned_rate) ? pct(current.mentioned_rate) : '–',
+        headline: rate(current.mentioned_rate) ? named : 'No mention rate is available yet.',
+        detail: rate(current.mentioned_rate) ? 'Each buying answer counts once. A brand can be mentioned alongside a competitor without receiving a recommendation.' : missing },
+      { key: 'cited_rate', label: 'Website cited', value: rate(current.cited_rate) ? pct(current.cited_rate) : '–',
+        headline: rate(current.cited_rate) ? cited : 'No citation rate is available yet.',
+        detail: rate(current.cited_rate) ? 'Each buying answer counts once if it links to the project website. A mention without a link contributes only to the mention rate.' : missing },
+      { key: 'site_health', label: 'Site health', value: audit && measured(audit.health_score) ? num(audit.health_score) : '–',
+        unit: audit && measured(audit.health_score) ? '/100' : '', headline: audit && measured(audit.health_score) ? siteHeadline : 'No site score is available yet.',
+        detail: audit && measured(audit.health_score) ? 'The site check scores the website out of 100 using its technical, on-page and AI-search checks. Open Site to inspect the individual areas.' : 'Use Check site under Project tools to save the first website check.' }
+    ];
   }
 
-  /* ---------- tab: overview ---------- */
-  function tabOverview(body, d, slug) {
-    var snaps = d.snapshots || [], audits = d.audits || [], last = snaps[snaps.length - 1];
-    var base = snaps.filter(function (x) { return !x.older_metric; })[0], aud = audits[audits.length - 1];
-    body.appendChild(h('div', { class: 'grid2' },
-      card('In plain words', null, h('ul', { class: 'story' }, story(d).map(function (s) { return h('li', { class: s[0], text: s[1] }); }))),
-      nextSteps(d, slug)));
-    function tile(k, v, sub, vals, max, hero) {
-      return h('div', { class: 'kpi' + (hero ? ' hero' : '') }, h('div', { class: 'k', text: k }), h('div', { class: 'v', text: v }), h('div', { class: 's' }, sub), CB.spark(vals, max));
+  function visibilitySnapshot(d, slug, onSelect) {
+    var readings = snapshotReadings(d), snaps = d.snapshots || [], audits = d.audits || [];
+    var last = snaps[snaps.length - 1], audit = audits[audits.length - 1], buttons = [];
+    var stamp = h('span', { class: 'snapshot-stamp' });
+    var headline = h('p', { class: 'reading-headline', 'aria-live': 'polite', 'aria-atomic': 'true' });
+    var detail = h('p', {}), about = h('details', { class: 'reading-definition' }, h('summary', { text: 'How it’s measured' }), detail);
+    var link = h('a', { class: 'reading-link' }), scope = h('span', { class: 'reading-scope' }), active;
+    function select(reading) {
+      if (reading === active) return;
+      active = reading;
+      var site = reading.key === 'site_health';
+      buttons.forEach(function (button, i) { button.setAttribute('aria-pressed', String(readings[i] === reading)); });
+      stamp.textContent = site ? audit && audit.date ? 'Site check · ' + day(audit.date) : 'No dated site check'
+        : last && last.saved_on ? 'AI round · ' + day(last.saved_on) : 'No dated AI round';
+      headline.textContent = reading.headline; detail.textContent = reading.detail;
+      scope.textContent = site ? audits.length + (audits.length === 1 ? ' saved site check' : ' saved site checks') : roundScope(last);
+      link.href = projectUrl(slug, site ? 'site' : 'answers');
+      link.textContent = site ? 'Explore site checks →' : 'Explore AI answers →';
+      link.onclick = function () { if (!site) { view.metric = reading.key; view.engines = null; } };
+      onSelect(reading.key);
     }
-    body.appendChild(h('div', { class: 'kpis' },
-      tile('Recommended', last ? pct(last.recommendation_share) : '–', last ? [base && base !== last ? arrow((last.recommendation_share - base.recommendation_share) * 100, ' pts') : null,
-        ' likely ' + pct(last.rs_low) + '–' + pct(last.rs_high)] : 'no round yet', snaps.map(function (x) { return x.recommendation_share; }), 1, true),
-      tile('Mentioned', last ? pct(last.mentioned_rate) : '–', 'answers that name you', snaps.map(function (x) { return x.mentioned_rate; }), 1),
-      tile('Cited as a source', last ? pct(last.cited_rate) : '–', 'answers that link your site', snaps.map(function (x) { return x.cited_rate; }), 1),
-      tile('Site health', aud ? String(aud.health_score) : '–', aud ? [audits.length > 1 ? arrow(aud.health_score - audits[0].health_score) : null, ' of 100 · ' + short(aud.date)] : 'no check yet',
-        audits.map(function (x) { return x.health_score; }), 100)));
-    body.appendChild(h('div', { class: 'grid2' },
-      snaps.length ? shareChart(snaps, null, 'recommendation_share', true) : empty('Recommended over time', 'Shown after the first AI round.'),
-      engineBoard(last, slug)));
+    var metrics = h('div', { class: 'snapshot-metrics', role: 'group', 'aria-label': 'Visibility measures' });
+    readings.forEach(function (reading) {
+      var button = h('button', { type: 'button', class: 'snapshot-metric', 'aria-controls': 'metric-reading overview-trend',
+        onclick: function () { select(reading); } }, interfaceIcon(metricIcons[reading.key]), h('span', { class: 'metric-label', text: reading.label }),
+        h('strong', { class: 'metric-value' }, reading.value, reading.unit ? h('small', { text: reading.unit }) : null));
+      buttons.push(button); metrics.appendChild(button);
+    });
+    select(!last && audit ? readings[3] : readings[0]);
+    return h('section', { class: 'visibility-snapshot', 'aria-labelledby': 'snapshot-title' },
+      h('div', { class: 'snapshot-heading' }, h('h2', { id: 'snapshot-title', text: 'Visibility snapshot' }), stamp),
+      metrics, h('div', { id: 'metric-reading', class: 'metric-reading' },
+        h('div', { class: 'reading-line' }, headline, link),
+        h('div', { class: 'reading-notes' }, scope, about)));
   }
-  function nextSteps(d, slug) {
-    var open = (d.todo || []).filter(function (t) { return t.status === 'open'; }).slice(0, 5);
-    var list = h('ul', { class: 'todos compact' });
-    open.forEach(function (t) { list.appendChild(todoRow(slug, t, true)); });
-    if (!open.length) list.appendChild(h('li', { class: 'none', text: 'No open to-dos. Ask your assistant for next steps on this project.' }));
-    return card('Do next', open.length ? 'Tick a step when it is done. It saves to your project.' : null, list,
-      h('a', { class: 'btn tiny', href: '#/p/' + encodeURIComponent(slug) + '/todo', text: 'All to-dos' }));
+
+  function trendChart(d, metric) {
+    var snaps = d.snapshots || [];
+    if (metric === 'site_health') {
+      var audits = (d.audits || []).filter(function (a) { return measured(a.health_score); });
+      if (!audits.length) return empty('Site health over time', 'Your first saved site check will appear here.');
+      var graph = CB.lineChart({ labels: audits.map(function (a) { return short(a.date); }), series: [{
+        name: 'Site health', cls: 'cb', vals: audits.map(function (a) { return a.health_score; }) }],
+        aria: 'Site health by saved check', max: 100, fmt: num, width: 460, height: 220 });
+      var switchView = tableToggle(graph, CB.table([{ key: 'date', label: 'Checked', render: function (a) { return day(a.date); } },
+        { key: 'health_score', label: 'Score out of 100', num: true }], audits, { plain: true }));
+      return card('Site health over time', 'Score out of 100 for each saved website check.', switchView.body, switchView.button);
+    }
+    var name = METRICS.find(function (m) { return m[0] === metric; })[1];
+    if (!snaps.some(function (s) { return s.prompts !== 0 && rate(s[metric]) && (metric !== 'recommendation_share' || !s.older_metric); })) {
+      return empty(name + ' over time', snaps.length ? 'No saved round has this reading under the current measure.' : 'Your first saved buying-question round will appear here.');
+    }
+    return shareChart(snaps, null, metric, true);
   }
+
+  function tabOverview(body, d, slug) {
+    var trend = h('div', { class: 'overview-trend', id: 'overview-trend' });
+    body.appendChild(visibilitySnapshot(d, slug, function (key) { CB.clear(trend).appendChild(trendChart(d, key)); }));
+    if (d.scheduled_alert && d.scheduled_alert.message) {
+      body.appendChild(h('aside', { class: 'snapshot-alert' }, h('p', { text: d.scheduled_alert.message }),
+        h('a', { href: projectUrl(slug, CB.hasProjectWork ? 'evidence?view=changes' : 'site'), text: 'Review changes →' })));
+    }
+    if (CB.hasProjectWork) CB.focusUI.mount(body, d, slug);
+    else CB.historyUI.focus(body, d, slug);
+    var snaps = d.snapshots || [];
+    body.appendChild(h('div', { class: 'overview-charts' }, trend, engineBoard(snaps[snaps.length - 1], slug)));
+    if (!CB.hasProjectWork) return;
+    var planningBody = h('div', { class: 'planning-body' }), due = d.due || [];
+    var planning = h('details', { class: 'project-planning' }, h('summary', {},
+        h('span', { text: 'Project planning' }), h('small', { text: due.length ? due.length + (due.length === 1 ? ' check due' : ' checks due') : 'Brief, schedules and reminders' })), planningBody);
+    planning.addEventListener('toggle', function () {
+      if (!planning.open || planningBody.childElementCount) return;
+      if (due.length) planningBody.appendChild(h('ul', { class: 'planning-due' }, due.map(function (message) { return h('li', { text: message }); })));
+      planningBody.appendChild(CB.workUI.brief(slug)); CB.workUI.overview(planningBody, slug, d.questions || []);
+    });
+    body.appendChild(planning);
+  }
+
   function engineBoard(last, slug) {
-    var be = (last && last.by_engine) || {}, keys = Object.keys(be);
+    var be = last && !last.older_metric && last.by_engine || {};
+    var keys = Object.keys(be).filter(function (k) { return rate(be[k].recommendation_share) && be[k].prompts !== 0; });
     if (!keys.length) {
       var ctx = (last && last.context) || {};
-      keys = Object.keys(ctx);
-      if (!keys.length) return empty('By engine', last ? 'Per-engine numbers appear once Citebase is updated in your Apify account.' : 'Shown after the first AI round.');
-      return card('Answers checked', 'Answers per engine in the latest round.', CB.barChart({ aria: 'Answers per engine', labelWidth: 160,
-        items: keys.map(function (k) { return { label: CB.engine(k), value: ctx[k].answers || 0, cls: CB.ecls(k) }; }) }));
+      keys = Object.keys(ctx).filter(function (k) { return measured(ctx[k].answers); });
+      if (!keys.length) return empty('Recommendation by engine', last ? 'This round has no current per-engine rates.' : 'Your first saved AI round will appear here.');
+      return card('Answers checked', 'Saved answers per engine in the latest round.', CB.barChart({ aria: 'Answers per engine', labelWidth: 160,
+        items: keys.map(function (k) { return { label: CB.engine(k), value: ctx[k].answers, cls: CB.ecls(k) }; }) }));
     }
     keys.sort(function (a, b) { return be[b].recommendation_share - be[a].recommendation_share; });
-    return card('By engine', 'How often each engine recommends you in the latest round. Click a bar to follow it over time.',
-      CB.barChart({ aria: 'Recommended share by engine', labelWidth: 160, fmt: pct, max: 1, items: keys.map(function (k) {
-        var e = be[k];
-        return { label: CB.engine(k), value: e.recommendation_share, cls: CB.ecls(k),
-          tip: ['Recommended: ' + pct(e.recommendation_share) + ' (likely ' + pct(e.rs_low) + '–' + pct(e.rs_high) + ')', 'Mentioned: ' + pct(e.mentioned_rate), 'Cited: ' + pct(e.cited_rate), 'Click to follow over time'],
-          onclick: function () { view.engines = [k]; location.hash = '#/p/' + encodeURIComponent(slug) + '/answers'; } };
-      }) }));
+    return card('Recommendation by engine', 'Select an engine to explore its saved rounds.',
+      h('ul', { class: 'engine-readings' }, keys.map(function (k) {
+        var value = be[k].recommendation_share;
+        return h('li', {}, h('a', { href: projectUrl(slug, 'answers'), 'aria-label': CB.engine(k) + ', ' + pct(value) + ' recommendation share',
+          onclick: function () { view.metric = 'recommendation_share'; view.engines = [k]; } },
+          h('span', { class: 'engine-reading-name', text: CB.engine(k) }),
+          h('progress', { class: CB.ecls(k), value: String(value), max: '1', 'aria-hidden': 'true' }),
+          h('span', { class: 'engine-value', text: pct(value) }), h('span', { class: 'engine-arrow', 'aria-hidden': 'true', text: '→' })));
+      })));
   }
   function shareChart(snaps, engines, metric, compact) {
     var labels = snaps.map(CB.roundLabel), mname = METRICS.filter(function (m) { return m[0] === metric; })[0][1];
+    var recommendation = metric === 'recommendation_share';
+    function value(round, record) {
+      if (!record || record.prompts === 0 || (recommendation && round.older_metric) || !rate(record[metric])) return null;
+      return record[metric];
+    }
+    function hasRange(s) { return value(s, s) != null && rate(s.rs_low) && rate(s.rs_high) && s.rs_low <= s.rs_high; }
     var series, band = null, leg;
     if (!engines || !engines.length) {
-      series = [{ name: 'All engines', cls: 'cb', vals: snaps.map(function (x) { return x[metric]; }) }];
-      if (metric === 'recommendation_share') band = { lo: snaps.map(function (x) { return x.rs_low; }), hi: snaps.map(function (x) { return x.rs_high; }) };
+      series = [{ name: 'All engines', cls: 'cb', vals: snaps.map(function (x) { return value(x, x); }) }];
+      if (recommendation && snaps.every(hasRange)) band = { lo: snaps.map(function (x) { return x.rs_low; }), hi: snaps.map(function (x) { return x.rs_high; }) };
       leg = legend([['All engines', 'cb']].concat(band ? [['Likely range', 'band']] : []));
     } else {
-      series = engines.map(function (k) { return { name: CB.engine(k), cls: CB.ecls(k), vals: snaps.map(function (x) { return x.by_engine && x.by_engine[k] ? x.by_engine[k][metric] : null; }) }; });
+      series = engines.map(function (k) { return { name: CB.engine(k), cls: CB.ecls(k), vals: snaps.map(function (x) { return value(x, x.by_engine && x.by_engine[k]); }) }; });
       leg = legend(engines.map(function (k) { return [CB.engine(k), CB.ecls(k)]; }));
     }
     var chart = h('div', {}, leg, CB.lineChart({ labels: labels, series: series, band: band, aria: mname + ' by round', width: compact ? 460 : 820, height: compact ? 220 : 300,
       endLabels: !compact && series.length > 1,
       tipTitle: function (i) { return CB.roundName(snaps[i]) + ' · ' + day(snaps[i].saved_on); },
-      tipExtra: function (i) { var x = snaps[i]; return (band ? ['Likely range: ' + pct(x.rs_low) + '–' + pct(x.rs_high)] : []).concat([num(x.prompts) + ' buying questions']).concat(x.older_metric ? ['Counted more loosely: do not compare'] : []); } }));
-    var rows = snaps.map(function (x, i) { var r = { round: CB.roundName(x), date: day(x.saved_on) }; series.forEach(function (se, j) { r['s' + j] = se.vals[i]; }); return r; });
+      tipExtra: function (i) { var x = snaps[i]; return (recommendation && !engines && hasRange(x) ? ['Likely range ' + pct(x.rs_low) + '–' + pct(x.rs_high)] : [])
+        .concat(measured(x.prompts) ? [num(x.prompts) + ' buying questions'] : []).concat(recommendation && x.older_metric ? ['Earlier counting method'] : []); } }));
+    var rows = snaps.map(function (x, i) { var r = { round: CB.roundName(x) + (recommendation && x.older_metric ? ' (earlier method)' : ''), date: day(x.saved_on) }; series.forEach(function (se, j) { r['s' + j] = se.vals[i]; }); return r; });
     var tbl = CB.table([{ key: 'round', label: 'Round' }, { key: 'date', label: 'Saved' }].concat(series.map(function (se, j) {
       return { key: 's' + j, label: se.name, num: true, render: function (r) { return pct(r['s' + j]); } }; })), rows, { plain: true });
     var t = tableToggle(chart, tbl);
-    var sub = metric === 'recommendation_share' ? 'Share of buying questions where an AI recommends you.' : metric === 'mentioned_rate' ? 'Share of buying answers that name you.' : 'Share of buying answers that link your site.';
+    var sub = recommendation ? 'Average recommendation rate across buying questions.' : metric === 'mentioned_rate' ? 'Share of buying answers that name you.' : 'Share of buying answers that link your site.';
+    if (recommendation && snaps.some(function (x) { return x.older_metric; })) sub += ' Earlier counting methods are excluded.';
     return card(mname + ' over time', sub, t.body, t.button);
   }
 
   /* ---------- tab: AI answers ---------- */
   function tabAnswers(body, d) {
     var snaps = d.snapshots || [];
-    if (!snaps.length) { body.appendChild(empty('No AI round yet', 'Ask your assistant for an AI recommendation check on this project. It will say it is a paid check and wait for your yes.')); return; }
+    if (!snaps.length) {
+      if (d.fact_check_summary) body.appendChild(factChecksCard(d.project, d.fact_check_summary));
+      else body.appendChild(empty('No AI round yet', 'Ask your assistant for an AI recommendation check on this project. It will say it is a paid check and wait for your yes.'));
+      return;
+    }
     var have = {};
     snaps.forEach(function (x) { Object.keys(x.by_engine || {}).forEach(function (k) { have[k] = true; }); });
     var engines = CB.ENGINES.map(function (e) { return e[0]; }).filter(function (k) { return have[k]; });
     if (view.engines) { view.engines = view.engines.filter(function (k) { return have[k]; }); if (!view.engines.length) view.engines = null; }
-    var holder = h('div', {}), segHolder = h('div', {}), chips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Engines' });
+    var holder = h('div', {}), chips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Engines' });
     function draw() { CB.clear(holder).appendChild(shareChart(snaps, view.engines, view.metric, false)); }
-    function drawSeg() { CB.clear(segHolder).appendChild(seg(METRICS, view.metric, function (m) { view.metric = m; drawSeg(); draw(); }, 'Measure')); }
-    function drawChips() {
-      CB.clear(chips);
-      if (!engines.length) { chips.appendChild(h('span', { class: 'note', text: 'Per-engine lines appear once Citebase is updated in your Apify account.' })); return; }
-      chips.appendChild(h('button', { type: 'button', class: 'chip-btn', 'aria-pressed': String(!view.engines), text: 'All engines',
-        onclick: function () { view.engines = null; drawChips(); draw(); } }));
-      engines.forEach(function (k) {
-        var on = !!(view.engines && view.engines.indexOf(k) >= 0);
-        chips.appendChild(h('button', { type: 'button', class: 'chip-btn', 'aria-pressed': String(on), onclick: function () {
-          var list = (view.engines || []).slice(), i = list.indexOf(k);
-          if (i >= 0) list.splice(i, 1); else list.push(k);
-          view.engines = list.length ? list : null; drawChips(); draw();
-        } }, h('i', { class: 'dot ' + CB.ecls(k) }), CB.engine(k)));
+    var metricPicker = seg(METRICS, view.metric, function (key) {
+      view.metric = key;
+      Array.from(metricPicker.children).forEach(function (button, i) { button.setAttribute('aria-pressed', String(METRICS[i][0] === key)); });
+      draw();
+    }, 'Measure');
+    function engineSelected(key) { return key ? !!(view.engines && view.engines.includes(key)) : !view.engines; }
+    if (!engines.length) chips.appendChild(h('span', { class: 'note', text: 'These rounds have no saved per-engine rates.' }));
+    else {
+      [''].concat(engines).forEach(function (key) {
+        chips.appendChild(h('button', { type: 'button', class: 'chip-btn', 'data-engine': key, 'aria-pressed': String(engineSelected(key)), onclick: function () {
+          if (!key) view.engines = null;
+          else {
+            var list = engineSelected(key) ? view.engines.filter(function (engine) { return engine !== key; }) : (view.engines || []).concat([key]);
+            view.engines = list.length ? list : null;
+          }
+          Array.from(chips.children).forEach(function (button) { button.setAttribute('aria-pressed', String(engineSelected(button.dataset.engine))); });
+          draw();
+        } }, key ? h('i', { class: 'dot ' + CB.ecls(key) }) : null, key ? CB.engine(key) : 'All engines'));
       });
     }
-    drawSeg(); drawChips();
-    body.appendChild(h('div', { class: 'controls' }, segHolder, chips));
+    body.appendChild(h('div', { class: 'controls' }, metricPicker, chips));
     body.appendChild(holder); draw();
-    body.appendChild(compareCard(snaps, engines));
+    body.appendChild(compareCard(snaps, engines, d.project));
     body.appendChild(rivalsCard(d.rivals));
     body.appendChild(gapCard(d.citation_gap));
+    if (d.fact_check_summary) body.appendChild(factChecksCard(d.project, d.fact_check_summary));
+  }
+  function factChecksCard(project, facts) {
+    var reviewed = facts['true'] + facts['false'] + facts.unverified;
+    var message = reviewed ? facts['true'] + ' true · ' + facts['false'] + ' false · ' + facts.unverified + ' unverified'
+      : (facts.answers_with_text ? 'Ask your assistant to fact-check what AI said about this brand.' : 'This round has no saved answer wording.');
+    var open = facts.answers_with_text ? h('button', { class: 'btn ghost small', type: 'button', text: 'Review answers',
+      onclick: function () { CB.flows.factChecks(project, facts.snapshot); } }) : null;
+    return card('Fact checks', 'Reviewed claims in the latest round', h('p', { text: message }), open);
   }
   function rivalsCard(rv) {
     if (!rv || !rv.brands || rv.brands.length < 2) return empty('You vs rivals', rv ? rv.note : 'Shown after the first AI round. Add competitors to the project so the checks look for them.');
@@ -399,7 +709,18 @@
     return card('You vs rivals', 'Share of buying answers that name each brand (' + (rv.round === 'baseline' ? 'baseline' : 'round ' + rv.round) + '). ' + rv.note,
       h('div', {}, t.body, (mood || pos) ? h('div', { class: 'rivalfacts' }, pos, mood) : null), t.button);
   }
-  function compareCard(snaps, engines) {
+  function roundCoverage(round) {
+    var by = round.by_engine || {}, context = round.context || {};
+    var engines = (round.engines || Object.keys(by)).slice().sort();
+    return JSON.stringify([round.prompts, engines.map(function (k) {
+      var entry = context[k] || {};
+      var fields = Object.keys(entry).sort().map(function (field) {
+        return [field, Array.isArray(entry[field]) ? entry[field].slice().sort() : entry[field]];
+      });
+      return [k, by[k] && by[k].prompts, fields];
+    })]);
+  }
+  function compareCard(snaps, engines, project) {
     if (snaps.length < 2) return empty('Compare two rounds', 'Needs two AI rounds. Re-check in about a month to see what moved.');
     var a = h('select', { 'aria-label': 'First round' }), b = h('select', { 'aria-label': 'Second round' });
     snaps.forEach(function (x, i) {
@@ -410,18 +731,23 @@
     function draw() {
       CB.clear(out);
       var A = snaps[+a.value], B = snaps[+b.value], verdict;
+      var sameMethod = !A.older_metric && !B.older_metric && A.metric_version === B.metric_version;
+      var sameCoverage = roundCoverage(A) === roundCoverage(B);
       if (A === B) verdict = ['info', 'Pick two different rounds.'];
-      else if (A.older_metric || B.older_metric) verdict = ['warn', 'One of these rounds was counted more loosely. Do not compare them.'];
-      else if (B.rs_low > A.rs_high) verdict = ['good', 'A clear rise: the two likely ranges do not overlap.'];
-      else if (B.rs_high < A.rs_low) verdict = ['bad', 'A clear drop: the two likely ranges do not overlap.'];
-      else verdict = ['info', 'The likely ranges overlap, so this may still be normal swing. Another round will tell.'];
-      out.appendChild(h('p', { class: 'verdict ' + verdict[0], text: verdict[1] }));
+      else if (!sameMethod) verdict = ['warn', 'These rounds use an earlier or different counting method. Their rates are shown separately.'];
+      else if (!sameCoverage) verdict = ['warn', 'Question, engine or answer coverage differs between these rounds. Their rates are shown separately.'];
+      else if ([A.rs_low, A.rs_high, B.rs_low, B.rs_high].every(rate)) {
+        verdict = ['info', 'The recommendation range was ' + pct(A.rs_low) + '–' + pct(A.rs_high) + ' in ' + CB.roundName(A) +
+          ' and ' + pct(B.rs_low) + '–' + pct(B.rs_high) + ' in ' + CB.roundName(B) + '.'];
+      } else verdict = ['info', 'The table shows the saved rates. A likely range is missing from one or both rounds.'];
+      out.appendChild(h('p', { class: 'verdict ' + verdict[0] }, verdict[1],
+        CB.hasProjectWork && project && A !== B ? h('a', { class: 'comparison-evidence', href: projectUrl(project, 'evidence') + '?view=changes', text: 'See the latest matched questions →' }) : null));
       var rows = [{ name: 'All engines', a: A.recommendation_share, b: B.recommendation_share, am: A.mentioned_rate, bm: B.mentioned_rate }];
       engines.forEach(function (k) {
         var ea = (A.by_engine || {})[k], eb = (B.by_engine || {})[k];
         if (ea || eb) rows.push({ name: CB.engine(k), a: ea ? ea.recommendation_share : null, b: eb ? eb.recommendation_share : null, am: ea ? ea.mentioned_rate : null, bm: eb ? eb.mentioned_rate : null });
       });
-      function chg(x, y) { return x == null || y == null ? null : y - x; }
+      function chg(x, y) { return A !== B && sameMethod && sameCoverage && rate(x) && rate(y) ? y - x : null; }
       out.appendChild(CB.table([{ key: 'name', label: 'Engine' },
         { key: 'a', label: CB.roundName(A), num: true, render: function (r) { return pct(r.a); } },
         { key: 'b', label: CB.roundName(B), num: true, render: function (r) { return pct(r.b); } },
@@ -462,6 +788,7 @@
       gained: ['New wins', function (q) { return q.before && q.before.recommended === 0 && q.recommended > 0; }],
       lost: ['Lost', function (q) { return q.before && q.before.recommended > 0 && q.recommended === 0; }] };
     var topics = qs.map(function (q) { return q.topic; }).filter(function (t, i, all) { return t && all.indexOf(t) === i; }).sort();
+    if (view.qTopic && !topics.includes(view.qTopic)) view.qTopic = '';
     var lostN = qs.filter(groups.lost[1]).length;
     body.appendChild(h('div', { class: 'stats' }, stat('Questions', String(qs.length)), stat('Recommended at least once', qs.filter(groups.won[1]).length + ' of ' + qs.length, 'good'),
       stat('New wins', String(qs.filter(groups.gained[1]).length)), stat('Lost', String(lostN), lostN ? 'bad' : null)));
@@ -515,32 +842,107 @@
   }
 
   /* ---------- tab: site ---------- */
-  function tabSite(body, d) {
-    var audits = d.audits || [];
-    if (!audits.length) { body.appendChild(empty('No site check yet', 'Ask your assistant to check the site with this project name. It saves the result here.')); return; }
-    var aud = audits[audits.length - 1], sub = aud.subscores || {}, keys = Object.keys(sub), prev = audits.length > 1 ? audits[audits.length - 2].subscores || {} : {};
-    body.appendChild(h('div', { class: 'grid2 even' },
-      card('Health score', audits.length > 1 ? 'One point per site check.' : 'Checked ' + day(aud.date) + '. Re-check after fixes to see the trend.',
-        h('div', { class: 'health' }, ring(aud.health_score), audits.length > 1 ? CB.lineChart({ labels: audits.map(function (a) { return short(a.date); }), max: 100, height: 180,
-          fmt: function (v) { return v == null ? '–' : String(Math.round(v)); }, aria: 'Site health by check', series: [{ name: 'Health', cls: 'cb', vals: audits.map(function (a) { return a.health_score; }) }],
-          tipTitle: function (i) { return day(audits[i].date); } }) : null)),
-      keys.length ? card('Areas', 'Latest scores out of 100. Under 70 needs work.', CB.barChart({ aria: 'Sub-scores', labelWidth: 120, max: 100, items: keys.map(function (k) {
-        return { label: k.replace(/-/g, ' '), value: sub[k], cls: sub[k] < 70 ? 'badbar' : sub[k] < 80 ? 'warnbar' : 'goodbar', tip: [sub[k] + ' of 100'].concat(prev[k] != null ? ['Before: ' + prev[k]] : []) }; }) }))
-        : empty('Areas', 'No sub-scores saved.')));
+  function auditArea(key) {
+    var text = String(key || '').replace(/[-_]/g,' ');
+    return { 'ai search': 'AI search', 'on page': 'On-page', technical: 'Technical' }[text] || text.charAt(0).toUpperCase()+text.slice(1);
+  }
+  function auditFindings(audit, project) {
+    var problems = audit.problems || [], passed = audit.passed || [], counts = audit.counts || {};
+    var filter = h('select', { 'aria-label': 'Filter findings' }, h('option', { value: 'all', text: 'All priorities' }),
+      h('option', { value: 'fail', text: 'High priority' }), h('option', { value: 'warn', text: 'Warnings' }));
+    var list = h('div', { class: 'audit-finding-list' }), description = h('p', { class: 'audit-counts', role: 'status' });
+    function finding(item) {
+      var links = (item.example_urls || []).map(CB.safeUrl).filter(Boolean).map(function (value) {
+        var url = new URL(value);
+        if (url.username || url.password) return null;
+        return h('a', { href: url.href, target: '_blank', rel: 'noopener noreferrer', text: url.host + url.pathname + url.search });
+      }).filter(Boolean);
+      return h('details', { class: 'audit-finding' },
+        h('summary', {}, h('span', { class: 'audit-level ' + (item.level === 'fail' ? 'high' : 'warn'), text: item.level === 'fail' ? 'High priority' : 'Warning' }),
+          h('strong', { text: item.check }), h('small', { text: auditArea(item.area) })),
+        h('div', { class: 'audit-detail' }, item.detail ? h('p', { text: item.detail }) : null,
+          links.length ? h('div', { class: 'audit-urls' }, h('b', { text: links.length === 1 ? 'Example page' : 'Example pages' }), links) : null));
+    }
+    function show() {
+      var rows = problems.filter(function (item) { return filter.value === 'all' || filter.value === item.level; })
+        .sort(function (a, b) { return Number(b.level === 'fail') - Number(a.level === 'fail'); });
+      var total = filter.value === 'all' ? (Number.isInteger(counts.fail) && Number.isInteger(counts.warn) ? counts.fail + counts.warn : null) : counts[filter.value];
+      description.textContent = total > rows.length ? 'Showing ' + rows.length + ' of ' + total + ' findings.' :
+        rows.length + (rows.length === 1 ? ' finding' : ' findings') + (Number.isInteger(counts.pass) ? ' · ' + counts.pass + ' checks passed' : '');
+      CB.clear(list);
+      rows.forEach(function (item) { list.appendChild(finding(item)); });
+      if (!rows.length) list.appendChild(h('p', { class: 'audit-quiet', text: total > 0 ?
+        'Individual findings were not included in this saved check.' : 'No recorded problems match this selection.' }));
+    }
+    filter.addEventListener('change', show); show();
+    return h('section', { class: 'audit-findings', 'aria-label': 'Audit findings' },
+      h('header', { class: 'audit-findings-head' }, h('div', {}, h('h3', { text: 'Audit findings' }), description),
+        h('div', { class: 'audit-finding-tools' }, problems.length ? filter : null,
+          problems.length ? h('button', { class: 'btn ghost small', type: 'button', text: 'Plan fixes', onclick: function () {
+            CB.flows.nextSteps(project, route);
+          } }) : null)), list,
+      passed.length ? h('details', { class: 'audit-passed' }, h('summary', { text: 'Passed checks (' + passed.length + ')' }),
+        h('ul', {}, passed.map(function (check) { return h('li', { text: check }); }))) : null);
+  }
+  function tabSite(body, d, project) {
+    var brand = d.brand || {}, website = brand.site || (brand.domain ? 'https://' + brand.domain : '');
+    var audits = d.audits || [], aud = d.latest_audit || audits[audits.length - 1];
+    var run = h('button', { type: 'button', class: 'btn', text: 'Run site audit', onclick: function () {
+      CB.flows.checkSite(project, website, route);
+    } });
+    body.appendChild(h('header', { class: 'audit-heading' }, h('div', {}, h('h2', { text: 'Site audit' }),
+      h('p', { text: aud ? 'Last checked ' + day(aud.date) + (Number.isInteger(aud.pages_checked) ?
+        ' · ' + aud.pages_checked + (aud.pages_checked === 1 ? ' page checked' : ' pages checked') : '') :
+        'Check how search engines and AI assistants can read your website.' })), run));
+    if (!aud) {
+      body.appendChild(h('section', { class: 'audit-first' }, h('h3', { text: 'No site audit yet' }),
+        h('p', { text: 'Your first audit gives you a health score and the pages behind each finding.' })));
+      if (CB.hasProjectWork) body.appendChild(CB.workUI.pageReview(project, website));
+      return;
+    }
+    var sub = aud.subscores || {}, keys = Object.keys(sub).filter(function (k) { return Number.isFinite(sub[k]); }).sort(function (a, b) { return sub[a] - sub[b]; });
+    var score = projectHealth(aud), prior = audits.length > 1 ? projectHealth(audits[audits.length - 2]) : null;
+    var scoreLabel = h('div', { class: 'audit-score' }, ring(score), h('div', {}, h('h3', { text: 'Site health' }),
+      h('p', { text: score === null ? 'Score unavailable' : 'Score out of 100' }),
+      prior !== null ? h('small', { text: 'Previous score ' + prior }) : null));
+    var scores = h('section', { class: 'audit-summary', 'aria-label': 'Site health and area scores' }, scoreLabel,
+      keys.length ? h('dl', { class: 'audit-areas' }, keys.map(function (k) {
+        return h('div', {}, h('dt', { text: auditArea(k) }), h('dd', {},
+          h('meter', { min: 0, max: 100, low: 60, high: 80, optimum: 100, value: String(sub[k]), 'aria-hidden': 'true' }), h('b', { text: String(sub[k]) })));
+      })) : null);
+    body.appendChild(scores);
+    if (aud.status === 'partial') body.appendChild(h('p', { class: 'audit-coverage' }, h('b', { text: 'Partial coverage' }), ' The crawl reached its time limit. These results cover the pages Citebase could read.'));
+    if (Array.isArray(aud.problems)) body.appendChild(auditFindings(aud, project));
+    else body.appendChild(card('Site findings', 'Open the suggested fixes for the latest saved audit.', null,
+      h('button', { type: 'button', class: 'btn ghost small', text: 'See suggested fixes', onclick: function () { CB.flows.nextSteps(project, route); } })));
     var ch = d.site_changes;
     function group(title, items, tone) {
       return h('div', { class: 'change ' + tone }, h('h4', {}, title, h('span', { class: 'count', text: String((items || []).length) })),
         (items || []).length ? h('ul', {}, items.map(function (x) { return h('li', { text: String(x).replace(/_/g, ' ') }); })) : h('p', { class: 'note', text: 'None.' }));
     }
-    if (ch) body.appendChild(card('What changed since ' + day(ch.since), null, h('div', { class: 'changes' }, group('Fixed', ch.fixed, 'good'), group('New problems', ch['new'], 'bad'), group('Still open', ch.still_open, 'warn'))));
-    body.appendChild(card('All site checks', null, CB.table([{ key: 'date', label: 'Checked', render: function (a) { return day(a.date); } }, { key: 'health_score', label: 'Score', num: true }]
+    if (ch) body.appendChild(card('Changes since ' + day(ch.since), ch.note || null, h('div', { class: 'changes' }, group('Fixed', ch.fixed, 'good'), group('New problems', ch['new'], 'bad'), group('Still open', ch.still_open, 'warn'))));
+    if (CB.hasProjectWork) body.appendChild(CB.workUI.pageReview(project, website));
+    var trend = audits.length > 1 ? CB.lineChart({ labels: audits.map(function (a) { return short(a.date); }), max: 100, height: 150,
+      fmt: function (v) { return Number.isFinite(v) ? String(Math.round(v)) : '–'; }, aria: 'Site health by audit', series: [
+        { name: 'Site health', cls: 'cb', vals: audits.map(projectHealth) }], tipTitle: function (i) { return day(audits[i].date); } }) : null;
+    body.appendChild(card('Audit history', null, h('div', { class: 'audit-history' }, trend, CB.table([{ key: 'date', label: 'Checked', render: function (a) { return day(a.date); } }, { key: 'health_score', label: 'Score', num: true }]
       .concat(keys.map(function (k) { return { key: k, label: k.replace(/-/g, ' '), num: true, render: function (a) { return a.subscores && a.subscores[k] != null ? String(a.subscores[k]) : '–'; } }; })),
-      audits.slice().reverse(), { plain: true })));
+      audits.slice().reverse(), { plain: true }))));
   }
 
   /* ---------- tab: traffic ---------- */
   function niceMax(vals) { var m = Math.max.apply(null, vals.concat([1])), p = Math.pow(10, Math.floor(Math.log10(m))); return Math.ceil(m / p) * p; }
-  function tabTraffic(body, d) {
+  function tabTraffic(body, d, slug) {
+    if (CB.hasProjectWork && !CB.demo) {
+      var googleReports = h('div', {class:'setup-work'});
+      body.appendChild(googleReports);
+      CB.work(slug, 'research_get', {}).then(function (research) {
+        if (googleReports.isConnected) CB.renderGoogleReports(googleReports, research.first_party, true);
+      }).catch(function () {
+        if (googleReports.isConnected) googleReports.appendChild(h('p', {class:'note'},
+          'Connected Google reports could not be loaded. ', h('a', {href:projectUrl(slug, 'setup'),text:'Review project research'})));
+      });
+    }
     var row = h('div', { class: 'grid2 even' }), bots = d.ai_bot_visits, tr = d.ai_traffic;
     if (bots && bots.bots && bots.bots.length) {
       var chart = CB.barChart({ aria: 'AI bot requests', labelWidth: 140, items: bots.bots.slice(0, 10).map(function (b) {
@@ -562,7 +964,7 @@
           tipTitle: function (i) { return months[i].month; }, tipExtra: function (i) { return [num(months[i].all_visits) + ' visits in all']; } }) : null,
         tr.assistants && tr.assistants.length ? CB.barChart({ aria: 'Visits by assistant', labelWidth: 110, items: tr.assistants.map(function (a) { return { label: a.assistant, value: a.visits }; }) }) : null,
         h('p', { class: 'note', text: 'A floor: people who read an AI answer without clicking are not counted.' }))));
-    } else row.appendChild(empty('Visits from AI assistants', 'Export "Traffic acquisition" from Google Analytics and ask Citebase to save it to this project.'));
+    } else row.appendChild(empty('Visits from AI assistants', 'Connect Google Analytics in Project setup → Research, or import a Traffic acquisition export.'));
     body.appendChild(row);
     var sd = d.search_demand;
     if (sd && (sd.gaps || sd.top_questions)) {
@@ -573,7 +975,7 @@
           { key: 'position', label: 'Position', num: true }], list, { sort: 'impressions' }),
           sd.test_in_ai && sd.test_in_ai.length ? h('div', { class: 'testlist' }, h('p', { class: 'note', text: 'Worth adding to your AI test questions:' }),
             h('div', { class: 'chipline' }, sd.test_in_ai.slice(0, 12).map(function (t) { return h('span', { class: 'chip', text: t }); }))) : null)));
-    } else body.appendChild(empty('What people search on Google', 'Export Search Console, Performance, Queries, and ask Citebase to save it to this project.'));
+    } else body.appendChild(empty('What people search on Google', 'Connect Search Console in Project setup → Research, or import your Queries report to see clicks and impressions.'));
     var rk = d.ranks;
     if (rk && rk.positions && rk.positions.length) {
       body.appendChild(card('Search positions', rk.top_10 + ' of ' + rk.keywords + ' keywords in the top 10 · ' + day(rk.saved_on) + (rk.previous_date ? ' vs ' + day(rk.previous_date) : ''),
@@ -585,89 +987,52 @@
   }
 
   /* ---------- tab: to-do (managed here, saved to the project in the user's account) ---------- */
-  function todoRow(slug, t, compact) {
-    var li = h('li', { class: 'todo-row ' + t.status });
-    var box = h('input', { type: 'checkbox', checked: t.status === 'done', 'aria-label': 'Done: ' + t.step });
-    box.addEventListener('change', function () { setStatus(slug, t, box.checked ? 'done' : 'open', li); });
-    li.appendChild(h('label', { class: 'todo-main' }, box, h('span', { class: 'step', text: t.step })));
-    if (!compact) {
-      li.appendChild(h('span', { class: 'when', text: t.updated ? short(t.updated) : '' }));
-      if (t.status === 'skipped') li.appendChild(h('button', { class: 'btn tiny', type: 'button', text: 'Reopen', onclick: function () { setStatus(slug, t, 'open', li); } }));
-      else if (t.status === 'open') li.appendChild(h('button', { class: 'btn tiny', type: 'button', text: 'Skip', onclick: function () { setStatus(slug, t, 'skipped', li); } }));
-    }
-    return li;
-  }
-  function setStatus(slug, t, status, li) {
-    var before = t.status;
-    t.status = status; li.className = 'todo-row ' + status + ' saving';
-    CB.saveTodo(slug, [{ step: t.step, status: status }]).then(function () {
-      CB.toast(status === 'done' ? 'Marked done' : status === 'skipped' ? 'Skipped' : 'Reopened');
-      projectsCache = null; route();
-    }, function (e) {
-      t.status = before; li.className = 'todo-row ' + before; CB.toast('Not saved: ' + e.message, true);
-      var box = li.querySelector('input'); if (box) box.checked = before === 'done';
-    });
-  }
-  function tabTodo(body, d, slug) {
-    var todo = d.todo || [], counts = { open: 0, done: 0, skipped: 0 };
-    todo.forEach(function (t) { counts[t.status] = (counts[t.status] || 0) + 1; });
-    var total = todo.length, prog = h('span', { class: 'fill' });
-    prog.style.width = Math.round((total ? counts.done / total : 0) * 100) + '%';
-    var list = h('ul', { class: 'todos' }), filter = h('div', {});
-    function draw() {
-      CB.clear(list);
-      var shown = todo.filter(function (t) { return view.todoFilter === 'all' || t.status === view.todoFilter; });
-      shown.forEach(function (t) { list.appendChild(todoRow(slug, t, false)); });
-      if (!shown.length) list.appendChild(h('li', { class: 'none', text: view.todoFilter === 'open' ? 'Nothing open. Nice work.' : 'Nothing here.' }));
-    }
-    function drawFilter() {
-      CB.clear(filter).appendChild(seg([['open', 'Open ' + counts.open], ['done', 'Done ' + counts.done], ['skipped', 'Skipped ' + counts.skipped], ['all', 'All']],
-        view.todoFilter, function (v) { view.todoFilter = v; drawFilter(); draw(); }, 'Show'));
-    }
-    var input = h('input', { type: 'text', maxlength: '200', placeholder: 'Add a step, e.g. "Write a page about payroll for nonprofits"', 'aria-label': 'New step' });
-    var form = h('form', { class: 'addtodo' }, input, h('button', { class: 'btn', type: 'submit', text: 'Add' }));
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var step = input.value.trim();
-      if (!step) return;
-      if (todo.some(function (t) { return t.step.toLowerCase() === step.toLowerCase(); })) { CB.toast('That step is already on the list.', true); return; }
-      input.disabled = true;
-      CB.saveTodo(slug, [{ step: step, status: 'open' }]).then(function () { CB.toast('Added'); view.todoFilter = 'open'; projectsCache = null; route(); },
-        function (er) { input.disabled = false; CB.toast('Not saved: ' + er.message, true); });
-    });
-    drawFilter(); draw();
-    body.appendChild(h('div', { class: 'grid2' },
-      card('To-do', 'Saved to this project in your Apify account, so your assistant sees the same list.',
-        h('div', {}, h('div', { class: 'progress', title: counts.done + ' of ' + total + ' done' }, h('span', { class: 'track' }, prog), h('b', { text: counts.done + ' of ' + total + ' done' })),
-          filter, list, form)),
-      h('div', { class: 'stack' },
-        card('Due', null, (d.due || []).length ? h('ul', { class: 'story compact' }, d.due.map(function (x) { return h('li', { class: 'warn', text: x }); })) : h('p', { class: 'ok', text: 'Nothing is due.' })),
-        card('Logged changes', 'Changes made to win answers. Each is compared with the next round.',
-          (d.experiments || []).length ? h('ol', { class: 'timeline' }, d.experiments.slice().reverse().map(function (e) {
-            return h('li', {}, h('span', { class: 'when', text: day(e.date) }), h('b', { text: e.action }), e.mechanism ? h('span', { class: 'why', text: e.mechanism }) : null); }))
-            : h('p', { class: 'note', text: 'Ask your assistant to log a change when you make one, e.g. "log that I published the pricing page".' })))));
-  }
-
   /* ---------- routing and start ---------- */
-  function route() {
+  function route(event) {
+    if (access !== 'in' && access !== 'demo') return;
+    navigation++;
     CB.untip();
     clearTimeout(watchTimer);
-    var m = /^#\/p\/([^/]+)(?:\/(\w+))?/.exec(location.hash);
-    if (m) { project(decodeURIComponent(m[1]), m[2] || 'overview'); return; }
-    var page = (/^#\/(activity|schedules|account)/.exec(location.hash) || [])[1];
-    if (!page) { overview(); return; }
-    topbar(null, page);
-    page === 'account' ? (function () { CB.untip(); CB.clear(main); banner(); CB.pages.account(main); })() : withProjects(function (list) {
-      CB.untip(); CB.clear(main); banner(); CB.pages[page](main, list); });
-  }
-  function withProjects(fn) {
-    loading('Loading…');
-    (projectsCache ? Promise.resolve(projectsCache) : CB.history().then(function (r) { projectsCache = r.projects || []; return projectsCache; }))
-      .then(fn, function (e) { failed(e, route); });
+    if (event && event.type === 'hashchange') window.scrollTo(0, 0);
+    var path = location.hash.split('?')[0];
+    CB.guide.renderTour();
+    if (path === '#/assistants') {
+      page(); topbar('account'); document.title = 'Connect an AI assistant · Citebase';
+      var requested = new URLSearchParams(location.hash.split('?')[1] || '').get('project') || '';
+      CB.guide.assistantPage(main,/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(requested) ? requested : '');
+      return;
+    }
+    var m = /^#\/p\/([^/]+)(?:\/(\w+))?\/?$/.exec(path);
+    if (m) {
+      var slug;
+      try { slug = decodeURIComponent(m[1]); } catch (_) { overview(); return; }
+      project(slug, m[2] || 'overview'); return;
+    }
+    var section = (/^#\/(activity|schedules|account)\/?$/.exec(path) || [])[1];
+    if (!section) { overview(); return; }
+    topbar(section); document.title = section.charAt(0).toUpperCase() + section.slice(1) + ' · Citebase';
+    var current = currentRequest();
+    function mount(list) {
+      if (!current()) return;
+      page(); banner();
+      var content = h('div', {}); main.appendChild(content);
+      CB.pages[section](content, list);
+    }
+    if (section === 'account') mount();
+    else {
+      loading('Loading…');
+      CB.history().then(function (r) { mount(r.projects || []); }, function (e) { if (current()) failed(e, route); });
+    }
   }
   window.addEventListener('hashchange', route);
   CB.startAuth().then(function (state) {
-    if (state === 'demo' || state === 'in') { accountBar(); route(); return; }
+    if (state === 'redirecting') return;
+    if (state === 'unavailable') { failed(new Error('Could not check your sign-in. Check your connection and try again.'), function () { location.reload(); }); return; }
+    if (state === 'in') CB.markSignedOut(false);
+    if (state === 'demo' || state === 'in') { access = state; accountBar(); route(); return; }
+    // One click: a signed-out visitor goes straight to Apify. The Citebase sign-in screen
+    // only appears after a cancel, a failure or a deliberate sign-out, so it cannot loop.
+    if (state === 'out' && !CB.wasSignedOut()) { loading('Opening Apify sign-in…'); CB.signIn(); return; }
     signedOut(state === 'failed' ? 'Sign-in could not be finished. Please try again.' : state === 'cancelled' ? 'Sign-in was cancelled.' : '');
   });
 })();

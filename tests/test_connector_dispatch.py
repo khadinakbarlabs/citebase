@@ -57,7 +57,7 @@ class InputSchemaTests(unittest.TestCase):
             self.schema = json.load(fh)
 
     def test_enum_matches_dispatch(self):
-        self.assertEqual(set(self.schema["properties"]["tool"]["enum"]), set(runner.TOOL_NAMES))
+        self.assertEqual(set(self.schema["properties"]["tool"]["enum"]), (set(runner.TOOL_NAMES) - runner.SERVER_ONLY) | {"project_work"})
 
     def test_required_and_defaults(self):
         self.assertEqual(self.schema["required"], ["tool"])

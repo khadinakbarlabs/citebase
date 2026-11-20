@@ -12,10 +12,14 @@ from __future__ import annotations
 import asyncio
 import datetime as dt
 import difflib
+import hashlib
+import json
 import re
 from typing import Any
 
+import fact_checks
 import insights
+import scheduled_import
 import storage as stg
 import tools
 
@@ -33,7 +37,6 @@ SETTINGS_RULES = {"country": (r"[a-z]{2}", "a two-letter country code, for examp
                   "device": (r"desktop|mobile|tablet", "'desktop', 'mobile' or 'tablet'")}
 TODO_STATES = ("open", "done", "skipped")
 MAX_TODO = 40
-MAX_IMPORT_IDS = 40
 _locks: dict[str, asyncio.Lock] = {}
 
 
@@ -157,7 +160,8 @@ def clean_audit(audit: Any) -> dict:
     for p in (audit.get("problems") or [])[:MAX_AUDIT_PROBLEMS]:
         if isinstance(p, dict):
             problems.append({"check": _text(p.get("check"), 120), "detail": _text(p.get("detail")),
-                             "level": _text(p.get("level"), 10), "area": _text(p.get("area"), 30)})
+                             "level": _text(p.get("level"), 10), "area": _text(p.get("area"), 30),
+                             "example_urls": fact_checks.safe_evidence_urls(p.get("example_urls"), limit=3)})
     pages = audit.get("pages_checked")
     passed = audit.get("passed") if isinstance(audit.get("passed"), list) else []
     return {"site": _text(audit.get("site"), 200), "health_score": score, "subscores": numbers(audit.get("subscores"), 10),
@@ -204,12 +208,51 @@ def unknown_project(slug: str, known: list[str]) -> str:
             + "Save results first with save_results, or check the name.")
 
 
+async def setup_competitors(be, slug):
+    prefix = stg.key(slug, "setup", "competitors") + "."
+    keys = await be.keys(prefix)
+    if not keys:
+        return 0, []
+    latest = max(keys)
+    return int(latest[len(prefix):]), await be.get(latest)
+
+
+async def with_setup_competitors(be, slug, meta):
+    revision, names = await setup_competitors(be, slug)
+    if revision > meta.get("_competitors_revision", 0):
+        return {**meta, "brand": {**meta.get("brand", {}), "competitors": names}}
+    return meta
+
+
+async def first_panel(be, slug, proposed):
+    """Elect a single immutable baseline before writing rounds or exposing it to older readers."""
+    from work_actions import RevisionStore, prefix, tag
+    key = stg.key(slug, "panel")
+    existing = await be.get(key)
+    if existing:
+        return existing
+    token = tag(json.dumps(proposed, ensure_ascii=True, sort_keys=True))
+    candidate = stg.key(slug, "setup", "panel", token)
+    await be.set(candidate, proposed)
+    if isinstance(be, stg.ApifyBackend) and not hasattr(be, "revision_queue"):
+        from work_storage import run_revision_queue
+        revisions = RevisionStore(be, await run_revision_queue(be, "citebase-work-revisions-v1"), token)
+    else:
+        revisions = await RevisionStore.open(be, be, token)
+    winner = await revisions.commit(tag(prefix(be, slug) + ".first-panel"), token)
+    baseline = proposed if winner == token else await be.get(stg.key(slug, "setup", "panel", winner))
+    if not baseline:
+        raise ValueError("The elected comparison questions could not be read. Retry the save.")
+    await be.set(key, baseline)
+    return baseline
+
+
 async def _require_project(slug: str) -> dict:
     be = await stg.get_backend()
     meta = await be.get(stg.key(slug, "meta"))
     if not meta:
         raise ValueError(unknown_project(slug, await list_projects()))
-    return meta
+    return await with_setup_competitors(be, slug, meta)
 
 
 def check_frozen(stored_panel: list[dict] | None, panel_rows: dict[str, dict]) -> None:
@@ -222,19 +265,22 @@ def check_frozen(stored_panel: list[dict] | None, panel_rows: dict[str, dict]) -
 async def save_results(project: str, runs: list[dict], panel: list[dict] | None = None,
                        experiments: list[dict] | None = None, brand: dict | None = None,
                        replace: bool = False, append: bool = False, settings: dict | None = None,
-                       todo: list[dict] | None = None, source_ids: list[str] | None = None) -> dict:
+                       todo: list[dict] | None = None, source_ids: list[str] | None = None, *, create_only: bool = False) -> dict:
     slug = stg.clean_slug(project)
     async with lock_for(slug):
         return await _save_results(slug, runs, panel, experiments, brand, replace, append, settings, todo,
-                                   source_ids)
+                                   source_ids, create_only)
 
 
 async def _save_results(slug: str, runs: list[dict], panel: list[dict] | None, experiments: list[dict] | None,
                         brand: dict | None, replace: bool, append: bool, settings: dict | None = None,
-                        todo: list[dict] | None = None, source_ids: list[str] | None = None) -> dict:
+                        todo: list[dict] | None = None, source_ids: list[str] | None = None, create_only: bool = False) -> dict:
     be = await stg.get_backend()
     meta = await be.get(stg.key(slug, "meta"))
     created = meta is None
+    exists_message = f"Project '{slug}' already exists. Open it or choose a different project name."
+    if create_only and not created:
+        raise ValueError(exists_message)
     others = [p for p in await list_projects() if p != slug] if created else []
     if created and len(others) >= stg.MAX_PROJECTS:
         raise ValueError(f"You already have {stg.MAX_PROJECTS} saved projects. Reuse one of them.")
@@ -252,6 +298,10 @@ async def _save_results(slug: str, runs: list[dict], panel: list[dict] | None, e
     # clean round names BEFORE checking for repeats, so '2026 12' and '2026-12' cannot sneak in as two rounds
     cleaned = [{**r, "snapshot": stg.clean_part(r.get("snapshot"))} for r in runs]
     rows = tools.normalise_runs(cleaned, panel_rows) if runs else []
+    if source_ids:
+        for row, raw in zip(rows, cleaned):
+            if raw.get("source_dataset_id") in source_ids:
+                row["source_dataset_id"] = raw["source_dataset_id"]
     new_experiments = clean_experiments(experiments)
     new_brand = clean_brand(brand)
     new_settings = clean_settings(settings)
@@ -273,6 +323,7 @@ async def _save_results(slug: str, runs: list[dict], panel: list[dict] | None, e
     # 1) validate every round and build what will be written; nothing is stored yet
     to_write: dict[str, list[dict]] = {}
     notes: list[str] = []
+    answer_records: dict[str, tuple[str, dict]] = {}
     for label, new_rows in groups.items():
         existing = await be.get(stg.key(slug, "runs", label))
         if existing and not (append or replace):
@@ -297,18 +348,51 @@ async def _save_results(slug: str, runs: list[dict], panel: list[dict] | None, e
                 "between the saved answers and these new ones", "the saved answers", "the new answers")]
             new_rows = existing + [{**r, "repeat": int(r["repeat"]) + top.get((r["prompt_id"], r["platform"]), 0)}
                                    for r in fresh]
+        if any(r.get("answer_text") for r in new_rows):
+            # Write each batch under its own key so readers of earlier rows still see the matching wording.
+            text: dict[str, str] = {}
+            saved_rows = []
+            for row in new_rows:
+                if row.get("answer_text"):
+                    row = dict(row)
+                    ref = fact_checks.answer_id(row)
+                    text[ref] = row.pop("answer_text")
+                    row["answer_ref"] = ref
+                saved_rows.append(row)
+            encoded = json.dumps(text).encode()
+            if len(encoded) > 8_000_000:
+                raise ValueError("This batch is too large to store with the answer text. Import fewer datasets at once.")
+            record = stg.key(slug, "answers", label, hashlib.sha256(encoded).hexdigest())
+            answer_records[label] = (record, text)
+            new_rows = [{**row, "answer_record": record} if row.get("answer_ref") in text else row
+                        for row in saved_rows]
         to_write[label] = new_rows
 
     # 2) write rounds, then the question list, then meta last
+    if create_only:
+        # Two dashboard or agent instances can create the same name simultaneously.
+        # Elect one set of validated details. An interrupted first write can resume with the same details.
+        from work_actions import RevisionStore, prefix, tag
+        token = tag(json.dumps([new_brand, new_settings], sort_keys=True))
+        revisions = await RevisionStore.open(be, be, token)
+        slot = tag(prefix(be, slug) + ".create")
+        if await revisions.commit(slot, token) != token or await be.get(stg.key(slug, "meta")) is not None:
+            raise ValueError(exists_message)
+    if not stored_panel and panel_rows:
+        baseline = await first_panel(be, slug, list(panel_rows.values()))
+        check_frozen(baseline, panel_rows)
     imports = meta.setdefault("imports", {})
     for label, new_rows in to_write.items():
+        if label in answer_records:
+            private = await be.private_store()
+            record, text = answer_records[label]
+            await private.set(record, text)
         await be.set(stg.key(slug, "runs", label), new_rows)
+        meta.setdefault("panel_hashes", {}).setdefault(label, cl.panel_hash(panel_rows))
         meta["snapshots"].setdefault(label, today())  # first save date; appending never moves a round in time
         kept = [] if replace else list(imports.get(label) or [])  # a replaced round holds none of its old datasets
         if source_ids or replace:
-            imports[label] = list(dict.fromkeys([*kept, *(source_ids or [])]))[-MAX_IMPORT_IDS:]
-    if not stored_panel and panel_rows:
-        await be.set(stg.key(slug, "panel"), list(panel_rows.values()))
+            imports[label] = list(dict.fromkeys([*kept, *(source_ids or [])]))
     if new_experiments:
         current = await be.get(stg.key(slug, "experiments")) or []
         for e in new_experiments:
@@ -318,6 +402,8 @@ async def _save_results(slug: str, runs: list[dict], panel: list[dict] | None, e
                                      "start a new project to log more.")
                 current.append({**e, "exp_id": f"e{len(current) + 1:03d}"})
         await be.set(stg.key(slug, "experiments"), current)
+    if "competitors" in new_brand:
+        meta["_competitors_revision"], _ = await setup_competitors(be, slug)
     if new_brand:
         meta["brand"] = {**meta.get("brand", {}), **new_brand}
     if new_settings:
@@ -326,6 +412,7 @@ async def _save_results(slug: str, runs: list[dict], panel: list[dict] | None, e
         meta["todo"] = merge_todo(meta.get("todo") or [], new_todo)
     meta["updated"] = today()
     await be.set(stg.key(slug, "meta"), meta)
+    meta = await with_setup_competitors(be, slug, meta)
     return {"project": slug, "snapshots_saved": {k: len(v) for k, v in to_write.items()},
             "panel_prompts": len(panel_rows), "snapshots_in_project": sorted(meta["snapshots"]),
             "brand": meta.get("brand", {}), "settings": meta.get("settings", {}), "todo": meta.get("todo", []),
@@ -606,7 +693,11 @@ async def overview() -> dict:
             dates = sorted(k[len(prefix):] for k in keys if k.startswith(prefix))
             meta["last_audit"] = {"date": dates[-1]} if dates else {}
         last_audit = meta["last_audit"]
-        projects.append({"project": name, "site": (meta.get("brand") or {}).get("site") or (meta.get("brand") or {}).get("domain"),
+        receipt_prefix = stg.key(name, "scheduled-runs", "scheduled-")
+        parent_ids = {k[len(receipt_prefix):]: "managed" for k in keys if k.startswith(receipt_prefix)}
+        imported_ids = sorted({ds for values in (meta.get("imports") or {}).values() for ds in values
+                               if isinstance(ds, str) and stg.DATASET_ID.fullmatch(ds)})
+        projects.append({"imported_dataset_ids": imported_ids, "attributed_runs": parent_ids, "project": name, "site": (meta.get("brand") or {}).get("site") or (meta.get("brand") or {}).get("domain"),
                          "brand": (meta.get("brand") or {}).get("name"), "rounds": len(rounds),
                          "last_round_saved": max(rounds.values()) if any(rounds.values()) else None,
                          "last_site_check": last_audit.get("date"), "health_score": last_audit.get("health_score"),
@@ -629,11 +720,27 @@ async def overview() -> dict:
             "projects": projects, "markdown": "\n".join(lines), "next": nxt}
 
 
-async def history(project: str | None = None) -> dict:
+async def history(project: str | None = None, answer_review: dict | None = None) -> dict:
     if not str(project or "").strip():
+        if answer_review is not None:
+            raise ValueError("Send a project name to review its saved answers.")
         return await overview()
     data = await load_project(project)
+    be = await stg.get_backend()
+    review = None
+    if answer_review is not None:
+        if not isinstance(answer_review, dict):
+            raise ValueError("Send answer_review with a snapshot and optional offset.")
+        snapshot = stg.clean_part(answer_review.get("snapshot"))
+        review = await fact_checks.review_page(be, data, snapshot, answer_review.get("offset", 0))
     snaps = await asyncio.to_thread(snapshot_trend, data)
+    rounds = data["meta"]["snapshots"]
+    latest_round = sorted(rounds, key=rounds.get)[-1] if rounds else None
+    try:
+        facts = await fact_checks.summary(be, data, latest_round) if latest_round else None
+    except Exception:
+        # History and alerts remain readable if the optional private store is unavailable.
+        facts = None
     audits = [{"date": a["date"], "health_score": a.get("health_score"), "subscores": a.get("subscores", {})}
               for a in data["audits"]]
     lines = [f"# History: {data['slug']}"]
@@ -652,8 +759,16 @@ async def history(project: str | None = None) -> dict:
         lines += ["", "| Site check | Health score |", "|---|---|"] + [f"| {a['date']} | {a['health_score']} |" for a in audits]
     if not snaps and not audits:
         lines += ["", "Nothing saved yet."]
+    alert = await scheduled_import.checked_alert(be, data, snaps, cl.DISCOVERY_TYPES)
+    if alert:
+        lines += ["", alert["message"]]
     meta = data["meta"]
     stored = data["audits"]
+    latest_audit = None
+    if stored:
+        latest_audit = clean_audit(stored[-1])
+        latest_audit.pop("site", None)
+        latest_audit["date"] = stored[-1].get("date")
     changes = compare_audits(stored[-2], stored[-1]) if len(stored) > 1 else None
     if changes and (changes["fixed"] or changes["new"]):
         lines += ["", f"Since the site check on {changes['since']}: {len(changes['fixed'])} fixed, {len(changes['new'])} "
@@ -674,13 +789,16 @@ async def history(project: str | None = None) -> dict:
     else:
         nxt = "Nothing is due. Offer next_steps with this project name to pick one thing to work on."
     return {"project": data["slug"], "brand": meta.get("brand", {}), "panel_prompts": len(data["panel"]),
-            "snapshots": snaps, "audits": audits, "experiments": data["experiments"],
+            "snapshots": snaps, "audits": audits, "latest_audit": latest_audit, "experiments": data["experiments"],
             "settings": meta.get("settings", {}), "todo": todo, "site_changes": changes, "due": due,
             "ai_bot_visits": signals["bots"][-1] if signals["bots"] else None,
             "ai_traffic": signals["traffic"][-1] if signals["traffic"] else None,
             "search_demand": signals["search"][-1] if signals["search"] else None,
             "ranks": ranks_view(signals["ranks"]),
             "questions": question_view(data, snaps),
+            "scheduled_alert": alert,
+            "answer_review": review,
+            "fact_check_summary": facts,
             "rivals": insights.rivals(data["runs"], data["panel"], meta.get("brand"), [x["snapshot"] for x in snaps]),
             "citation_gap": insights.citation_gap(data["runs"], data["panel"], meta.get("brand"),
                                                   snaps[-1]["snapshot"] if snaps else None),

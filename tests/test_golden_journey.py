@@ -156,6 +156,10 @@ async def later_round(web):
 @unittest.skipUnless(HAVE, "mcp and pydantic are not installed")
 class GoldenJourney(ServerCase):
     def setUp(self):
+        from unittest.mock import AsyncMock, patch
+        caller = patch("work_auth.require_caller", new_callable=AsyncMock)
+        caller.start()
+        self.addCleanup(caller.stop)
         super().setUp()
         self.backend = stg.MemoryBackend()
         stg.set_backend(self.backend)

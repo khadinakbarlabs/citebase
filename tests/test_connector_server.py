@@ -38,6 +38,15 @@ class ServerTests(unittest.TestCase):
         cls.uv.should_exit = True
         cls.thread.join(5)
 
+    def setUp(self):
+        from unittest.mock import AsyncMock, patch
+        import storage
+        storage.set_backend(storage.MemoryBackend())
+        self.addCleanup(storage.set_backend, None)
+        self.caller = patch("work_auth.require_caller", new_callable=AsyncMock)
+        self.caller.start()
+        self.addCleanup(self.caller.stop)
+
     def rpc(self, method, params=None, id_=1):
         import httpx
         body = {"jsonrpc": "2.0", "id": id_, "method": method, "params": params or {}}
@@ -56,11 +65,11 @@ class ServerTests(unittest.TestCase):
 
     def test_lists_the_tools_with_hints(self):
         tools = self.rpc("tools/list")["result"]["tools"]
-        writes = {"save_results", "make_report", "import_ai_results"}
+        writes = {"save_results", "make_report", "import_ai_results", "project_work"}
         self.assertEqual({t["name"] for t in tools}, {"get_playbook", "audit_site", "quote_cost",
                                                        "measure_recommendation_share", "next_steps",
                                                        "check_outreach_draft", "check_ai_content",
-                                                       "get_history", "schedule_checks"} | writes)
+                                                       "get_history", "schedule_checks", "get_account_usage"} | writes)
         for t in tools:
             self.assertEqual(t["annotations"]["readOnlyHint"], t["name"] not in writes, t["name"])
             self.assertGreater(len(t["description"]), 100, t["name"])

@@ -71,6 +71,7 @@ Never ask for an API key or token in chat.
 | Creator report (fit, audience, recent posts) | `khadinakbar/influencer-marketing-intelligence-scraper` (`creatorTargets`) | — |
 | Newsletter posts | `khadinakbar/substack-posts-scraper` (`startUrls`, `maxPosts`) | `khadinakbar/beehiiv-newsletter-scraper` |
 | Website traffic and rank | `khadinakbar/similarweb-traffic-rank-scraper` (`domains`) | — |
+| Competitor ranking pages and estimated organic visits per keyword | `khadinakbar/ahrefs-alternative` (organic keywords for a confirmed domain) | Dated ranking export |
 | What a site is built with | `khadinakbar/website-tech-stack-detector` (`websiteUrls`) | — |
 | Bing rank tracking | `khadinakbar/bing-rank-tracker` (`targetDomain`, `keywords`) | — |
 | Full-site crawl | `khadinakbar/website-seo-spider` (`startUrls`, `maxPages`) | — |

@@ -55,8 +55,13 @@
       { date: '2027-01-08', action: 'Got listed on a comparison page', mechanism: 'Site cited for rivals in 6 answers' }],
     settings: { country: 'us', language: 'en', frequency: 'monthly' },
     todo: [{ step: 'Unblock GPTBot and PerplexityBot', status: 'done', updated: '2026-11-20' }, { step: 'Add FAQ schema to the pricing page', status: 'done', updated: '2026-12-02' },
-      { step: 'Pitch capterra.com for the payroll comparison', status: 'open', updated: '2027-02-14' }, { step: 'Fix the slow image on the home page', status: 'open', updated: '2027-02-10' },
-      { step: 'Write a page for "payroll with hr and time off"', status: 'open', updated: '2027-02-14' }],
+      { step: 'Pitch capterra.com for the payroll comparison', status: 'open', updated: '2027-02-14',
+        finding_id: 'sample/publisher/capterra.com', evidence: 'Seven saved answers cited Capterra and named a competitor without naming Acme.' },
+      { step: 'Fix the slow image on the home page', status: 'open', updated: '2027-02-10',
+        finding_id: 'sample/site/Slow main image', evidence: 'The latest saved site audit flagged the main image as slow.',
+        acceptance_condition: 'Check the file size and display size of the home page image, then record the change.' },
+      { step: 'Write a page for "payroll with hr and time off"', status: 'open', updated: '2027-02-14',
+        finding_id: 'sample/search/payroll with hr and time off', evidence: 'The saved search export recorded 2,100 impressions and 12 clicks for this query.' }],
     due: [], questions: questions(),
     rivals: { round: '2027-02', answers: 198, previous_round: '2027-01', avg_position: 2.3, sentiment: { positive: 61, neutral: 30, mixed: 4, negative: 4 },
       note: 'Gusto is named in more buying answers than you.', brands: [
@@ -107,11 +112,30 @@
       { step: 'Write a "best brunch near the station" page', status: 'open' }, { step: 'Claim the Google Business Profile', status: 'open' }],
     due: ['AI recommendation re-check is due (last round 2026-12-02).', 'Site check is due (last one 2026-12-01).'], questions: [],
     citation_gap: { round: 'baseline', answers_with_sources: 12, sites: [], note: 'No site was cited at least twice for rivals while leaving you out in this round.' } };
+  acme.latest_audit = Object.assign({}, acme.audits[acme.audits.length - 1], {
+    status: 'ok', pages_checked: 8, counts: {fail: 1, warn: 1, pass: 3},
+    problems: [
+      {check: 'Page titles', area: 'on-page', level: 'fail', detail: 'The pricing and plans pages use the same title.',
+        example_urls: ['https://acmepayroll.example/pricing', 'https://acmepayroll.example/plans']},
+      {check: 'Image size', area: 'technical', level: 'warn', detail: 'The home page downloads a large image before the pricing link appears.',
+        example_urls: ['https://acmepayroll.example/']}
+    ], passed: ['HTTPS', 'Canonical links', 'Sitemap']
+  });
+  cafe.latest_audit = Object.assign({}, cafe.audits[cafe.audits.length - 1], {
+    status: 'ok', pages_checked: 4, counts: {fail: 1, warn: 1, pass: 2},
+    problems: [
+      {check: 'Readable menu', area: 'on-page', level: 'fail', detail: 'The menu and hours are images. Buyers and search tools need these details as text.',
+        example_urls: ['https://northwindcafe.example/menu']},
+      {check: 'Business details', area: 'technical', level: 'warn', detail: 'The contact page is missing opening hours in its business markup.',
+        example_urls: ['https://northwindcafe.example/contact']}
+    ], passed: ['HTTPS', 'Mobile viewport']
+  });
   var projects = { 'acme-payroll': acme, 'northwind-cafe': cafe };
   function overview() {
     return { projects: Object.keys(projects).map(function (k) {
       var p = projects[k], a = p.audits[p.audits.length - 1], s = p.snapshots[p.snapshots.length - 1];
       return { project: k, site: p.brand.site, brand: p.brand.name, rounds: p.snapshots.length, health_score: a ? a.health_score : null,
+        last_site_check: a ? a.date : null,
         last_round_saved: s ? s.saved_on : null, open_todos: p.todo.filter(function (t) { return t.status === 'open'; }).length,
         updated: s ? s.saved_on : null, due: p.due };
     }) };
@@ -132,10 +156,12 @@
     }
     if (tool === 'save_results' || tool === 'import_ai_results') return { project: args.project, warnings: [], summary: { rows: 0 } };
     if (tool === 'audit_site') return { status: 'ok', health_score: 88 };
-    if (tool === 'next_steps') return { tip: 'Start with the step marked "now"; it moves the most answers.', steps: [
-      { step: 'Pitch capterra.com for the payroll comparison page', why: 'It was cited for rivals in 7 answers without naming you.', who: 'you', effort: '1 hour', urgency: 'now' },
-      { step: 'Write a page for "payroll with hr and time off"', why: 'No engine recommends you there yet, and people search it.', who: 'you', effort: '3 hours', urgency: 'do first' },
-      { step: 'Re-check in 30 days', why: 'Shows whether the work moved the number.', who: 'Claude', effort: '5 minutes', urgency: 'later' }] };
+    if (tool === 'next_steps') {
+      if (!projects[args.project]) throw new Error('Choose a sample project first.');
+      return {tip:'Review an open action for '+projects[args.project].brand.name+'.',steps:projects[args.project].todo
+        .filter(function(t) { return t.status === 'open'; }).slice(0,args.max_steps || 6)
+        .map(function(t) { return {step:t.step,why:t.evidence || 'This action is open in the sample project.',who:t.owner || '',effort:'',urgency:''}; })};
+    }
     if (tool === 'make_report') return { share_url: null, note: 'In the sample there is no real report. Signed in, you get a link anyone can open.' };
     if (tool === 'quote_cost') return { total_usd: 0, ready_runs: [] };
     if (tool === 'schedule_checks') return { when: 'on the 1st of every month at 08:00', cron: '0 8 1 * *', free_site_check: { input: {} }, ai_checks: { runs: [] } };
@@ -155,7 +181,8 @@
     if (m && acts[m[1]]) return { id: m[1], username: 'khadinakbar', name: acts[m[1]][0], title: acts[m[1]][1] };
     if (/^schedules/.test(path)) return { items: [{ id: 'sc1', name: 'citebase-acme-payroll', title: 'Citebase: acme-payroll', cronExpression: '0 8 1 * *', timezone: 'Europe/London',
       isEnabled: true, nextRunAt: day(-12), lastRunAt: day(18), actions: [{}, {}, {}] }] };
-    if (path === 'users/me') return { username: 'sample-user', plan: { id: 'STARTER', dataRetentionDays: 14 } };
+    if (path === 'users/me') return { username: 'sample-user', plan: { id: 'STARTER', monthlyUsageCreditsUsd: 20, dataRetentionDays: 14 } };
+    if (path === 'users/me/usage/monthly') return { usageCycle: { startAt: day(20), endAt: day(-10) }, totalUsageCreditsUsdAfterVolumeDiscount: 9 };
     if (path === 'users/me/limits') return { monthlyUsageCycle: { startAt: day(20), endAt: day(-10) }, current: { monthlyUsageUsd: 9 }, limits: { maxMonthlyUsageUsd: 30 } };
     if (/^key-value-stores/.test(path)) return { id: 'sample-store' };
     throw new Error('Not in the sample.');

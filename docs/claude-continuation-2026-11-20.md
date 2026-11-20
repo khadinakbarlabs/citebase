@@ -1,0 +1,57 @@
+# Continue Citebase from the live release of 20 November 2026
+
+You are taking over my existing Citebase project. Work in the current local checkout at `/Users/khadinakbar/plugins/citebase`. I want an easy-to-use SEO and AI visibility product where a customer and their AI assistant can manage the same projects, evidence, actions and schedules in Apify. Use plain language, the published Featured Forge design as the visual reference, and the live Citebase release as your starting point.
+
+## Start in the right place
+
+- The product branch is `codex/citebase-guided-project-research-20261120`. At handoff, Git HEAD was `e2230b4`. Much of the **deployed** implementation is modified or untracked in this checkout. Inspect `git status --short --branch` and the untracked files before editing. A clean clone of HEAD misses production work. Preserve the working tree. If you need a fresh Apify pull, use a separate directory and compare it with the checkout.
+- The portfolio workspace is `/Users/khadinakbar/apify-actors`. Read its `AGENTS.md`, `ACTOR-WORKFLOW.md`, the Citebase entries in `ACTOR-PROGRESS.md`, and `audits/portfolio-business-audit-2026-11-10/actors/citebase.md`. The last file records releases, actual charges and what each test demonstrated. Follow the existing Actor Builder and shared-memory workflow for Actor work.
+- The companion design repo is `/Users/khadinakbar/Documents/featuredforge`. The product being changed is Citebase. The existing Featured Forge project inside Citebase is a real QA project.
+- Read `docs/competitive-product-audit-2026-11-19.md`, `design-qa.md`, `references/project-work.md`, and `references/tools-and-apis.md` in the product checkout. The competitive audit contains REA observation IDs, public sources, pinned repository revisions and the original gap list. Reconcile that list with the subsequent release before treating an item as unfinished.
+
+## Production starting point
+
+| Surface | Last verified state |
+| --- | --- |
+| Website | https://citebase-iota.vercel.app/ on Vercel project `citebase`, scope `khadin-akbar`. Latest verified production deployment `dpl_GisZtEzii9A5szZHubrXx31QuKco`. |
+| HTML | https://citebase-iota.vercel.app/landing.html permanently redirects to the homepage. The served HTML matches `site/landing.html` with the production origin and sign-in URL filled in. Edit `site/`, then build `site-build/`. |
+| Dashboard | https://citebase-iota.vercel.app/app/ |
+| Free sample | https://citebase-iota.vercel.app/app/?demo=1#/p/acme-payroll/setup lets a visitor practice competitor and search-term selection. The five-step tour starts at https://citebase-iota.vercel.app/app/?demo=1&tour=1#/p/acme-payroll/overview. |
+| Apify | Existing Actor `khadinakbar/citebase`, ID `Me1rsyfKhb634kVYr`. Last verified normal default and single-tenant server release `0.5.16`, immutable build `WLsdSUbGR7cNecjXh`. |
+
+## What is implemented
+
+1. **Access and onboarding.** One click takes a signed-out user to Apify. Returning users see the dashboard. The dashboard includes assistant setup guides. Each website has a resumable flow shared with the agent. Ask for the site, read public pages and existing project evidence, suggest rivals with sources, let the owner verify names and domains, then suggest and select searches. An offline English relevance model can check recommended terms. Preserve selected terms, later edits and historical tracking questions. Measured keyword demand has its own source.
+2. **Research and visibility.** Project research supports keyword volume, organic search results, estimated competitor-domain traffic, ranking pages and estimated visits, and engine-specific AI checks for ChatGPT, Claude and Gemini. Display the provider, market, observation date and evidence. Use a numeric AI position only when a ranked answer supports it. Keep missing observations distinct from measured zeroes. Quoted collection is opt-in. The dashboard handles saved run receipts and recovery when an import is interrupted.
+3. **Actions and outreach.** Connect a question to the cited article, identify a published author or editorial contact, prepare a draft and let the user review the recipient, subject and body. The connected assistant and native Gmail routes include duplicate-send protection. Gmail has a separate send-only scope. No real email was sent in acceptance.
+4. **Projects, schedules and credits.** A personal account and an organization each created and audited their own project. A prior genuine scheduled Featured Forge audit and the managed AI connector agreed with the dashboard on 70/100 and seven findings. Test schedules were disabled. Monthly usage and the spending limit come from Apify. The annual prepaid balance is a dated Billing observation. With Limited Actor permissions, an expired plan can stop work while its outer Apify trigger still needs a signed-in Pause.
+5. **Google reporting.** A dedicated OAuth client exists in Google Cloud project `citebase-515306`. The consent app is in external testing, with `hello@khadinakbar.com` as the tester. Google secrets are already in Vercel production. The production callback is `https://citebase-iota.vercel.app/api/google/`. Each service has a separate grant. Google reports are saved against the website and project in restricted Apify storage. A website change hides previous-site Google data, including legacy copies. The agent reads first-party reports through `research_get`.
+6. **Competitor context.** The audit covers Search Atlas, Atlas Agent, Okara AI SEO Agent, Visibility.so and Peec AI. It inspected AgriciDaniel/claude-seo, every-app/open-seo, Ryze-AI-Adgent/open-seo-mcp-skills, Illyism/seo-skills and elmohq/elmo. Stylelabs SamurAI was an exploratory public observation. The owner did not confirm that particular Samurai product. Product superiority, conversion lift and margin improvement have not been measured.
+
+## Where to make changes
+
+| Area | Files relative to the product checkout |
+| --- | --- |
+| Actor, agent and project API | `connector/server.py`, `connector/tools.py`, `connector/project_api.py`, `connector/project_work.py`, `connector/work_storage.py`, `skills/start/SKILL.md` |
+| Setup and research | `connector/work_onboarding.py`, `connector/onboarding_ai.py`, `connector/work_research.py`, `site/app/onboarding.js`, `site/app/research-collection.js` |
+| Audits, work and schedules | `scripts/site_audit.py`, `connector/work_actions.py`, `connector/work_schedules.py`, `connector/scheduled_import.py` |
+| Google, session and account data | `site/api/google.js`, `site/api/_lib/google-reporting.js`, `site/api/session.js`, `site/api/actor.js`, `site/app/google.js`, `site/app/prepaid.js` |
+| Citation outreach | `connector/work_citation_outreach.py`, `site/app/citation-outreach.js`, `site/api/_lib/google-mail.js` |
+| Public experience | `site/landing.html`, `site/landing.css`, `site/landing.js`, `site/app/guide.js`, `site/app/sample-work.js`, `scripts/build_site.py` |
+
+## What was actually tested
+
+- The corrected Actor passed 28/28 authenticated cloud cases. A separate encrypted production read, run `ddHNAcUGuMO1cpRhg`, recovered the changed website, selected competitor and saved tracking question. Two candidate cases verified Google website switching with labeled empty records. The release ran 1,277 Python tests with one skip, and all 85 web tests passed.
+- All 39 public assets matched the final Vercel deployment. Production Chrome passed the desktop and mobile tour, direct Apify sign-in redirect and signed-out billing protection. Public setup practice passed at 390 and 1,440 pixels without an Actor call. All 13 site-build tests passed after the HTML redirect was added.
+- The separate live Google test completed both real consent screens. The Featured Forge project slug is `featured-forge-live-qa-nov20`, with saved website `https://featuredforge.vercel.app/`. Search Console returned no eligible verified property. GA4 returned no eligible web data stream. Both read-only grants remained connected at handoff. **Zero rows were imported. There is no verified live 28-day report to show yet.**
+- Actor release acceptance had five receipts totaling $0.04871978 against $0.06. The later Google test cost $0.02916409 against a separately approved $0.03. Its run `Xtn1hcSwnlKnWDdAY` was stopped during idle time after both lookups finished. These are historical task-specific approvals. Do not infer permission for new paid research jobs, sends, schedules, publication, or Google administrative changes. Merely opening a signed-in project can start a billed server session.
+- The durable evidence is in the portfolio audit linked above. If still present, additional sanitized receipts are under `/private/tmp/citebase-onboard-ship.n7DLZu/round2/`, and public browser test results are under `/tmp/citebase-project-onboarding-20261120/`. Treat temporary directories as optional. Do not copy credentials or transient OAuth material into a handoff.
+
+## Start your next session here
+
+1. **Address the observed reporting gap first.** Read the property filters in `site/api/_lib/google-reporting.js` and the empty state in `site/app/google.js`. Improve “No eligible properties found” to name the project's website and explain the next action separately for Search Console and GA4. Cover the empty state and the successful property-selection path with fixtures. This is a proposed next change, not part of the verified release.
+2. **Finish a genuine import when a matching property is available.** Find out whether Featured Forge uses a different canonical domain or whether the tester has access to the matching property. Keep the project's current website and Google configuration intact until the owner confirms the intended change. For each eligible service, import 28 days, read the saved result independently through the agent, and compare website, property, date range, row count and representative metrics. Record an empty report separately from a missing property. If access is missing, tell the owner exactly which site and permission are needed.
+3. **Then take the next evidence-backed gap from the competitive audit.** Follow a real project from recommendation to review, action and verification. Improve that specific journey across the dashboard and agent. Keep research prices visible at the point of choice and the sample usable without credits. Remaining independent acceptance includes a paid research job, Gmail delivery and broader Google OAuth availability. Obtain the appropriate authorization before attempting those.
+4. **Preserve the security boundary.** Apify support reported that General Resource Access does not protect a per-run container URL and that `X-Actor-Request-ID` alone cannot authenticate a caller. Preserve account-bound credentials, authorization checks and restricted project storage. Keep the three Google service grants separate.
+
+Start with local checks in the repository's existing environment. From the product root, the documented Python command is `python3 -m unittest discover tests`. Google-specific tests include `node --test tests/browser/google_oauth.test.cjs tests/browser/google_reporting.test.cjs tests/browser/google_mail.test.cjs`. The website build is `python3 scripts/build_site.py --site https://citebase-iota.vercel.app --out site-build`. These commands do not deploy. Use the public sample for browser checks that need no real account. Tell me what you changed, what passed locally, what you verified in production, what it cost, and what still needs my input.

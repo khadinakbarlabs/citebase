@@ -13,7 +13,11 @@ import os
 import re
 import sys
 import tempfile
+from collections import Counter
 from types import SimpleNamespace
+
+import scheduled_import
+from fact_checks import safe_evidence_urls
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -51,7 +55,9 @@ CAP_PER_RUN = ("Each Actor run gets its own spending cap: use that run's max_cos
                "callOptions.maxTotalChargeUsd. Never put the whole total on one run.")
 WEB_NOTE = (
     "WEB MODE. No local scripts or files. Returning user or new chat: get_history with no project lists their "
-    "saved projects. Use audit_site (not site_audit.py; pass project to save it), then next_steps. "
+    "saved projects. For a new website, use audit_site with its project name. Read project_work onboarding_get. "
+    "Use onboarding_suggest, confirm competitors, offer the selected or recommended search terms and save each step with onboarding_save. "
+    "Resume a saved step or read research_get and next_steps after setup. "
     "For AI rounds: quote_cost (pack ai_check_pilot for a first look, ai_check for the full baseline; pass the "
     "project to get ready inputs) then call-actor, then "
     "import_ai_results / measure_recommendation_share. check_ai_content for draft style; check_outreach_draft "
@@ -92,7 +98,8 @@ def playbook_paths() -> dict[str, str]:
 # Plain path assistants should follow for the product claim (get cited by AI). Kept short on purpose.
 JOURNEY = [
     {"step": 1, "do": "Read playbook 'start', then call audit_site with the user's website.", "playbook": "start"},
-    {"step": 2, "do": "Call next_steps with that audit. Show at most five fixes in plain words.", "playbook": "start"},
+    {"step": 2, "do": "Read onboarding_get and onboarding_suggest. Verify competitors and choose tracked search terms "
+                      "with onboarding_save. Read research_get and call next_steps for the audit.", "playbook": "start"},
     {"step": 3, "do": "Offer a paid AI recommend check: a first look (pack ai_check_pilot), then the full baseline "
                       "(pack ai_check). Say it is paid and wait for a yes; quote_cost first for the caps.",
      "playbook": "ai-search-visibility"},
@@ -255,6 +262,14 @@ ASK_FIRST = ("Tell the user this is a paid check billed to their own Apify accou
              "amount only if they ask what it costs. ")
 
 
+def job_pricing(job: str, today: dt.date) -> dict:
+    spec = PRICES["jobs"].get(job, {})
+    update = spec.get("scheduled_update")
+    if update and today >= dt.date.fromisoformat(update["from"]):
+        return {**spec, **update["rates"]}
+    return spec
+
+
 def quote_cost(items: list[dict] | None = None, pack: str | None = None, today: dt.date | None = None) -> dict:
     today = today or dt.date.today()
     pack_about = None
@@ -274,7 +289,7 @@ def quote_cost(items: list[dict] | None = None, pack: str | None = None, today: 
     total = compute_total = runnable = runnable_optional = 0.0
     for item in items:
         job = str(item.get("job", ""))
-        spec = PRICES["jobs"].get(job)
+        spec = job_pricing(job, today)
         if not spec:
             raise ValueError(f"Unknown job '{job}'. Valid jobs: {', '.join(sorted(PRICES['jobs']))}.")
         try:
@@ -369,6 +384,9 @@ def normalise_runs(runs: list[dict], panel_rows: dict[str, dict]) -> list[dict]:
         if key in seen:
             raise ValueError(f"Run {i} repeats {key}. Each prompt/engine/repeat appears once per snapshot.")
         seen.add(key)
+        urls = safe_evidence_urls(raw.get("cited_urls"))
+        if urls:
+            row["cited_urls"] = urls
         run_rows.append(row)
     return run_rows
 
@@ -628,14 +646,36 @@ def schedule_plan(project: str, url: str | None, frequency: str | None = "weekly
     if clean_panel and brand.get("name"):
         ai = _ai_check_plan(clean_panel, brand, engines, notes, repeats, frequency, search_context(settings))
         plan["ai_checks"] = ai
+        expected = Counter()
+        for action in ai["runs"]:
+            expected[action["actor"]] += action["times"]
+        if 0 < sum(expected.values()) <= scheduled_import.MAX_DATASETS:
+            ai["site_check_input"] = {**site_input, "arguments": {**site_input["arguments"], "ai_import": {
+                "expected_runs": dict(expected), "context": ai["import_context"],
+                "brand_fingerprint": scheduled_import.fingerprint(brand),
+                "input_fingerprints": [scheduled_import.fingerprint([action["actor"], action["input"]])
+                                       for action in ai["runs"] for _ in range(action["times"])],
+                "managed_checks": {"engines": ai["engines"], "repeats": repeats,
+                                   "settings_fingerprint": scheduled_import.fingerprint(search_context(settings)),
+                                   "caps": [action["suggested_max_cost_usd"]
+                                            for action in ai["runs"] for _ in range(action["times"])]},
+            }}}
+            ai["after_it_runs"] = ("Citebase saves the round when all planned AI runs for that occurrence finish. "
+                                   "If they do not finish in time, import finished results together from Activity.")
+            plan["next"] = "Use ai_checks.site_check_input for the site check when including the planned AI checks."
+        else:
+            ai["site_check_input"] = None
         if frequency == "daily":
             ai["notes"] = [*ai["notes"], "Daily AI checks fill a project's rounds within months and cost about "
                                          "30 times a monthly check. Weekly or monthly is enough for most sites."]
         times = "once" if repeats == 1 else f"{repeats} times"
         steps = plan["steps"]
         steps[2:3] = [
-            "Add the site check (free_site_check) and then every entry of ai_checks.runs as its own Actor run: paste "
-            "its input and set its max cost (Run options).",
+            ("Add a single Citebase run with ai_checks.site_check_input and a 10-minute run timeout. "
+             "It starts the planned AI checks with their caps and imports the results.")
+            if ai["site_check_input"] else
+            ("Add free_site_check.input and every entry of ai_checks.runs as separate Actor runs. "
+             "Set each run's cap and import the completed AI runs together."),
             f"Add each entry as many times as its `times` says. The assistants run {times}, so every question is "
             "asked that often; Google AI Overviews and Google AI Mode give one answer per search, so they run once."]
         context = ai["import_context"]

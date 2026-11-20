@@ -8,14 +8,97 @@ Without Apify the store refuses to work, unless CITEBASE_ALLOW_MEMORY=1 is set f
 from __future__ import annotations
 
 import asyncio
+from contextlib import contextmanager
+from contextvars import ContextVar
 import os
 import re
 from typing import Any
+from urllib.parse import parse_qs, urlsplit
 
 STORE_NAME = "citebase-projects"
+PROSPECT_STORE = "citebase-prospect-reports"
+PRIVATE_STORE = "citebase-private-answers"
 MAX_PROJECTS = 100
 MAX_SNAPSHOTS = 160  # about three years of weekly rounds; every round is read for a report, so not unlimited
 KEY_PREFIX = "p."
+
+
+_caller_backend = ContextVar("caller_backend", default=None)
+_read_only = ContextVar("citebase_read_only", default=False)
+_fixture_backend = None
+_project_store = ContextVar("project_store", default=None)
+
+
+@contextmanager
+def project_store_grant(store_id: str | None):
+    if store_id is not None and (not isinstance(store_id, str) or not re.fullmatch(r"[A-Za-z0-9]{5,80}", store_id)):
+        raise ValueError("Select the existing project storage by its Apify ID.")
+    context = _project_store.set(store_id)
+    try:
+        yield
+    finally:
+        _project_store.reset(context)
+
+
+def actor_owned_store_name(name: str) -> str | None:
+    actor_id = os.environ.get("ACTOR_ID") or os.environ.get("APIFY_ACTOR_ID") or os.environ.get("APIFY_ACT_ID") or ""
+    return f"{name}-v2-{actor_id.lower()}" if re.fullmatch(r"[A-Za-z0-9]{5,30}", actor_id) else None
+
+
+async def open_named_store(open_store, name: str):
+    try:
+        return await open_store(name=name)
+    except Exception as err:
+        owned_name = actor_owned_store_name(name)
+        if getattr(err, "status_code", None) != 403 or not owned_name:
+            raise
+    # Under Limited permissions Apify grants new, Actor-created stores to that Actor in subsequent runs.
+    return await open_store(name=owned_name)
+
+
+async def new_private_project_store(client, owner, username, name):
+    """Claim a private name on a fresh store, so a race never changes another store's sharing."""
+    fresh = await client.key_value_stores().get_or_create()
+    if not fresh or not fresh.id or fresh.user_id != owner or fresh.name:
+        raise ValueError("Citebase could not create an empty private project store.")
+    resource = client.key_value_store(fresh.id)
+    try:
+        await resource.update(name=name, general_access="RESTRICTED")
+    except Exception as error:
+        # A simultaneous creation can claim the name. Use its existing access setting.
+        if getattr(error, "status_code", None) not in (400, 409):
+            raise
+        existing = await client.key_value_store(username + "~" + name).get()
+        if not existing or existing.user_id != owner or existing.name != name:
+            raise
+        return existing
+    current = await resource.get()
+    if (not current or current.id != fresh.id or current.user_id != owner or current.name != name
+            or current.general_access != "RESTRICTED"):
+        raise ValueError("Citebase could not verify the new private project store.")
+    return current
+
+
+async def run_project_store(actor):
+    owner, client = actor.configuration.user_id, actor.apify_client
+    if not owner:
+        raise ValueError("Citebase could not identify the account for project storage.")
+    name = STORE_NAME
+    for candidate in dict.fromkeys((name, actor_owned_store_name(name) or name)):
+        name = candidate
+        try:
+            existing = await client.key_value_store("~" + name).get()
+        except Exception as error:
+            if getattr(error, "status_code", None) != 403:
+                raise
+            continue
+        if existing:
+            if existing.user_id != owner or existing.name != name:
+                raise ValueError("The project storage does not belong to this account.")
+            return await actor.open_key_value_store(id=existing.id)
+        break
+    selected = await new_private_project_store(client, owner, "", name)
+    return await actor.open_key_value_store(id=selected.id)
 
 
 def clean_slug(text: Any) -> str:
@@ -59,8 +142,27 @@ class MemoryBackend:
 
     def __init__(self) -> None:
         self.data: dict[str, Any] = {}
+        self._private = None
+        self._prospects = None
         self.datasets: dict[str, list] = {}  # tests put finished-run results here
         self.dataset_sources: dict[str, str] = {}  # tests: dataset id -> 'owner/name' of the Actor that made it
+
+    async def private_store(self):
+        if self._private is None:
+            if _read_only.get():
+                return MemoryBackend()
+            self._private = MemoryBackend()
+        return self._private
+
+    async def existing_private_store(self):
+        return self._private
+
+    async def prospect_store(self):
+        if self._prospects is None:
+            if _read_only.get():
+                return MemoryBackend()
+            self._prospects = MemoryBackend()
+        return self._prospects
 
     async def dataset_source(self, dataset_id: str) -> str | None:
         # '' = hand-made dataset (no Actor made it); None = set on purpose in tests to mean "could not be read"
@@ -75,24 +177,73 @@ class MemoryBackend:
         return self.data.get(k)
 
     async def set(self, k: str, value: Any, content_type: str | None = None) -> None:
+        if _read_only.get():
+            raise ValueError("This project operation only reads saved records.")
         self.data[k] = value
 
     async def keys(self, prefix: str = "") -> list[str]:
         return sorted(k for k in self.data if k.startswith(prefix))
 
     async def delete(self, k: str) -> None:
+        if _read_only.get():
+            raise ValueError("This project operation only reads saved records.")
         self.data.pop(k, None)
 
     async def public_url(self, k: str) -> str | None:
         return None
 
 
+def account_client(token, **options):
+    from apify_client import ApifyClientAsync
+    return ApifyClientAsync(token=token, max_retries=0, **options)
+
+
 class ApifyBackend:
     """Named key-value store in the account that is running this Actor."""
 
-    def __init__(self, kvs, client=None) -> None:
+    def __init__(self, kvs, client=None, *, signed_urls=False, project_store_id=None) -> None:
         self.kvs = kvs
+        self.signed_urls = signed_urls
+        opened_store_id = getattr(kvs, "id", None)
+        self.project_store_id = project_store_id or (opened_store_id if isinstance(opened_store_id, str) else None)
         self.client = client  # Apify API client that carries the running account's own token
+        self._private = None
+        self._prospects = None
+        self._store_lock = asyncio.Lock()
+
+    @property
+    def child_client(self):
+        # A failed or ambiguous paid POST must never be retried by the SDK.
+        from apify import Actor
+
+        return account_client(Actor.configuration.token, api_url=Actor.configuration.api_base_url)
+
+    async def _open_restricted(self, name: str):
+        from apify import Actor
+
+        if self.client is None:
+            raise ValueError("Citebase needs Apify storage access to open this store.")
+        try:
+            resource = await open_named_store(self.client.key_value_stores().get_or_create, name)
+            if resource.general_access == "FOLLOW_USER_SETTING":
+                resource = await self.client.key_value_store(resource.id).update(general_access="RESTRICTED")
+            if resource.general_access == "RESTRICTED":
+                return ApifyBackend(await Actor.open_key_value_store(id=resource.id), signed_urls=True)
+        except Exception:
+            pass
+        raise ValueError("Citebase could not confirm that this Apify store is private. Check access and set the dedicated store to Restricted in Apify.")
+
+    async def private_store(self):
+        async with self._store_lock:
+            if self._private is None:
+                self._private = await self._open_restricted(PRIVATE_STORE)
+        return self._private
+
+    async def prospect_store(self):
+        async with self._store_lock:
+            if self._prospects is None:
+                self._prospects = await self._open_restricted(PROSPECT_STORE)
+        return self._prospects
 
     async def dataset_source(self, dataset_id: str) -> str | None:
         """'owner/name' of the Actor whose run made this dataset; '' when no Actor made it (a hand-made dataset);
@@ -148,7 +299,13 @@ class ApifyBackend:
 
     async def public_url(self, k: str) -> str | None:
         try:
-            return await self.kvs.get_public_url(k)
+            url = await self.kvs.get_public_url(k)
+            if self.signed_urls:
+                parsed = urlsplit(url)
+                if (parsed.netloc != "api.apify.com" or parsed.scheme != "https"
+                        or set(parse_qs(parsed.query)) != {"signature"}):
+                    return None
+            return url
         except Exception:  # sharing links are a nice-to-have; saving must not fail because of them
             return None
 
@@ -159,12 +316,22 @@ _lock = asyncio.Lock()
 
 def set_backend(backend: Any) -> None:
     """Used by tests to choose the backend."""
-    global _backend
+    global _backend, _fixture_backend
     _backend = backend
+    _fixture_backend = backend if isinstance(backend, MemoryBackend) else None
 
 
 async def get_backend() -> Any:
     global _backend
+    caller = _caller_backend.get()
+    if caller is not None:
+        return caller
+    store_id = _project_store.get()
+    if store_id:
+        from apify import Actor
+
+        return ApifyBackend(await Actor.open_key_value_store(id=store_id), Actor.apify_client,
+                            project_store_id=store_id)
     if _backend is not None:
         return _backend
     async with _lock:
@@ -172,8 +339,7 @@ async def get_backend() -> Any:
             if os.environ.get("APIFY_IS_AT_HOME"):
                 from apify import Actor  # imported here so tests and plain tools never need the Apify SDK
 
-                _backend = ApifyBackend(await Actor.open_key_value_store(name=STORE_NAME),
-                                        getattr(Actor, "apify_client", None))
+                _backend = ApifyBackend(await run_project_store(Actor), Actor.apify_client)
             elif os.environ.get("CITEBASE_ALLOW_MEMORY") == "1":
                 _backend = MemoryBackend()  # tests and local trials only: one shared store, lost on restart
             else:

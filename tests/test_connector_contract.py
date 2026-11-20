@@ -16,6 +16,7 @@ READ_TOOLS = {"get_playbook", "audit_site", "quote_cost", "measure_recommendatio
               "check_outreach_draft", "check_ai_content", "get_history", "schedule_checks"}
 WRITE_TOOLS = {"save_results", "make_report", "import_ai_results"}  # store things in the caller's own account
 TOOLS = READ_TOOLS | WRITE_TOOLS
+SERVER_ONLY = {"project_work", "get_account_usage"}
 ONE_SHOT_ONLY = {"scheduled_check"}  # for Apify Schedules; not an MCP tool
 
 
@@ -79,13 +80,13 @@ class ActorFilesTests(unittest.TestCase):
     def test_input_schema_enum_and_required(self):
         schema = load(".actor", "input_schema.json")
         self.assertEqual(schema["required"], ["tool"])
-        self.assertEqual(set(schema["properties"]["tool"]["enum"]), TOOLS | ONE_SHOT_ONLY)
+        self.assertEqual(set(schema["properties"]["tool"]["enum"]), TOOLS | ONE_SHOT_ONLY | {"project_work"})
 
     def test_openapi_tool_list_matches_what_run_accepts(self):
         spec = load(".actor", "web_server_openapi.json")
         post = spec["paths"]["/run"]["post"]
         enum = post["requestBody"]["content"]["application/json"]["schema"]["properties"]["tool"]["enum"]
-        self.assertEqual(set(enum), TOOLS | ONE_SHOT_ONLY)  # web agents only see this list
+        self.assertEqual(set(enum), TOOLS | ONE_SHOT_ONLY | SERVER_ONLY)  # web agents only see this list
         for name in TOOLS | ONE_SHOT_ONLY:
             self.assertIn(name, post["description"])
         self.assertNotIn("Nothing is stored", post["description"])
@@ -174,12 +175,19 @@ class ComplianceTests(unittest.TestCase):
         for slug_owner in re.findall(r"https://apify\.com/([a-z0-9_.-]+)/[a-z0-9_.-]+\)", self.readme):
             self.assertEqual(slug_owner, "khadinakbar")
 
-    def test_connector_never_calls_other_actors(self):
+    def test_connector_starts_actors_only_in_the_managed_schedule_path(self):
         for name in os.listdir(os.path.join(ROOT, "connector")):
             if name.endswith(".py"):
                 code = open(os.path.join(ROOT, "connector", name)).read()
-                for banned in ("Actor.call", ".call_actor(", "metamorph", "Actor.start", "ApifyClient"):
+                for banned in ("Actor.call", ".call_actor(", "metamorph", "Actor.start"):
                     self.assertNotIn(banned, code, f"{name}: {banned}")
+                if name != "storage.py":
+                    self.assertNotIn("ApifyClient", code, name)
+                if name != "scheduled_import.py":
+                    self.assertNotRegex(code, r"\.actor\([^\n]*\)\.start\(", name)
+        from scheduled_import import CHILD_ACTOR_IDS
+
+        self.assertTrue(all(name.startswith("khadinakbar/") for name in CHILD_ACTOR_IDS))
 
     def test_pricing_wording_names_the_payer(self):
         low = self.readme.lower()
@@ -291,7 +299,7 @@ class ServedSchemaTests(unittest.IsolatedAsyncioTestCase):
         return tool.model_dump(by_alias=True, exclude_none=True)
 
     async def test_exactly_the_published_tools(self):
-        self.assertEqual(set(self.tools), TOOLS)
+        self.assertEqual(set(self.tools), TOOLS | SERVER_ONLY)
         self.assertLessEqual(len(self.tools), 15)
 
     async def test_descriptions_follow_the_five_part_formula(self):
@@ -314,7 +322,9 @@ class ServedSchemaTests(unittest.IsolatedAsyncioTestCase):
                 self.assertLess(len(text), 520, f"{name}.{key} too long")
 
     async def test_front_stays_small_and_simple(self):
-        self.assertLessEqual(len(self.tools), 12)  # new data sources are jobs/packs behind quote_cost, not new tools
+        # Data sources stay behind quote_cost. The account lookup is a separate signed-in read.
+        self.assertLessEqual(len(set(self.tools) - {"get_account_usage"}), 13)
+        self.assertEqual(self.dump(self.tools["get_account_usage"])["inputSchema"].get("properties", {}), {})
         quote = self.dump(self.tools["quote_cost"])["inputSchema"]
         self.assertEqual(quote.get("required", []), [])  # a beginner can say "starter" and nothing else
         self.assertIn("starter", json.dumps(quote))
@@ -355,7 +365,7 @@ class ServedSchemaTests(unittest.IsolatedAsyncioTestCase):
     async def test_annotations_and_titles(self):
         for name, tool in self.tools.items():
             d = self.dump(tool)
-            self.assertEqual(d["annotations"]["readOnlyHint"], name in READ_TOOLS, name)
+            self.assertEqual(d["annotations"]["readOnlyHint"], name in READ_TOOLS | {"get_account_usage"}, name)
             if name in WRITE_TOOLS:
                 self.assertIn("destructiveHint", d["annotations"], name)
             self.assertIn("openWorldHint", d["annotations"], name)

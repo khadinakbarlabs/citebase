@@ -439,6 +439,7 @@ def analyse_page(url: str, res: dict, chain: list[str], host: str) -> dict:
     page.update({
         "title": re.sub(r"\s+", " ", p.title).strip(),
         "meta_description": p.meta.get("description", "").strip(),
+        "meta_keywords": p.meta.get("keywords", "")[:500],
         "h1": p.headings.get("h1", []),
         "h2": p.headings.get("h2", [])[:15],
         "canonical": safe_join(chain[-1], p.canonical),

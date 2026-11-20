@@ -1,7 +1,7 @@
 {
   "actorOutputSchemaVersion": 1,
   "title": "Output of a Citebase one-shot run",
-  "description": "One dataset item per run: {tool, ok, result, error}. result holds the tool's answer (for example total_usd and suggested_cap_usd for quote_cost); error explains what to fix when ok is false. The same answer is saved as the OUTPUT record. The live MCP server (Standby) returns results directly and does not use these.",
+  "description": "One dataset item per run with tool, ok, result and error. Public tools also save their answer in OUTPUT. An encrypted private request returns only the store_id and key of its restricted result in OUTPUT and the dataset. The signed-in server returns results directly.",
   "properties": {
     "results": {
       "type": "string",
