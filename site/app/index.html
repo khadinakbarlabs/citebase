@@ -16,6 +16,8 @@
 <link rel="stylesheet" href="usage.css">
 <link rel="stylesheet" href="guide.css">
 <link rel="stylesheet" href="onboarding.css">
+<link rel="stylesheet" href="feedback.css">
+<link rel="stylesheet" href="customize.css">
 <meta name="theme-color" content="#faf9ff">
 </head>
 <body>
@@ -23,16 +25,20 @@
 <header class="bar">
   <a class="brand" href="../"><img src="../favicon.svg" alt="" width="26" height="26"><span>Citebase</span></a>
   <nav id="crumbs" aria-label="Workspace"></nav>
+  <div class="bar-tools">
+    <button type="button" class="customize-open" aria-label="Customize dashboard" aria-haspopup="dialog" title="Customize dashboard"><svg aria-hidden="true"><use href="../assets/icons.svg#sliders"></use></svg></button>
   <button type="button" data-theme-toggle hidden aria-label="Dark appearance" aria-pressed="false"><svg aria-hidden="true"><use href="../assets/icons.svg#moon"></use></svg></button>
+  </div>
   <div id="who" class="who"></div>
 </header>
 <section id="workspace-guide" class="tour-guide" aria-label="Guided dashboard tour" hidden></section>
 <main id="main" tabindex="-1"></main>
 <div id="tip" class="tip" role="tooltip" hidden></div>
-<div id="toast" class="toast" role="status" aria-live="polite"></div>
 <script src="config.js"></script>
 <script src="session.js"></script>
 <script src="core.js"></script>
+<script src="feedback.js"></script>
+<script src="customize.js"></script>
 <script src="usage.js"></script>
 <script src="prepaid.js"></script>
 <script src="demo.js"></script>

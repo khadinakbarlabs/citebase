@@ -14,7 +14,7 @@
   }
   function head(title, sub, tools) { return h('div', { class: 'head' }, h('div', {}, h('h1', { text: title }), sub ? h('p', { text: sub }) : null), tools ? h('div', { class: 'tools' }, tools) : null); }
   function stat(k, v, tone) { return h('div', { class: 'stat' + (tone ? ' ' + tone : '') }, h('div', { class: 'k', text: k }), h('div', { class: 'v', text: v })); }
-  function failBox(body, e) { CB.clear(body).appendChild(h('div', { class: 'err' }, h('p', { text: e.message }))); }
+  function failBox(body, e) { CB.clear(body).appendChild(CB.errorView(e, null)); }
   P.ago = function (iso) {
     if (!iso) return '–';
     var s = (Date.now() - new Date(iso).getTime()) / 1000, f = Math.abs(s);

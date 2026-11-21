@@ -67,11 +67,7 @@
     tipEl.style.left = x + 'px'; tipEl.style.top = y + 'px';
   };
   CB.untip = function () { tipEl.hidden = true; };
-  var toastEl = document.getElementById('toast'), toastTimer;
-  CB.toast = function (text, bad) {
-    toastEl.textContent = text; toastEl.className = 'toast show' + (bad ? ' bad' : '');
-    clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.className = 'toast'; }, 3200);
-  };
+  // CB.toast lives in feedback.js (stacked toasts with icons and actions).
 
   /* ---------- charts: inline SVG, hover tooltips, no libraries ---------- */
   // o: {labels, series:[{name, cls, vals}], band:{lo,hi}, max, fmt, width, height, aria, tipTitle(i), tipExtra(i), endLabels}
