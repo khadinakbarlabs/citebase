@@ -76,11 +76,11 @@ def full_dashboard(page, base, call, ops):
     expect(page.get_by_role("heading",name="AI rank by engine")).to_be_visible()
     page.goto(base + "/app/#/p/copper-example/overview")
     page.get_by_role("link",name="Resume project setup").click()
-    expect(page.get_by_role("heading",name="Project research")).to_be_visible()
+    expect(page.get_by_role("heading",name="Questions, plan and research")).to_be_visible()
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
     page.get_by_role("button", name="Search terms",exact=True).click()
     page.get_by_role("button", name="Use recommended terms").click()
-    expect(page.get_by_role("heading",name="Project research")).to_be_visible()
+    expect(page.get_by_role("heading",name="Questions, plan and research")).to_be_visible()
     assert sum(req.get("arguments",{}).get("operation")=="onboarding_suggest" for req in ops)==2
     setup = call("project_work", {"project":"copper-example","operation":"onboarding_get","data":{}})["result"]
     assert any(row.get("domain")=="atlasfixture.com" for row in setup["competitors"])
@@ -111,7 +111,7 @@ def full_dashboard(page, base, call, ops):
         page.get_by_role('button',name='Save and continue').click()
         if not defaults:page.get_by_label('Additional search terms').fill('Practice term')
         page.get_by_role('button',name='Use recommended terms' if defaults else 'Save and continue').click()
-        expect(page.get_by_role('heading',name='Project research')).to_be_visible()
+        expect(page.get_by_role('heading',name='Questions, plan and research')).to_be_visible()
         page.get_by_role('button',name='Reset practice').click()
         expect(page.get_by_role('checkbox').first).to_be_disabled()
     raise JourneyComplete

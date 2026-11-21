@@ -17,24 +17,35 @@ def check_public_journey(page, base):
     expect(tour_link).to_be_visible()
     tour_link.click()
     tour = page.get_by_role("region", name="Guided dashboard tour")
-    for step, title in enumerate(["Read your visibility snapshot", "Follow a buyer question",
-                                  "Inspect a website finding", "Choose the next action", "Review a schedule"], 1):
+    titles = ["Read your visibility snapshot", "Choose the competitors to track", "Follow a buyer question",
+              "Inspect a website finding", "Choose the next action", "Review a schedule"]
+    for step, title in enumerate(titles, 1):
         expect(tour.get_by_role("heading", name=title)).to_be_visible()
-        expect(tour).to_contain_text(f"Step {step} of 5")
-        if step == 2:
-            page.reload()
-            expect(tour).to_contain_text("Step 2 of 5")
-            tour.get_by_role("link", name="Back", exact=True).click()
-            expect(tour).to_contain_text("Step 1 of 5")
-            tour.get_by_role("link", name="Next", exact=True).click()
-        if step < 5:
-            tour.get_by_role("link", name="Next", exact=True).click()
+        expect(tour).to_contain_text(f"Step {step} of 6 · your turn")
+        expect(page.locator("#main .tour-target")).to_have_count(1)
+        if step == 1:
+            # The visitor's own click on the highlighted control completes the step.
+            page.locator("#main .snapshot-metric", has_text="Site health").click()
+        else:
+            if step == 2:
+                # A reload keeps the step; Back and Skip move between unfinished steps.
+                page.reload()
+                expect(tour).to_contain_text("Step 2 of 6 · your turn")
+                tour.get_by_role("link", name="Back", exact=True).click()
+                expect(tour).to_contain_text("Step 1 of 6")
+                tour.get_by_role("link", name="Skip", exact=True).click()
+                expect(tour).to_contain_text("Step 2 of 6")
+            tour.get_by_role("button", name="Show me").click()
+        expect(tour).to_contain_text(f"Step {step} of 6 · done")
+        expect(page.locator("#main .tour-target")).to_have_count(0)
+        if step < len(titles):
+            tour.get_by_role("link", name="Next step", exact=True).click()
         else:
             expect(page.get_by_text("Every Monday at 09:00 · UTC", exact=True).first).to_be_visible()
             expect(page.get_by_text(re.compile("Feb 15, 2027")).first).to_be_visible()
             expect(page.get_by_role("link", name="Manage in Console")).to_have_count(0)
     tour.get_by_role("button", name="Finish tour").click()
-    expect(tour.get_by_role("link", name="Open my workspace")).to_be_visible()
+    expect(tour.get_by_role("link", name="Add my website")).to_have_attribute("href", "/api/session/?start")
     tour.get_by_role("button", name="Explore on my own").click()
     expect(tour).to_be_hidden()
     page.goto(base)

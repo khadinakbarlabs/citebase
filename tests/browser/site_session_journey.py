@@ -148,7 +148,9 @@ def main():
                 expect(page).to_have_url(re.compile(r"^https://console\.apify\.com/authorize/oauth\?"))
                 ctx.close()
                 with urlopen(base + "/fixture-count", timeout=5) as count:
-                    assert json.load(count) == {"consents": 2, "starts": 2}
+                    # Three deliberate Apify visits (first sign-in, re-sign-in, one-click restart); signing out
+                    # in one tab never bounces the others to Apify. Only the fresh owner's write starts a run.
+                    assert json.load(count) == {"consents": 3, "starts": 1}
                 print("PASS one-click OAuth, dashboard CTA, browser restart, cross-tab sign-out without BroadcastChannel, stale paid request blocked and signed-out restart")
         finally:
             server.terminate()

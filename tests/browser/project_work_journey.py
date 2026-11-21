@@ -218,7 +218,7 @@ def check_project_focus(page, base, call, ops):
             (project, "opportunities_list"), (project, "actions_list")} <= set(operations)
     assert all(req["tool"] in {"get_history", "project_work"} for req in ops[first_op:])
     assert all(op in {"project_focus", "actions_list", "opportunities_list", "brief_get",
-                      "offers_list", "schedule_list", "changes_list", "runs_list"} for _, op in operations)
+                      "offers_list", "schedule_list", "changes_list", "runs_list", "seo_plan"} for _, op in operations)
     assert {row["id"]: row["revision"] for row in work("actions_list")["actions"]} == {
         urgent["id"]: urgent["revision"], other["id"]: other["revision"]
     }
