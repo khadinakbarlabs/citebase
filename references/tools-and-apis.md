@@ -76,7 +76,7 @@ Never ask for an API key or token in chat.
 | Bing rank tracking | `khadinakbar/bing-rank-tracker` (`targetDomain`, `keywords`) | — |
 | Full-site crawl | `khadinakbar/website-seo-spider` (`startUrls`, `maxPages`) | — |
 | Local map ranking | `khadinakbar/local-rank-tracker` (`businessName`, `keywords`, `locations`) | `khadinakbar/google-local-pack-api` |
-| Agency and company directory listings | `khadinakbar/clutch-listings-scraper` (`categoryUrl`, `maxResults`) | — |
+| Agency and company directory listings | `khadinakbar/clutch-scraper` (`categoryUrl`, `maxResults`) | — |
 
 Every run also pays Apify start events, one per GB of run memory; a few Actors have none, and two charge a larger start event. Apify also bills a small amount of compute on some jobs; it is included in the quote. On three jobs (Google results pages, YouTube transcripts, website contacts) that compute is large next to the per-result price, so never estimate by hand: use `quote_cost`. Whether Apify's `maxTotalChargeUsd` cap also counts compute is unconfirmed, so the suggested cap (total × 1.3, rounded up to the cent) is set high enough to cover it. Local-business audits (Google Business Profile, citations) have no public Actor here: use the manual local checklist in `checklist-technical.md` plus `local-rank-tracker` for the geo-grid.
 
