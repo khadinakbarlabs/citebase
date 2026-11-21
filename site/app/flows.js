@@ -45,7 +45,7 @@
   F.copy = function (text, btn) {
     (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(function () {
       CB.toast('Copied');
-      if (btn) { var t = btn.textContent; btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = t; }, 1500); }
+      if (btn) CB.done(btn, 'Copied');
     }, function () { CB.toast('Copy failed: select the text and copy it by hand.', true); });
   };
   F.copyBox = function (text, label) {
@@ -53,7 +53,11 @@
     b.addEventListener('click', function () { F.copy(text, b); });
     return h('div', { class: 'copybox' }, h('code', { text: text }), b);
   };
-  function errorIn(body, e) { CB.clear(body).appendChild(CB.usage.errorDetails(e) || h('p', { class: 'form-err', text: e.message })); }
+  function errorIn(body, e) {
+    var why = CB.explainError(e);
+    CB.clear(body).appendChild(CB.usage.errorDetails(e) || h('div', { class: 'form-err', role: 'alert' }, CB.icon('alert', 'fb-icon sm'),
+      h('span', {}, h('b', { text: why.kind === 'other' ? (e.message || why.title) : why.title + '. ' }), why.kind === 'other' ? null : why.hint)));
+  }
 
   function sampleOnly() {
     if (!CB.demo) return false;

@@ -106,8 +106,7 @@
       dialog.remove();
     });
     CB.clear(document.getElementById('tip'));
-    var toast = document.getElementById('toast');
-    CB.clear(toast); toast.className = 'toast';
+    Array.from(document.querySelectorAll('.toast2')).forEach(function (el) { el.remove(); });
     if (leaving) history.replaceState(null, '', location.pathname);
     page(); CB.clear(crumbs); CB.clear(who); document.title = 'Sign in · Citebase';
     document.getElementById('workspace-guide').hidden = true;
@@ -132,10 +131,15 @@
     if (leaving) { window.scrollTo(0, 0); signIn.focus({ preventScroll: true }); }
   }
   CB.onSignedOut = signedOut;
-  function loading(text) {
+  function loading(text, shape) {
     page();
-    main.appendChild(h('div', { class: 'loading' }, h('p', {}, h('span', { class: 'spin', 'aria-hidden': 'true' }), text),
-      h('div', { class: 'skeleton', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i'))));
+    CB.progress.start();
+    var view = CB.loadingView(main, text, shape);
+    var gone = new MutationObserver(function () {
+      if (view.el.isConnected) return;
+      gone.disconnect(); view.stop(); CB.progress.done();
+    });
+    gone.observe(main, { childList: true });
   }
   function failed(err, retry) {
     if (err.message === 'signed out') return;
@@ -147,8 +151,7 @@
           h('button',{class:'btn tiny',type:'button',text:'Refresh',onclick:function () { CB.usage.read(true).catch(function () {}); retry(); }}))));
       return;
     }
-    page(); main.appendChild(h('div', { class: 'err' }, h('h3', { text: 'Something went wrong' }), h('p', { text: err.message || String(err) }),
-      h('button', { class: 'btn', type: 'button', text: 'Try again', onclick: retry })));
+    page(); main.appendChild(CB.errorView(err, retry));
   }
   function banner() {
     if (CB.demo) main.appendChild(h('div', { class: 'banner' }, h('b', { text: 'Sample data. ' }), 'Explore the charts and project workflows. Sign in with Apify to save changes or start checks.'));
@@ -289,7 +292,7 @@
     if (viewProject !== slug) { viewProject = slug; view = initialView(); }
     if (!mountedProject || mountedProject.slug !== slug) {
       topbar('projects');
-      loading('Loading ' + slug + '…');
+      loading('Loading ' + slug + '…', 'project');
     } else main.setAttribute('aria-busy', 'true');
     // The project can render while the independent project switcher is still loading.
     var directory = CB.history().then(function (r) { return r.projects || []; }, function () { return []; });
@@ -373,7 +376,11 @@
     return { node: h('nav', { class: 'project-navigation', 'aria-label': 'Project sections' }, desktop, mobile),
       show: function (tab) {
         links.forEach(function (link) {
-          if (link.dataset.tab === tab) link.setAttribute('aria-current', 'page');
+          if (link.dataset.tab === tab) {
+            link.setAttribute('aria-current', 'page');
+            var row = link.closest('.project-nav-links');
+            if (row && row.scrollWidth > row.clientWidth) row.scrollLeft = Math.max(0, link.offsetLeft - row.offsetLeft - 16);
+          }
           else link.removeAttribute('aria-current');
         });
         select.value = tab;

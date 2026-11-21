@@ -1,9 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="108" fill="#6D31ED"/>
-  <rect x="118" y="128" width="276" height="220" rx="36" fill="#FFFFFF"/>
-  <path d="M190 348 L230 348 L210 390 Z" fill="#FFFFFF"/>
-  <text x="256" y="292" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="200" font-weight="700" fill="#6D31ED">C</text>
-  <g transform="translate(360 118)">
-    <path d="M0 -28 L8 -8 L28 0 L8 8 L0 28 L-8 8 L-28 0 L-8 -8 Z" fill="#FFCC00"/>
-  </g>
+  <title>Citebase</title>
+  <rect width="512" height="512" rx="112" fill="#6D31ED"/>
+  <path d="M166 120h180a52 52 0 0 1 52 52v124a52 52 0 0 1-52 52H236l-62 50a8 8 0 0 1-13-6v-44a52 52 0 0 1-47-52V172a52 52 0 0 1 52-52Z" fill="#FFFFFF"/>
+  <path d="M305.5 184.5A68 68 0 1 0 305.5 283.5" fill="none" stroke="#6D31ED" stroke-width="42" stroke-linecap="round"/>
+  <path d="M396 64l11 27 27 11-27 11-11 27-11-27-27-11 27-11Z" fill="#FFCC00"/>
 </svg>

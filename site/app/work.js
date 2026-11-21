@@ -330,8 +330,12 @@
     body.appendChild(box);
     const search = h('input',{type:'search',placeholder:'Title, owner, or page'});
     let items = [], refresh, enter = true;
-    const results = h('div', {});
+    const results = h('div', {}), summary = h('div', {});
+    const stateTone = {open:'brand', in_progress:'spark', approved:'e1', done:'good', skipped:'muted'};
     function draw() {
+      const bar = CB.summaryBar(states.map(([key,label]) => ({key,label,tone:stateTone[key] || 'muted',
+        count:items.filter(item => item.status === key).length})), filter.value, key => { filter.value = key; draw(); }, 'Filter actions by status');
+      summary.replaceChildren(...(bar ? [bar] : []));
       const term = search.value.trim().toLowerCase();
       const filtered = !!term || filter.value !== 'all';
       const shown = items.filter(item => (filter.value === 'all' || item.status === filter.value)
@@ -345,7 +349,7 @@
     box.appendChild(h('div',{class:'record-toolbar'},field('Search actions',search),field('Show actions',filter),
       button('New action', () => actionEditor(project, {}, refresh), true),sectionLink(project,'evidence','Find an opportunity')));
     search.oninput = draw; filter.onchange = draw;
-    refresh = reader(box, () => get(project,'actions_list'), (content,data) => {items = data.actions; content.appendChild(results); draw();});
+    refresh = reader(box, () => get(project,'actions_list'), (content,data) => {items = data.actions; content.append(summary, results); draw();});
     if (CB.seoPlan) CB.seoPlan.render(body, project);
     if ((d.experiments || []).length) body.appendChild(card('Logged changes', h('ol',{class:'timeline'}, d.experiments.slice().reverse().map(v =>
       h('li',{},h('span',{class:'when',text:CB.day(v.date)}),h('b',{text:v.action}),note(v.mechanism || ''))))));
@@ -643,7 +647,13 @@
     const reload = reader(opportunities,()=>get(project,'opportunities_list', query),(el,result) => {
       const filtered = Object.keys(query).length > 0;
       reset.hidden = !filtered;
-      recordList(el,result.opportunities || [],{project,tab:'evidence',id:!filtered && selectedRecord(project,'evidence'),focus:enter,noun:'finding',
+      const found = result.opportunities || [];
+      const channels = [['answers','AI answers','brand'],['technical','Site audit','e1'],['off_page','Cited publishers','e2'],['search','Google search','e3']];
+      const bar = CB.summaryBar(channels.map(([key,label,tone]) => ({key,label,tone,count:found.filter(o => o.channel === key).length})),
+        query.channel || 'all', key => { filter.controls.channel.value = key === 'all' ? '' : key; filterForm.requestSubmit(); }, 'Filter findings by type');
+      const list = h('div',{});
+      el.append(...(bar ? [bar] : []), list);
+      recordList(list,found,{project,tab:'evidence',id:!filtered && selectedRecord(project,'evidence'),focus:enter,noun:'finding',
         empty:filtered ? 'No saved findings match these filters.' : 'No findings yet. A saved site audit or AI answer round can surface the first opportunity.',
         row:o=>opportunityRow(project,o)});
       enter = false;
