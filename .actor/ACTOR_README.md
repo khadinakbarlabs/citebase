@@ -203,7 +203,7 @@ For one-off checks, your assistant gets a spending cap, asks for your approval a
 | `crawl_page` | [Website SEO Crawler](https://apify.com/khadinakbar/website-seo-spider) | A full-site crawl, page by page |
 | `local_rank` | [Local Rank Tracker](https://apify.com/khadinakbar/local-rank-tracker) | Where a business shows on the map around a location |
 | `local_pack` | [Google Local Pack](https://apify.com/khadinakbar/google-local-pack-api) | Who appears in Google's map results for a search |
-| `agency_listing` | [Agency Directory Listings](https://apify.com/khadinakbar/clutch-listings-scraper) | Listings of agencies and companies in a category |
+| `agency_listing` | [Clutch Scraper](https://apify.com/khadinakbar/clutch-scraper) | Agencies and companies in a Clutch category |
 
 Each job is priced before it runs: ask your assistant what a job costs and it will tell you. Each Actor's own Store page shows its current pricing. Apify also bills a small amount of compute on some jobs; it is included in the quote.
 

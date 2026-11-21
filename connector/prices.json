@@ -453,12 +453,12 @@
       "usage_paid_by_caller": false
     },
     "agency_listing": {
-      "actor": "khadinakbar/clutch-listings-scraper",
-      "unit": "listing",
-      "per_unit": 0.004,
+      "actor": "khadinakbar/clutch-scraper",
+      "unit": "company",
+      "per_unit": 0.003,
       "per_request": 0.0,
-      "unit_event": "scraped-listing",
-      "start_events": 4,
+      "unit_event": "scraped-company",
+      "start_events": 1,
       "usage_paid_by_caller": false
     }
   },
