@@ -1,11 +1,12 @@
 /* Citebase dashboard core: DOM helpers, charts, sign-in with Apify, and calls to Citebase.
    All text is set with textContent, never parsed as HTML, so saved data cannot inject markup.
-   The sign-in token lives in this tab's sessionStorage only and is sent to Apify only. */
+   Hosted sign-in uses an encrypted HttpOnly cookie. Dashboard access tokens stay in memory. */
 (function () {
   'use strict';
   var CFG = window.__CB || {}, OA = CFG.oauth || {}, API = (CFG.api || '').replace(/\/$/, '');
   var QS = new URLSearchParams(location.search);
   var CB = window.CB = { cfg: CFG, api: API, demo: QS.get('demo') === '1' || !API, qs: QS, token: '' };
+  CB.hasProjectWork = CB.demo || CFG.projectWork !== false;
   var SVG = 'http://www.w3.org/2000/svg';
 
   /* ---------- DOM ---------- */
@@ -206,91 +207,355 @@
   };
 
   /* ---------- sign-in with Apify (OAuth, PKCE) ---------- */
+  var projectReads = new Map(), readFreshMs = 30000;
+  var localHost = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+  var session = 0, renewal = null, hosted = !(localHost && OA.session === false), broker = window.CitebaseSession;
+  var remoteId = '', tokenVersion = 0, renewAfter = 0, canRefresh = false, verification = null, authReady = false;
   function store(k, v) { try { if (v == null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch (e) {} }
   function stored(k) { try { return sessionStorage.getItem(k) || ''; } catch (e) { return ''; } }
+  function resetSession() { session++; renewal = null; verification = null; projectReads.clear(); }
+  function requireSession(id) { if (id !== session) throw new Error('signed out'); }
+  CB.sessionId = function () { return session; };
+  CB.onSignedOut = function () {};
   function q(o) { return Object.keys(o).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(o[k]); }).join('&'); }
   function b64u(buf) { var t = '', a = new Uint8Array(buf); for (var i = 0; i < a.length; i++) t += String.fromCharCode(a[i]); return btoa(t).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
   function rnd(n) { var a = new Uint8Array(n); crypto.getRandomValues(a); return b64u(a); }
   function redirectUri() { return OA.redirectUri || (location.origin + location.pathname); }
   CB.signIn = function () {
+    if (hosted) {
+      if (location.hash.startsWith('#/') && location.hash.length <= 2048) store('cb.after', location.hash);
+      location.assign('/api/session/?start');
+      return;
+    }
+    // Loopback static development can use a registered public client without a session function.
     var verifier = rnd(48), st = rnd(16); store('cb.v', verifier); store('cb.s', st);
     crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)).then(function (d) {
       location.assign(OA.authorize + '?' + q({ response_type: 'code', client_id: OA.clientId, redirect_uri: redirectUri(),
         scope: OA.scope || 'full_api_access', state: st, code_challenge: b64u(d), code_challenge_method: 'S256' }));
     });
   };
-  function tokenCall(params) {
+  async function tokenCall(params, id) {
     params.client_id = OA.clientId;
-    return fetch(OA.token, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: q(params) })
-      .then(function (r) { return r.json().catch(function () { return {}; }); })
-      .then(function (j) { if (!j || !j.access_token) return false; CB.token = j.access_token; store('cb.t', CB.token); if (j.refresh_token) store('cb.r', j.refresh_token); return true; })
-      .catch(function () { return false; });
+    var response, tokens;
+    try {
+      response = await fetch(OA.token, { method: 'POST', redirect: 'error',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: q(params) });
+      tokens = await response.json();
+    } catch (_) { /* An interrupted response does not establish that the refresh credential expired. */ }
+    requireSession(id);
+    if (response && (response.status === 400 || response.status === 401) && tokens && tokens.error === 'invalid_grant') return false;
+    if (!response || !response.ok || !tokens || typeof tokens.access_token !== 'string' || !tokens.access_token) {
+      throw new Error('Could not renew your Apify sign-in. Check your connection and try again.');
+    }
+    CB.token = tokens.access_token;
+    store('cb.t', CB.token);
+    if (tokens.refresh_token) store('cb.r', tokens.refresh_token);
+    return true;
   }
-  function renew() { var r = stored('cb.r'); return r ? tokenCall({ grant_type: 'refresh_token', refresh_token: r }) : Promise.resolve(false); }
-  CB.forget = function () { CB.token = ''; ['cb.t', 'cb.r', 'cb.v', 'cb.s'].forEach(function (k) { store(k, null); }); cache = {}; };
-  // Resolves to 'demo' | 'in' | 'out' | 'failed' | 'cancelled'
-  CB.startAuth = function () {
-    if (CB.demo) return Promise.resolve('demo');
-    CB.token = stored('cb.t');
+  async function renew(id, attemptedToken) {
+    requireSession(id);
+    if (CB.token !== attemptedToken) return; // Another request already renewed this session.
+    var credential = hosted ? null : stored('cb.r');
+    if (hosted || credential) {
+      if (!renewal) {
+        var rotate = hosted ? broker.request('refresh', {sessionId:remoteId, version:tokenVersion}).then(function (result) {
+          requireSession(id);
+          if (!result.signedIn || result.sessionId !== remoteId) return false;
+          setHostedSession(result);
+          return true;
+        }) : tokenCall({ grant_type: 'refresh_token', refresh_token: credential }, id);
+        var pending = rotate
+          .finally(function () { if (renewal === pending) renewal = null; });
+        renewal = pending;
+      }
+      if (await renewal) return;
+    }
+    requireSession(id);
+    CB.onSignedOut('Please sign in again.');
+    throw new Error('signed out');
+  }
+  CB.forget = function () {
+    resetSession();
+    CB.token = ''; remoteId = ''; tokenVersion = 0; renewAfter = 0; canRefresh = false;
+    ['cb.t', 'cb.r', 'cb.v', 'cb.s', 'cb.sid', 'cb.after', 'cb.pending'].forEach(function (k) { store(k, null); });
+  };
+  // A deliberate sign-out keeps this tab on the Citebase sign-in screen instead of
+  // sending the visitor straight back to Apify.
+  CB.markSignedOut = function (on) { store('cb.out', on ? '1' : null); };
+  CB.wasSignedOut = function () { return stored('cb.out') === '1'; };
+  CB.signOut = async function () {
+    CB.markSignedOut(true);
+    var id = session;
+    var result = hosted ? await broker.request('logout', {sessionId:remoteId}) : {};
+    if (id === session) {
+      CB.onSignedOut(result.changed ? 'The account in this browser changed.' : 'You are signed out.');
+      if (result.changed) location.replace(location.pathname);
+    }
+  };
+  function setHostedSession(result) {
+    if (typeof result.accessToken !== 'string' || !result.accessToken || !result.sessionId) throw new Error('Sign-in unavailable.');
+    if (stored('cb.sid') !== result.sessionId) store('cb.pending', null);
+    if (remoteId !== result.sessionId) resetSession();
+    remoteId = result.sessionId; tokenVersion = result.version; CB.token = result.accessToken;
+    renewAfter = 1000 * Math.min(result.sessionUntil, result.expiresAt || result.sessionUntil);
+    canRefresh = result.canRefresh === true;
+    store('cb.sid', remoteId);
+  }
+  function verifyAccount(id) {
+    requireSession(id);
+    if (verification) return verification;
+    var current = broker.request('verify', {sessionId:remoteId}).then(function (result) {
+      requireSession(id);
+      if (!result.signedIn || result.sessionId !== remoteId) {
+        CB.onSignedOut(result.changed ? 'The account in this browser changed.' : 'Please sign in again.');
+        if (result.changed) location.replace(location.pathname);
+        throw new Error('signed out');
+      }
+      setHostedSession(result);
+    }).finally(function () { if (verification === current) verification = null; });
+    verification = current;
+    return current;
+  }
+  async function hostedAuth() {
+    if (!broker) return 'unavailable';
+    var code = QS.get('code'), reason = QS.get('error'), state = QS.get('state');
+    var fromSignIn = QS.get('signin') === '1';
+    if (code || reason || fromSignIn) history.replaceState(null, '', location.pathname + location.hash);
+    var result;
+    if (code || reason) {
+      var fields = {code:code, state:state};
+      if (state && state === stored('cb.s')) fields.legacyVerifier = stored('cb.v');
+      store('cb.v', null); store('cb.s', null);
+      try { result = await broker.request(reason ? 'cancel' : 'exchange', fields); }
+      catch (_) { return 'failed'; }
+      if (reason) return 'cancelled';
+    } else {
+      try { result = await broker.request('restore'); } catch (_) { return 'unavailable'; }
+    }
+    if (result.signedIn) {
+      setHostedSession(result);
+      CB.justSignedIn = Boolean(code);
+      var target = stored('cb.after');
+      store('cb.after', null);
+      if (code && target.startsWith('#/') && target.length <= 2048) history.replaceState(null, '', location.pathname + target);
+      return 'in';
+    }
+    if (fromSignIn) { CB.signIn(); return 'redirecting'; }
+    return 'out';
+  }
+  if (hosted && broker) {
+    var wakeTimer;
+    function reconcile() {
+      if (CB.demo || !authReady) return;
+      clearTimeout(wakeTimer);
+      wakeTimer = setTimeout(function () {
+        if (remoteId) verifyAccount(session).catch(function () { /* Offline: verify again before any write. */ });
+        else broker.request('status').then(function (result) {
+          if (result.signedIn && !remoteId) location.reload();
+        }).catch(function () {});
+      }, 40);
+    }
+    broker.onChange(function (event) {
+      if (CB.demo) return;
+      if (event.kind === 'check') { reconcile(); return; }
+      if (!remoteId) { if (event.kind === 'in') location.reload(); return; }
+      if (event.kind === 'out' && event.sessionId === remoteId) CB.onSignedOut('You are signed out.');
+      if (event.kind === 'in' && event.sessionId !== remoteId) {
+        CB.onSignedOut('The account in this browser changed. Open the dashboard to continue.');
+        location.reload();
+      }
+    });
+    window.addEventListener('focus', reconcile);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) reconcile(); });
+    window.addEventListener('pageshow', function (event) { if (event.persisted && !CB.demo) location.reload(); });
+  }
+  CB.startAuth = async function () {
+    if (CB.demo) return 'demo';
+    if (hosted) { var state = await hostedAuth(); authReady = true; return state; }
+    var savedToken = stored('cb.t');
+    if (savedToken !== CB.token) {
+      if (CB.token) store('cb.pending', null);
+      resetSession();
+      CB.token = savedToken;
+    }
     if (QS.get('code')) {
       var ok = QS.get('state') && QS.get('state') === stored('cb.s'), ver = stored('cb.v'), code = QS.get('code');
       store('cb.v', null); store('cb.s', null);
       history.replaceState(null, '', location.pathname + location.hash);
-      if (!ok || !ver) return Promise.resolve('failed');
-      return tokenCall({ grant_type: 'authorization_code', code: code, redirect_uri: redirectUri(), code_verifier: ver })
-        .then(function (good) { return good ? 'in' : 'failed'; });
+      if (!ok || !ver) return 'failed';
+      CB.forget();
+      try {
+        return await tokenCall({ grant_type: 'authorization_code', code: code, redirect_uri: redirectUri(), code_verifier: ver }, session) ? 'in' : 'failed';
+      } catch (_) { return 'failed'; }
     }
-    if (QS.get('error')) { history.replaceState(null, '', location.pathname + location.hash); return Promise.resolve('cancelled'); }
-    return Promise.resolve(CB.token ? 'in' : 'out');
+    if (QS.get('error')) { history.replaceState(null, '', location.pathname + location.hash); return 'cancelled'; }
+    if (!CB.token && QS.get('signin') === '1') {
+      history.replaceState(null, '', location.pathname + location.hash);
+      CB.signIn();
+      return 'redirecting';
+    }
+    return CB.token ? 'in' : 'out';
   };
   CB.whoami = function () {
     if (CB.demo) return Promise.resolve(null);
-    return fetch('https://api.apify.com/v2/users/me', { headers: { 'Authorization': 'Bearer ' + CB.token } })
-      .then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { return (j && j.data && j.data.username) || null; })
+    return apify('GET', 'users/me').then(function (user) { return (user && user.username) || null; })
       .catch(function () { return null; });
   };
 
   /* ---------- Citebase calls ---------- */
-  var cache = {};
-  CB.onSignedOut = function () {};
-  function call(tool, args, retried) {
-    if (CB.demo) return Promise.resolve(window.CB_DEMO.call(tool, args || {}));
-    return fetch(API + '/run', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CB.token },
-      body: JSON.stringify({ tool: tool, arguments: args || {} }) }).then(function (r) {
-      if (r.status === 401 && !retried) return renew().then(function (ok) { if (ok) return call(tool, args, true); CB.onSignedOut('Please sign in again.'); throw new Error('signed out'); });
-      return r.json().catch(function () { return { ok: false, error: 'Citebase sent a reply this page could not read. Try again.' }; }).then(function (j) {
-        if (!j.ok) throw new Error(j.error || 'Citebase could not answer. Try again.');
-        return j.result;
-      });
-    }, function () {
-      // Apify's gateway answers an expired token with a 401 that has no CORS headers; the browser sees a network error.
-      if (!retried && stored('cb.r')) return renew().then(function (ok) { if (ok) return call(tool, args, true); CB.onSignedOut('Please sign in again.'); throw new Error('signed out'); });
-      throw new Error('Could not reach Citebase. Check your connection and try again.');
-    });
+  var readTools = new Set(['get_history', 'quote_cost', 'next_steps', 'get_playbook', 'measure_recommendation_share',
+    'check_ai_content', 'check_outreach_draft', 'dashboard_storage_review', 'dashboard_balance_read']);
+  // Some list/get operations also create records or pause an expired schedule. Only replay known reads.
+  var readWork = new Set(['project_focus', 'brief_get', 'opportunities_list', 'changes_list', 'runs_list', 'prospects_list',
+    'onboarding_get', 'research_get', 'research_plan', 'outreach_prepare', 'outreach_status']);
+  var workWrites = new Set(['onboarding_suggest', 'onboarding_save', 'research_import', 'citation_prospect_save', 'outreach_claim',
+    'brief_save', 'action_save', 'action_recheck', 'schedule_apply', 'schedule_pause',
+    'schedule_resume', 'prospect_save', 'draft_save', 'draft_approve', 'digest_save', 'offer_dismiss', 'offer_measure_record']);
+  function safeRead(tool, args) {
+    return readTools.has(tool) || (tool === 'project_work' && readWork.has(args.operation))
+      || (tool === 'save_results' && args.check_only === true);
+  }
+  function changesProject(tool, args) {
+    return args.project && ((tool === 'save_results' && args.check_only !== true) || tool === 'audit_site' || tool === 'scheduled_check'
+      || (tool === 'import_ai_results' && args.save === true) || (tool === 'project_work' && workWrites.has(args.operation)));
+  }
+  function requestError(service, status, detail) {
+    const message = typeof detail === 'string' ? detail : detail && detail.message;
+    const error = new Error(typeof message === 'string' && message ? message : service + ' answered with an error (' + status + ').');
+    error.status = status;
+    if (detail && typeof detail.type === 'string') error.type = detail.type;
+    return error;
+  }
+  var canonicalActorRun = 'https://khadinakbar--citebase.apify.actor/run';
+  function trustedActorRun(url) {
+    if (url === canonicalActorRun) return true;
+    var origin = location.origin;
+    return /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(origin) && url === origin + '/run';
+  }
+  async function authenticatedJson(service, url, init, readOnly) {
+    var actor = service === 'Citebase';
+    if (actor && !trustedActorRun(url)) throw new Error('The Citebase service address is not recognized.');
+    var relay = actor && hosted && CB.hasProjectWork && url === canonicalActorRun;
+    if (relay) {
+      // The Standby gateway does not allow a browser preflight with the project's caller header.
+      url = '/api/actor/';
+      init.mode = 'same-origin';
+      init.credentials = 'same-origin';
+      init.cache = 'no-store';
+      init.headers['X-Citebase-Session'] = '1';
+    }
+    var id = session;
+    if (hosted && !readOnly) await verifyAccount(id);
+    else if (hosted && renewAfter && Date.now() + 5000 >= renewAfter) await renew(id, CB.token);
+    var advice = readOnly ? 'Check your connection and try again.' : 'Review the project or Activity to see whether the change went through.';
+    for (var attempt = 0; attempt < 2; attempt++) {
+      requireSession(id);
+      var token = CB.token;
+      init.headers.Authorization = 'Bearer ' + token;
+      if (actor && !relay && token && CB.hasProjectWork) {
+        // An explicitly configured local Actor can authenticate the browser directly.
+        init.headers['X-Apify-Authorization'] = init.headers.Authorization;
+        init.headers['X-Citebase-Authorization'] = init.headers.Authorization;
+      }
+      let response;
+      try { response = await fetch(url, init); }
+      catch (_) {
+        requireSession(id);
+        // An opaque gateway 401 and a lost response both look like a network failure.
+        if (attempt || !readOnly || !(hosted ? canRefresh : stored('cb.r'))) throw new Error('Could not reach ' + service + '. ' + advice);
+      }
+      requireSession(id);
+      if (relay && !readOnly && response && response.status === 401 &&
+          (!response.headers || response.headers.get('X-Citebase-Not-Dispatched') !== '1')) {
+        // Only the relay can confirm that a rejected write never reached the Actor.
+        throw requestError(service, 401, 'Citebase could not confirm this change. ' + advice);
+      }
+      if (!response || (response.status === 401 && !attempt)) {
+        await renew(id, token);
+        continue;
+      }
+      if (response.status === 204) return {response: response, json: null};
+      var json = await response.json().catch(function () { return null; });
+      requireSession(id);
+      if (!response.ok) throw requestError(service, response.status, json && json.error);
+      if (json === null) throw new Error(service + ' sent a reply this page could not read. ' + advice);
+      return {response: response, json: json};
+    }
+  }
+  async function call(tool, args = {}) {
+    if (CB.demo) return window.CB_DEMO.call(tool, args);
+    var id = session;
+    var changedProject = changesProject(tool, args) ? args.project : null;
+    try {
+      var reply = await authenticatedJson('Citebase', API + '/run', { method: 'POST', redirect: 'error',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tool: tool, arguments: args }) }, safeRead(tool, args));
+      var json = reply.json;
+      if (!json || !json.ok) throw new Error((json && json.error) || 'Citebase could not answer.');
+      return json.result;
+    } finally {
+      // A saved change can reach the server even if its confirmation never reaches this tab.
+      if (id === session && changedProject) {
+        projectReads.delete(changedProject);
+        projectReads.delete('');
+      }
+    }
   }
   CB.tool = function (tool, args) { return call(tool, args || {}); };
-  // Apify's own API with the visitor's token (runs, schedules, account). Same refresh rule as Citebase calls.
-  function apify(method, path, body, retried) {
-    if (CB.demo) return Promise.resolve().then(function () { return window.CB_DEMO.apify(method, path, body); });
-    var init = { method: method, headers: { 'Authorization': 'Bearer ' + CB.token } };
+  function cachedRead(project, key, fresh, load) {
+    var entries = projectReads.get(project);
+    if (!entries) { entries = new Map(); projectReads.set(project, entries); }
+    var entry = entries.get(key);
+    if (entry && (entry.pending || (!fresh && Date.now() < entry.expires))) return entry.promise;
+    var id = session;
+    entry = {pending: true};
+    entries.set(key, entry);
+    entry.promise = load().then(function (result) {
+      requireSession(id);
+      // Invalidation detaches these entries, so a late response cannot replace a newer read.
+      entry.pending = false;
+      entry.expires = Date.now() + readFreshMs;
+      return result;
+    }, function (error) {
+      if (entries.get(key) === entry) entries.delete(key);
+      throw error;
+    });
+    return entry.promise;
+  }
+  function focusKey(data) {
+    if (typeof data !== 'object' || Array.isArray(data)) return null;
+    var fields = Object.keys(data);
+    if (!fields.every(function (key) {
+      return (key === 'limit' || key === 'priority') && (typeof data[key] === 'string' || typeof data[key] === 'number');
+    })) return null;
+    return 'focus:' + JSON.stringify(data, fields.sort());
+  }
+  CB.work = function (project, operation, data, fresh) {
+    data = data || {};
+    if (CB.demo) return Promise.resolve().then(function () { return CB.demoWork(project, operation, data); });
+    if (!CB.hasProjectWork) return Promise.reject(new Error('Explore this workflow in the sample project.'));
+    function load() {
+      return call('project_work', { project: project, operation: operation, data: data })
+        .then(function (reply) { return reply.result; });
+    }
+    var key = operation === 'project_focus' ? focusKey(data) : null;
+    return key === null ? load() : cachedRead(project, key, fresh, load);
+  };
+  async function apify(method, path, body) {
+    if (CB.demo) return window.CB_DEMO.apify(method, path, body);
+    var init = { method: method, headers: {}, redirect: 'error' };
     if (body !== undefined) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(body); }
-    return fetch('https://api.apify.com/v2/' + path, init).then(function (r) {
-      if (r.status === 401 && !retried) return renew().then(function (ok) { if (ok) return apify(method, path, body, true); CB.onSignedOut('Please sign in again.'); throw new Error('signed out'); });
-      if (r.status === 204) return null;
-      return r.json().catch(function () { return {}; }).then(function (j) {
-        if (!r.ok) throw new Error((j.error && j.error.message) || 'Apify answered with an error (' + r.status + ').');
-        return j.data !== undefined ? j.data : j;
-      });
-    }, function () { throw new Error('Could not reach Apify. Check your connection and try again.'); });
+    var reply = await authenticatedJson('Apify', 'https://api.apify.com/v2/' + path, init, method === 'GET' || method === 'HEAD');
+    var json = reply.json;
+    return json && json.data !== undefined ? json.data : json;
   }
   CB.apify = apify;
   CB.history = function (project, fresh) {
-    var key = project || '';
-    if (!fresh && cache[key]) return Promise.resolve(cache[key]);
-    return call('get_history', project ? { project: project } : {}).then(function (r) { cache[key] = r; return r; });
+    return cachedRead(project || '', 'history', fresh, function () {
+      return call('get_history', project ? { project: project } : {});
+    });
   };
   CB.saveTodo = function (project, items) {
-    return call('save_results', { project: project, todo: items }).then(function (r) { delete cache[project]; delete cache['']; return r; });
+    return call('save_results', { project: project, todo: items });
   };
-  CB.refresh = function () { cache = {}; };
+  CB.refresh = function () { projectReads.clear(); };
 })();

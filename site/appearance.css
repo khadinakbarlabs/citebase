@@ -1,0 +1,87 @@
+@font-face {
+  font-family: Geist;
+  src: url("assets/geist-latin.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: Manrope;
+  src: url("assets/manrope-latin.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+  --sans: Geist, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --display: Manrope, Geist, system-ui, sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  --paper: #faf9ff;
+  --card: #fff;
+  --card-2: #f6f3fc;
+  --ink: #171420;
+  --ink-2: #514c60;
+  --muted: #675f76;
+  --line: #ded9ec;
+  --grid: #eae5f3;
+  --brand: #6930df;
+  --brand-soft: #efe8ff;
+  --solid: #6d31ed;
+  --solid-hover: #5720cd;
+  --on-solid: #fff;
+  --on-status: #fff;
+  --wash: #e3d6ff;
+  --grid-line: rgb(71 48 110 / .046);
+  --glass: rgb(255 255 255 / .88);
+  --panel-ink: #f0eaff;
+  --panel-text: #24153c;
+  --panel-soft: #5e4d76;
+  --panel-track: #d9ccee;
+  --panel-signal: #6531cd;
+  --spark: #f0bd48;
+  --good: #137850; --good-soft: #e1f4e9;
+  --warn: #895107; --warn-soft: #fff2d7;
+  --bad: #b4324b; --bad-soft: #fde7ed;
+  --info-soft: #eee9ff;
+  --e1: #336ec4; --e2: #c35225; --e3: #19825b; --e4: #a36a00;
+  --e5: #ba477e; --e6: #387632; --e7: #7544c9; --e8: #c03943;
+  --r: 20px;
+  --shadow: 0 2px 6px rgb(46 30 78 / .035), 0 14px 36px -24px rgb(54 29 100 / .23);
+  --lifted: 0 18px 60px -28px rgb(72 39 130 / .28), 0 2px 8px rgb(36 22 55 / .04);
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #15121e; --card: #201b2a; --card-2: #282232;
+  --ink: #f5f0ff; --ink-2: #d1c8df; --muted: #b4a9c3;
+  --line: #40374d; --grid: #342d40; --brand: #c0a2ff; --brand-soft: #38284f;
+  --solid: #7650d2; --solid-hover: #6b41c6; --wash: #352448;
+  --on-status: #191323;
+  --grid-line: rgb(192 168 234 / .055); --glass: rgb(32 27 42 / .92);
+  --panel-ink: #352546; --panel-text: #f1e8ff; --panel-soft: #d0c0e4;
+  --panel-track: #514062; --panel-signal: #c9aaff;
+  --good: #71deb0; --good-soft: #1d382d; --warn: #f3c274; --warn-soft: #3d301d;
+  --bad: #ff9aad; --bad-soft: #452730; --info-soft: #362c49;
+  --e1: #83b3ff; --e2: #ffa06b; --e3: #69ce9f; --e4: #edc465;
+  --e5: #f28bb6; --e6: #92d76c; --e7: #b799ff; --e8: #fd8d93;
+  --shadow: 0 12px 30px -22px rgb(0 0 0 / .7);
+  --lifted: 0 20px 55px -26px rgb(0 0 0 / .8);
+}
+[data-theme-toggle] {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+[data-theme-toggle]:hover { border-color: var(--line); background: var(--card-2); color: var(--brand); }
+[data-theme-toggle]:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+[data-theme-toggle][hidden] { display: none; }
+[data-theme-toggle] svg { display: block; width: 18px; height: 18px; }

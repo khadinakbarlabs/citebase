@@ -1,6 +1,13 @@
 # Changelog
 
 ## 0.5
+- Set up each website with a shared competitor shortlist, reviewable search terms, and questions that the dashboard and assistant can resume.
+- Compare sourced keyword demand, competitor traffic estimates, ranking pages and observed AI recommendations. Open a question's cited article to review its published contact and approve a draft.
+- Recover project saves under Limited permissions with Actor-owned storage. Runs can explicitly select an existing project store.
+- Use a single scheduled Citebase action to start capped AI checks and read their results through Apify's child-run access.
+- Keep available AI answer text in restricted storage and attach a source to each true or false claim review.
+- New AI schedules can import a completed round automatically and flag lost recommendations when the checks are comparable.
+- `make_report` with `prospect=true` creates a separate shareable page from aggregate buying-question results.
 - Grok and DeepSeek: plans and schedules accept `grok` and `deepseek` as assistant engines (checked by AI Brand Monitor 1.8.6).
 - Share of voice: `get_history` returns `rivals` for the latest round (how many buying answers name you and each rival, the round before, your average position when named, and how the answers spoke about you). Imported AI Brand Monitor results now keep each answer's sentiment.
 - Dashboard data: `get_history` now returns `by_engine` for each round (recommended, mentioned and cited per AI engine) and `questions` (each test question in the latest round, per engine, with the round before), so a dashboard can show which engine and which question moved.

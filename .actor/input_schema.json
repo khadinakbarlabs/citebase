@@ -1,6 +1,6 @@
 {
   "title": "Citebase tool call",
-  "description": "Runs one Citebase tool and returns its result. An AI assistant normally fills this in. For a live MCP connection use the Standby URL instead.",
+  "description": "Runs one Citebase tool in your Apify account. For private projects, use the encrypted private_request field and read the result from your account's restricted store.",
   "type": "object",
   "schemaVersion": 1,
   "properties": {
@@ -21,16 +21,64 @@
         "make_report",
         "import_ai_results",
         "schedule_checks",
-        "scheduled_check"
+        "scheduled_check",
+        "project_work"
       ],
       "default": "get_playbook",
       "prefill": "get_playbook"
+    },
+    "project_store_id": {
+      "title": "Existing Citebase project storage",
+      "description": "Optional. Select your existing project storage if it predates Limited permissions. New projects can leave this blank.",
+      "type": "string",
+      "editor": "resourcePicker",
+      "resourceType": "keyValueStore",
+      "resourcePermissions": ["READ", "WRITE"]
+    },
+    "schedule_ledger_id": {
+      "title": "Confirmed schedule allowance queue",
+      "description": "Citebase sets this field when you confirm a project schedule. It holds the account's existing check reservations.",
+      "type": "string",
+      "editor": "resourcePicker",
+      "resourceType": "requestQueue",
+      "resourcePermissions": ["READ", "WRITE"]
+    },
+    "schedule_lock_id": {
+      "title": "Confirmed project schedule lock queue",
+      "description": "Citebase sets this field when you confirm a project schedule. It lets the final check pause its own schedule safely.",
+      "type": "string",
+      "editor": "resourcePicker",
+      "resourceType": "requestQueue",
+      "resourcePermissions": ["READ", "WRITE"]
+    },
+    "private_request": {
+      "title": "Private project request",
+      "type": "object",
+      "editor": "json",
+      "isSecret": true,
+      "description": "For project_work, get_history or save_results, put the tool's arguments here and leave regular arguments empty. For example, project_work accepts { \"project\": \"acme-site\", \"operation\": \"project_focus\" }. Apify encrypts this object. The OUTPUT record contains private_result with the store_id and key to read while signed in. Never include credentials."
+    },
+    "private_store_id": {
+      "title": "Existing restricted Citebase project records",
+      "description": "Optional resource grant for the restricted Citebase private-answers store when this Actor cannot already open the project's saved briefs or records.",
+      "type": "string",
+      "editor": "resourcePicker",
+      "resourceType": "keyValueStore",
+      "resourcePermissions": ["READ", "WRITE"]
+    },
+    "revisions_queue_id": {
+      "title": "Existing restricted Citebase revisions",
+      "description": "Optional resource grant for the restricted Citebase work-revisions queue used for this project's saved versions. Leave blank for new projects.",
+      "type": "string",
+      "editor": "resourcePicker",
+      "resourceType": "requestQueue",
+      "resourcePermissions": ["READ", "WRITE"]
     },
     "arguments": {
       "title": "Tool arguments (JSON)",
       "type": "object",
       "editor": "json",
-      "description": "Inputs for the chosen tool as a JSON object. get_playbook {name?} e.g. {\"name\":\"start\"}. audit_site {url?, max_pages?, project?} e.g. {\"url\":\"https://example.com\",\"project\":\"acme-site\"} (project saves the check and shows what changed). quote_cost {pack:\"starter\"} or {items:[{job,units,requests?}]}. measure_recommendation_share {panel,runs,brand?,...} or {project}. next_steps {project?,audit?,report?,max_steps?}. check_outreach_draft {to,subject,body,...}. check_ai_content {text,threshold?}. save_results {project, runs?, panel?, brand?, audit?, settings?, todo?, server_log?, traffic?, traffic_csv?, gsc_csv?, ranks?, check_only?}. get_history {project?} (empty lists every saved project). make_report {project}. import_ai_results {project, snapshot, dataset_ids?, items?, save?, append?, replace?, panel?, brand?, context?} reads results (pass the finished runs' dataset ids as dataset_ids) of AI Brand Monitor, Google AI Overviews, Google AI Mode and the tracker Actors (send panel and brand with save true to start a project in one step; context is the country, language and device of the run). schedule_checks {project, url?, frequency?, max_pages?, platforms?, repeats?} gives the Actor runs to add and the worst-case monthly cost; repeats is 1 to 5, default 3. scheduled_check {project, url, max_pages?}: the site check + report refresh to run from an Apify Schedule. No credentials here. Defaults to {}.",
+      "description": "Inputs for the chosen tool as a JSON object. get_playbook {name?} e.g. {\"name\":\"start\"}. audit_site {url?, max_pages?, project?} e.g. {\"url\":\"https://example.com\",\"project\":\"acme-site\"} (project saves the check and shows what changed). quote_cost {pack:\"starter\"} or {items:[{job,units,requests?}]}. measure_recommendation_share {panel,runs,brand?,...} or {project}. next_steps {project?,audit?,report?,max_steps?}. check_outreach_draft {to,subject,body,...}. check_ai_content {text,threshold?}. save_results {project, runs?, panel?, brand?, audit?, settings?, todo?, server_log?, traffic?, traffic_csv?, gsc_csv?, ranks?, fact_checks?, check_only?}. get_history {project?, answer_review?} (empty lists every saved project). make_report {project, prospect?}. import_ai_results {project, snapshot, dataset_ids?, items?, save?, append?, replace?, panel?, brand?, context?} reads results (pass the finished runs' dataset ids as dataset_ids) of AI Brand Monitor, Google AI Overviews, Google AI Mode and the tracker Actors (send panel and brand with save true to start a project in one step; context is the country, language and device of the run). schedule_checks {project, url?, frequency?, max_pages?, platforms?, repeats?} gives the Actor runs to add and the worst-case monthly cost; repeats is 1 to 5, default 3. scheduled_check {project, url, max_pages?, ai_import?}: the site check + report refresh to run from an Apify Schedule. No credentials here. Defaults to {}.",
       "default": {},
       "prefill": {}
     }

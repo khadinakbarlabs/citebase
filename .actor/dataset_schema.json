@@ -22,7 +22,8 @@
           "make_report",
           "import_ai_results",
           "schedule_checks",
-          "scheduled_check"
+          "scheduled_check",
+          "project_work"
         ]
       },
       "ok": {

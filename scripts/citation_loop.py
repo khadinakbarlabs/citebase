@@ -63,6 +63,7 @@ MIN_TARGETS = 3  # fewer targeted prompts than this cannot separate a real chang
 PROVENANCE = ("engine_version", "country", "language", "device", "source")
 PROVENANCE_LIMITS = {"engine_version": 80, "country": 40, "language": 40, "device": 40, "source": 40}
 ANSWERED_AT_LIMIT = 40
+ANSWER_TEXT_LIMIT = 8000
 FIELD_NOUN = {"engine_version": "model", "country": "country", "language": "language", "device": "device type",
               "source": "collection method"}
 DIFFERENT = {"engine_version": "came from a different model", "country": "were asked from a different country",
@@ -323,6 +324,11 @@ def normalise_run(raw: dict, panel: dict[str, dict], snapshot: str, n: int) -> d
            "metric_version": version, "sentiment": clean_sentiment(row.get("sentiment"))}
     out.update({field: clean_prov(field, row.get(field)) for field in PROVENANCE})
     out["answered_at"] = answered_at
+    text = row.get("answer_text")
+    if isinstance(text, str) and text.strip():
+        text = text.strip()
+        out["answer_text"] = text[:ANSWER_TEXT_LIMIT]
+        out["answer_truncated"] = row.get("answer_truncated") is True or len(text) > ANSWER_TEXT_LIMIT
     return out
 
 

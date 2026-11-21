@@ -17,8 +17,9 @@ Include what you found, how to reproduce it and what an attacker could do with i
 
 ## How Citebase handles your data and keys
 
-- Citebase never asks for passwords or API keys. Sign-in is done by Apify (OAuth); the dashboard keeps the sign-in token in the browser tab only.
-- Saved projects live in a store in **your own** Apify account. The author cannot read them.
+- Apify handles sign-in using OAuth with PKCE. Citebase remembers the signed-in browser for up to 90 days with encrypted, HttpOnly cookies. The dashboard holds its access token in memory. Signing out clears the active browser session.
+- The dashboard's project endpoint verifies the request origin and matches its credential to the active session before forwarding to the fixed Citebase Actor. An interrupted write can be checked in Activity before repeating it.
+- Saved projects live in **your own** Apify account. Your existing project store keeps its sharing settings. Citebase checks the signed-in account before serving project data and keeps private results in restricted storage.
 - Tool output, scraped pages and emails are treated as data, never as instructions.
 - The local crawler refuses private and local network addresses unless you pass `--allow-private`.
 

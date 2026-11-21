@@ -227,6 +227,34 @@ class ReviewFixes(Base):
         with self.assertRaises(ValueError):
             run(runner.run_tool("save_results", {"project": "acme-site", "audit": AUDIT, "replace": "false"}))
 
+    def test_create_only_preserves_an_existing_project(self):
+        args = {"project": "acme-site", "brand": {"name": "Original"}, "create_only": True}
+        self.assertTrue(run(runner.run_tool("save_results", args))["created"])
+        with self.assertRaisesRegex(ValueError, "already exists"):
+            run(runner.run_tool("save_results", {**args, "brand": {"name": "Other company"}}))
+        self.assertEqual(run(hist.history("acme-site"))["brand"]["name"], "Original")
+
+    def test_create_only_validates_before_reserving_a_name(self):
+        args = {"project": "acme-site", "brand": {"name": "Original"}, "create_only": True}
+        with self.assertRaises(ValueError):
+            run(runner.run_tool("save_results", {**args, "settings": {"country": "not a country"}}))
+        self.assertEqual(self.backend.data, {})
+        self.assertTrue(run(runner.run_tool("save_results", args))["created"])
+
+    def test_latest_audit_exposes_actionable_findings_and_filters_old_links(self):
+        run(hist.save_results("acme-site", [], brand={"name": "Acme"}))
+        self.assertIsNone(run(hist.history("acme-site"))["latest_audit"])
+        run(hist.save_audit("acme-site", AUDIT))
+        stored = self.backend.data[stg.key("acme-site", "audit", hist.today())]
+        stored["problems"][0]["example_urls"] = ["https://acme.com/page", "https://acme.com/page?code=private"]
+        stored["private_note"] = "unused historical field"
+        h = run(hist.history("acme-site"))
+        audit = h["latest_audit"]
+        self.assertEqual((audit["date"], audit["pages_checked"], audit["counts"]), (hist.today(), 5, {"fail":1}))
+        self.assertEqual(audit["problems"][0]["example_urls"], ["https://acme.com/page"])
+        self.assertNotIn("private_note", audit)
+        self.assertNotIn("problems", h["audits"][0])
+
     def test_report_note_is_honest_without_a_link(self):
         run(hist.save_results("acme-site", runs("baseline", {"p1"}), PANEL))
         out = run(report.make_report("acme-site"))  # memory backend cannot make links

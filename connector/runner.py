@@ -7,36 +7,45 @@ the same way as the MCP tools.
 from __future__ import annotations
 
 import asyncio
+import math
+from collections import Counter
+from contextlib import nullcontext
 from typing import Any
 
+import fact_checks
 import history as hist
 import importer
 import insights
 import signals
 import report
+import scheduled_import
 import search_demand
 import storage as stg
 import tools
+import work_schedules
 
 SAVED = {"save_results", "get_history", "make_report", "import_ai_results", "schedule_checks"}
+SERVER_ONLY = {"project_work", "get_account_usage"}
 ONE_SHOT_ONLY = {"scheduled_check"}  # meant for Apify Schedules; not offered as an MCP tool
 ALLOWED_ARGS = {
     **tools.ALLOWED_ARGS,
+    "project_work": {"project", "operation", "data"},
+    "get_account_usage": set(),
     "audit_site": {"url", "max_pages", "project"},
     "quote_cost": {"items", "pack", "project"},
     "next_steps": {"audit", "report", "max_steps", "project"},
     "measure_recommendation_share": {"panel", "runs", "baseline", "current", "experiments", "brand", "project"},
     "save_results": {"project", "runs", "panel", "experiments", "brand", "audit", "replace", "append", "settings",
-                     "todo", "server_log", "traffic", "traffic_csv", "ranks", "check_only", "gsc_csv"},
-    "get_history": {"project"},
-    "make_report": {"project"},
+                     "todo", "server_log", "traffic", "traffic_csv", "ranks", "check_only", "gsc_csv", "fact_checks", "create_only"},
+    "get_history": {"project", "answer_review"},
+    "make_report": {"project", "prospect"},
     "import_ai_results": {"project", "items", "dataset_ids", "snapshot", "save", "append", "replace", "panel", "brand",
                           "context"},
     "schedule_checks": {"project", "url", "frequency", "max_pages", "platforms", "repeats"},  # panel and brand come from the project
-    "scheduled_check": {"project", "url", "max_pages"},
+    "scheduled_check": {"project", "url", "max_pages", "ai_import", "schedule_plan_id"},
 }
-MAX_DATASETS = 20  # one round of the AI check is about seven runs; this leaves room for a larger panel
-TOOL_NAMES = sorted(set(tools.DISPATCH) | SAVED | ONE_SHOT_ONLY)
+MAX_DATASETS = scheduled_import.MAX_DATASETS
+TOOL_NAMES = sorted(set(tools.DISPATCH) | SAVED | ONE_SHOT_ONLY | SERVER_ONLY)
 AUDIT_SLOTS = asyncio.Semaphore(2)
 SAVE_NEXT_RUNS = "Saved. Measure with the project name, then re-check in 30 days: offer schedule_checks to automate it."
 SAVE_NEXT_AUDIT = "Saved. " + tools.RECHECK_OFFER
@@ -113,8 +122,11 @@ async def quote(items: list[dict] | None, pack: str | None, project: str | None 
     return priced
 
 
-async def make_report(project: str) -> dict:
-    out = await report.make_report(project)
+async def make_report(project: str, prospect: bool = False) -> dict:
+    out = await report.make_report(project, prospect)
+    if prospect:
+        out["next"] = "Preview the audit, then share the link with the prospect if you choose."
+        return out
     out["next"] = "Give the user the link and say anyone with it can open it. " + tools.RECHECK_OFFER
     return out
 
@@ -206,13 +218,31 @@ async def save(project: str, runs: list[dict] | None, panel: list[dict] | None, 
                brand: dict | None, audit_result: dict | None, replace: bool = False, append: bool = False,
                settings: dict | None = None, todo: list[dict] | None = None, server_log: str | None = None,
                traffic: list[dict] | None = None, traffic_csv: str | None = None, ranks: list[dict] | None = None,
-               check_only: bool = False, gsc_csv: str | None = None) -> dict:
+               check_only: bool = False, gsc_csv: str | None = None, review: dict | None = None,
+               create_only: bool = False) -> dict:
     """Saves AI-answer results, the question list, brand details, settings, to-do updates, logged changes, one
     site check, and/or counts from a pasted server log, an analytics export or search positions.
 
     With check_only nothing is stored: the question list, log, export or positions are checked and reviewed, so a
     question list can be put right before it is frozen."""
     has_signal = bool(server_log or traffic or traffic_csv or ranks or gsc_csv)
+    if create_only and (not brand or any((runs, panel, experiments, audit_result, todo, has_signal, check_only,
+                                          replace, append, review is not None))):
+        raise ValueError("Create a new project with brand details and optional settings. Save other changes after creation.")
+    if review is not None:
+        if not isinstance(review, dict) or any((runs, panel, experiments, brand, audit_result, settings, todo,
+                                                has_signal, check_only, replace, append)):
+            raise ValueError("Send fact_checks as a separate save with only the project name.")
+        slug = stg.clean_slug(project)
+        snapshot = stg.clean_part(review.get("snapshot"))
+        async with hist.lock_for(slug):
+            data = await hist.load_project(slug)
+            be = await stg.get_backend()
+            count = await fact_checks.save_claims(be, slug, snapshot, review.get("claims"), hist.today())
+        return {"project": slug, "snapshots_saved": {}, "panel_prompts": len(data["panel"]),
+                "snapshots_in_project": sorted(data["meta"]["snapshots"]), "brand": data["meta"].get("brand", {}),
+                "fact_checks_saved": count, "stored_in": "your own Apify account",
+                "next": "Open the project's Answers tab or ask for the saved fact checks and their sources."}
     if not (runs or panel or experiments or brand or audit_result or settings or todo or has_signal):
         raise ValueError("Send runs (AI answers), the question list (panel), an audit (the result of audit_site), "
                          "brand details, settings, to-do updates, a server log, an analytics export or logged "
@@ -238,7 +268,8 @@ async def save(project: str, runs: list[dict] | None, panel: list[dict] | None, 
     if check_only:
         return await _check_only(project, runs, panel_rows, brand, review, bots, visits, rank_rows, demand)
     if runs or panel or experiments or brand or settings or todo:
-        out = await hist.save_results(project, runs or [], panel, experiments, brand, replace, append, settings, todo)
+        out = await hist.save_results(project, runs or [], panel, experiments, brand, replace, append, settings, todo,
+                                      create_only=create_only)
     else:
         data = await hist.load_project(project) if await _exists(project) else None
         meta = data["meta"] if data else {}
@@ -368,7 +399,8 @@ async def measure(project: str | None, panel: list[dict] | None, runs: list[dict
 OWN_ACTOR_PREFIX = "khadinakbar/"
 
 
-async def fetch_datasets(dataset_ids: list, already: list[str]) -> tuple[list[dict], list[str]]:
+async def fetch_datasets(dataset_ids: list, already: list[str], *, owned_children: bool = False,
+                         item_origins: list[str] | None = None) -> tuple[list[dict], list[str]]:
     """Reads the results of finished runs from the caller's own account. Returns (items, ids that were read).
 
     A dataset that was already imported into this round is refused, so a retry cannot count the same answers twice."""
@@ -381,7 +413,7 @@ async def fetch_datasets(dataset_ids: list, already: list[str]) -> tuple[list[di
         raise ValueError(f"These results are already in this round: {', '.join(repeated)}. Nothing was added. To load "
                          "them again from scratch, pass replace=true with the user's yes.")
     be = await stg.get_backend()
-    for dataset_id in ids:
+    for dataset_id in [] if owned_children else ids:
         source = await be.dataset_source(dataset_id)
         if source is None:
             raise ValueError(f"Could not tell which Actor made dataset {dataset_id}, so Citebase will not read it: it "
@@ -400,6 +432,8 @@ async def fetch_datasets(dataset_ids: list, already: list[str]) -> tuple[list[di
             raise ValueError(f"These datasets hold more than {stg.MAX_DATASET_ITEMS} items together, so some answers "
                              "would be left out. Nothing was imported. Import fewer datasets at a time.")
         items += batch
+        if item_origins is not None:
+            item_origins.extend([dataset_id] * len(batch))
     if not items:
         raise ValueError("Those datasets are empty. The runs may still be going: check each with get-actor-run and "
                          "import when they have finished. Do not start the runs again.")
@@ -409,7 +443,8 @@ async def fetch_datasets(dataset_ids: list, already: list[str]) -> tuple[list[di
 async def import_results(project: str, items: list[dict] | None, snapshot: str, save: bool = False,
                          append: bool = False, replace: bool = False, panel: list[dict] | None = None,
                          brand: dict | None = None, context: dict | None = None,
-                         dataset_ids: list[str] | None = None) -> dict:
+                         dataset_ids: list[str] | None = None, *, google_context_only: bool = False,
+                         owned_children: bool = False) -> dict:
     """Converts AI-check results into rows. A new project can be created in the same step: send the question list
     (panel) and the brand with save=true. Nothing is stored unless save is true.
 
@@ -422,11 +457,12 @@ async def import_results(project: str, items: list[dict] | None, snapshot: str, 
     settings = importer.clean_context(context)
     snap = stg.clean_part(snapshot)
     source_ids: list[str] = []
+    item_origins: list[str] = []
     if dataset_ids:
         if items:
             raise ValueError("Send either items or dataset_ids, not both.")
         already = [] if replace else list(((data or {}).get("meta", {}).get("imports") or {}).get(snap) or [])
-        items, source_ids = await fetch_datasets(dataset_ids, already)
+        items, source_ids = await fetch_datasets(dataset_ids, already, owned_children=owned_children, item_origins=item_origins)
     if not items:
         raise ValueError("Send the finished runs' dataset ids as dataset_ids (best), or the result items as items.")
     stored = data["panel"] if data else []
@@ -444,12 +480,17 @@ async def import_results(project: str, items: list[dict] | None, snapshot: str, 
         raise ValueError(f"Project '{slug}' has no question list yet: save the question list first (save_results with "
                          "panel), or send it as `panel` with this import.")
     known_brand = {**(data["meta"].get("brand") or {}), **(brand or {})} if data else brand
-    converted = importer.convert(items, questions, snap, known_brand, settings)
+    converted = importer.convert(items, questions, snap, known_brand, settings,
+                                 google_context_only=google_context_only, item_origins=item_origins)
     converted["saved"] = None
     converted["dataset_ids"] = source_ids or None
     if save:
+        contributed = {r.get("source_dataset_id") for r in converted["runs"]}
+        saved_sources = [ds for ds in source_ids if ds in contributed]
+        if len(saved_sources) != len(source_ids):
+            converted["notes"].append("Only datasets with a matching answer are linked to the saved round.")
         converted["saved"] = await hist.save_results(slug, converted["runs"], panel or None, None, brand or None,
-                                                     replace, append, None, None, source_ids or None)
+                                                     replace, append, None, None, saved_sources or None)
         if source_ids:
             # The rows are stored and Citebase read them itself, so they are not sent back through the chat.
             converted["runs"] = []
@@ -466,6 +507,9 @@ async def import_results(project: str, items: list[dict] | None, snapshot: str, 
             converted["notes"].append("The question list and brand you sent were not saved (save is false): nothing "
                                       "has been stored yet. Call again with save=true to keep this round.")
         converted["next"] = "Nothing is stored yet. Call again with save=true to keep this round."
+    for row in converted["runs"]:
+        row.pop("answer_text", None)
+        row.pop("answer_truncated", None)
     return converted
 
 
@@ -497,23 +541,174 @@ async def schedule(project: str, url: str | None = None, frequency: str | None =
                    + (f" Saved projects: {', '.join(known[:10])}." if known else ""))
     plan = tools.schedule_plan(slug, url, frequency, max_pages, panel, brand, platforms, repeats, baseline_engines,
                                settings)
+    store_id = getattr(await stg.get_backend(), "project_store_id", None)
+    if store_id:
+        plan["free_site_check"]["input"]["project_store_id"] = store_id
+        if plan.get("ai_checks", None) and plan["ai_checks"].get("site_check_input"):
+            plan["ai_checks"]["site_check_input"]["project_store_id"] = store_id
     if missing:
         plan["note"] = missing + (" " + plan["note"] if plan.get("note") else "")
     return plan
 
 
-async def scheduled_check(project: str, url: str, max_pages: int = 15) -> dict:
+def managed_schedule_checks(managed: dict, config: dict, data: dict) -> list[dict]:
+    context = tools.search_context(data["meta"].get("settings"))
+    if not isinstance(managed, dict) or managed.get("settings_fingerprint") != scheduled_import.fingerprint(context):
+        raise ValueError("The project's search settings changed. Update the schedule before running new checks.")
+    engines, _ = tools.plan_engines(managed.get("engines"), None)
+    panel = data["panel"]
+    selected = managed.get("prompt_ids")
+    if selected is not None:
+        if not isinstance(selected, list) or any(not isinstance(i,str) for i in selected):
+            raise ValueError("The approved question group changed.")
+        panel = [p for p in panel if p["prompt_id"] in selected]
+    plan = tools._ai_check_plan(panel, data["meta"]["brand"], engines, [],
+                                tools.clean_repeats(managed.get("repeats")), "monthly", context)
+    actions = [action for action in plan["runs"] for _ in range(action["times"])]
+    fingerprints = [scheduled_import.fingerprint([a["actor"], a["input"]]) for a in actions]
+    caps = managed.get("caps")
+    if (fingerprints != config["input_fingerprints"] or not isinstance(caps, list) or len(caps) != len(actions)
+            or any(type(c) not in (float, int) or not math.isfinite(c) or c <= 0 for c in caps)):
+        raise ValueError("The scheduled AI checks differ from the approved plan. Update the schedule first.")
+    return [{**a, "cap": min(cap, a["suggested_max_cost_usd"])} for a, cap in zip(actions, caps)]
+
+
+async def import_scheduled(project: str, config: dict, *, reconcile_only=False) -> dict:
+    allowed = {tools.PRICES["jobs"][key]["actor"] for key in ("ai_brand_check", "ai_overview", "ai_mode")}
+    expected = scheduled_import.validate(config, allowed)
+    be = await stg.get_backend()
+    meta = await hist.load_meta(project)
+    if scheduled_import.fingerprint(meta.get("brand") or {}) != config.get("brand_fingerprint"):
+        raise ValueError("The project's brand details changed. Update the schedule before importing.")
+    managed = config.get("managed_checks")
+    context = config.get("context")
+    planned_answers = None
+    if managed is not None:
+        data = await hist.load_project(project)
+        context = tools.search_context(data["meta"].get("settings"))
+        checks = managed_schedule_checks(managed, config, data)
+        planned_answers = Counter()
+        for action in checks:
+            values = action["input"]
+            if "customQueries" in values:
+                cells = ((q, eng) for q in values["customQueries"] for eng in values["platforms"])
+            else:
+                eng = "google-aio" if action["actor"] == tools.PRICES["jobs"]["ai_overview"]["actor"] else "google-aimode"
+                cells = ((q, eng) for q in values["queries"])
+            planned_answers.update(cells)
+        current_run = scheduled_import.scheduled_run_id()
+        snapshots = data["meta"]["snapshots"]
+        if len(snapshots) >= stg.MAX_SNAPSHOTS and f"scheduled-{current_run}" not in snapshots:
+            raise ValueError("This project has reached its round limit. Move the schedule to a new project.")
+        snapshot, datasets = await scheduled_import.managed_datasets(be, data["slug"], checks, config["input_fingerprints"],
+                                                                     reconcile_only=reconcile_only)
+    else:
+        snapshot, datasets = await scheduled_import.find_datasets(getattr(be, "client", None), expected,
+                                                                  config["input_fingerprints"])
+    # The first process and its migrated replacement can observe the same completed children.
+    # Serialize the import itself after waiting on children, never across a paid start or wait.
+    committed = await be.get(stg.key(project, "schedule"))
+    async with work_schedules.schedule_lock(be, project) if committed else nullcontext():
+        return await save_scheduled_round(project, config, snapshot, datasets, context, sum(expected.values()), planned_answers)
+
+
+async def save_scheduled_round(project, config, snapshot, datasets, context, expected_datasets, planned_answers):
+    be = await stg.get_backend()
+    coverage_key = stg.key(project, "schedule-import-coverage", snapshot)
+    data = await hist.load_project(project)
+    if scheduled_import.fingerprint(data["meta"].get("brand") or {}) != config["brand_fingerprint"]:
+        raise ValueError("The project's brand details changed. Update the schedule before importing.")
+    imported = (data["meta"].get("imports") or {}).get(snapshot)
+    if snapshot in data["meta"]["snapshots"]:
+        if not imported or not set(imported).issubset(datasets):
+            raise ValueError("This scheduled round already exists. Review the saved results before importing again.")
+    remaining = [ds for ds in datasets if ds not in (imported or [])]
+    if remaining:
+        await be.set(coverage_key, {"status": "importing"})
+        try:
+            await import_results(project, None, snapshot, save=True, append=bool(imported), dataset_ids=remaining,
+                                 context=context, google_context_only=True,
+                                 owned_children=config.get("managed_checks") is not None)
+        except ValueError:
+            if not imported:
+                raise ValueError("The scheduled AI datasets could not be saved. Review the results in Activity.") from None
+        data = await hist.load_project(project)
+    linked = (data["meta"].get("imports") or {}).get(snapshot) or []
+    panel = {q["prompt_id"]: q["prompt"] for q in data["panel"]}
+    answers = Counter((panel.get(r["prompt_id"]), r["platform"]) for r in data["runs"] if r["snapshot"] == snapshot)
+    complete = len(linked) == expected_datasets and (planned_answers is None or answers == planned_answers)
+    coverage = {"status": "imported" if complete else "partial", "saved_answers": sum(answers.values()),
+                "expected_answers": sum(planned_answers.values()) if planned_answers is not None else None,
+                "matched_answers": sum((answers & planned_answers).values()) if planned_answers is not None else None,
+                "expected_datasets": expected_datasets, "saved_datasets": len(linked)}
+    await be.set(coverage_key, coverage)
+    snaps = await asyncio.to_thread(hist.snapshot_trend, data)
+    return {**coverage, "snapshot": snapshot,
+            "alert": await scheduled_import.checked_alert(be, data, snaps, hist.cl.DISCOVERY_TYPES)
+            if complete and snaps and snaps[-1]["snapshot"] == snapshot else None}
+
+
+async def scheduled_check(project: str, url: str, max_pages: int = 15, ai_import: dict | None = None, *, occurrence=None) -> dict:
     result = await audit(url, max_pages, project)
     saved = result["saved"]
+    if occurrence:
+        be, key, event = occurrence
+        event["site_health_score"] = result["health_score"] if saved else None
+        await be.set(key, event)
+    imported = {}
+    if ai_import is not None:
+        try:
+            imported["ai_import"] = await import_scheduled(project, ai_import)
+        except ValueError as err:
+            if not saved:
+                raise ValueError("The site check could not be saved and the AI results could not be imported. "
+                                 + str(err)) from None
+            imported["ai_import"] = {"status": "failed", "message": str(err)}
     if not saved:  # the site could not be read: say so and leave the saved trend alone
         return {"site": result["site"], "health_score": None, "trend": None, "changes": None,
                 "top_problems": [p["check"] for p in result["problems"][:5]], "report_url": None,
-                "project": stg.clean_slug(project), "note": result.get("headline")}
+                "project": stg.clean_slug(project), "note": result.get("headline"), **imported}
     rep = await report.make_report(project)
     return {"site": result["site"], "health_score": result["health_score"], "trend": saved["trend"],
             "changes": saved.get("changes"),
             "top_problems": [p["check"] for p in result["problems"][:5]], "report_url": rep["share_url"],
-            "project": rep["project"], "note": result.get("headline")}
+            "project": rep["project"], "note": result.get("headline"), **imported}
+
+
+async def guarded_check(args: dict) -> dict:
+    project = stg.clean_slug(args.get("project"))
+    pid = args.get("schedule_plan_id")
+    if pid is None:
+        if await (await stg.get_backend()).get(stg.key(project, "schedule")):
+            raise ValueError("This project requires its confirmed schedule plan.")
+        return await scheduled_check(project, args.get("url", ""), args.get("max_pages", 15), args.get("ai_import"))
+    approved = {k:v for k,v in args.items() if k != "schedule_plan_id"}
+    be, key, event = await work_schedules.begin(project, pid, approved)
+    readonly = event.pop("reconcile_only", False)
+    try:
+        if readonly:
+            ai = await import_scheduled(project, approved["ai_import"], reconcile_only=True)
+            result = {"project": project, "site": approved["url"], "health_score": event.get("site_health_score"),
+                      "ai_import": ai, "note": "Reconciled previously started AI runs."}
+        else:
+            result = await scheduled_check(project, approved["url"], approved["max_pages"], approved.get("ai_import"),
+                                           occurrence=(be, key, event))
+    except Exception:
+        if not readonly:
+            await be.set(key, {**event, "status":"failed"})
+        raise
+    ai = result.get("ai_import") or {}
+    site_saved = result.get("health_score") is not None
+    status = "completed" if site_saved and ai.get("status") not in ("partial", "failed") else (
+        "partial" if site_saved or ai.get("saved_answers") else "failed")
+    async with work_schedules.schedule_lock(be, project):
+        previous = await be.get(key) or {}
+        if previous.get("status") != "completed":
+            await be.set(key, {**event, "status":status, "saved_answers":ai.get("saved_answers",0),
+                               "matched_answers":ai.get("matched_answers"),
+                               "expected_answers":ai.get("expected_answers"), "saved_datasets":ai.get("saved_datasets"),
+                               "expected_datasets":ai.get("expected_datasets"), "snapshot":ai.get("snapshot")})
+    return result
 
 
 async def run_tool(tool: str, arguments: dict | None) -> dict[str, Any]:
@@ -527,6 +722,12 @@ async def run_tool(tool: str, arguments: dict | None) -> dict[str, Any]:
         raise ValueError(f"'{tool}' does not take {', '.join(extra)}. It takes: {', '.join(sorted(ALLOWED_ARGS[tool]))}.")
     tools.reject_non_finite(args)
     try:
+        if tool == "get_account_usage":
+            import account_usage
+            return await account_usage.read()
+        if tool == "project_work":
+            from project_work import execute
+            return await execute(args.get("project"), args.get("operation"), args.get("data"))
         if tool == "audit_site":
             return await audit(args.get("url"), args.get("max_pages", 15), args.get("project"))
         if tool == "next_steps" and str(args.get("project") or "").strip():
@@ -537,15 +738,15 @@ async def run_tool(tool: str, arguments: dict | None) -> dict[str, Any]:
         if tool == "quote_cost" and str(args.get("project") or "").strip():
             return await quote(args.get("items") or [], args.get("pack"), args.get("project"))
         if tool == "make_report":
-            return await make_report(args.get("project", ""))
+            return await make_report(args.get("project", ""), flag(args, "prospect"))
         if tool == "save_results":
             return await save(args.get("project", ""), args.get("runs"), args.get("panel"), args.get("experiments"),
                               args.get("brand"), args.get("audit"), flag(args, "replace"), flag(args, "append"),
                               args.get("settings"), args.get("todo"), args.get("server_log"),
                               args.get("traffic"), args.get("traffic_csv"), args.get("ranks"),
-                              flag(args, "check_only"), args.get("gsc_csv"))
+                              flag(args, "check_only"), args.get("gsc_csv"), args.get("fact_checks"), flag(args, "create_only"))
         if tool == "get_history":
-            return await hist.history(args.get("project"))
+            return await hist.history(args.get("project"), args.get("answer_review"))
         if tool == "import_ai_results":
             return await import_results(args.get("project", ""), args.get("items") or [], args.get("snapshot", ""),
                                         flag(args, "save"), flag(args, "append"), flag(args, "replace"),
@@ -555,7 +756,7 @@ async def run_tool(tool: str, arguments: dict | None) -> dict[str, Any]:
             return await schedule(args.get("project", ""), args.get("url"), args.get("frequency"),
                                   args.get("max_pages", 15), None, None, args.get("platforms"), args.get("repeats"))
         if tool == "scheduled_check":
-            return await scheduled_check(args.get("project", ""), args.get("url", ""), args.get("max_pages", 15))
+            return await guarded_check(args)
         if tool in ("next_steps", "quote_cost"):
             args = {k: v for k, v in args.items() if k != "project"}  # blank project: the stateless tool
         return await asyncio.to_thread(tools.dispatch, tool, args)

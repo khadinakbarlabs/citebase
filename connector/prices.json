@@ -24,7 +24,11 @@
       "start_events": 1,
       "usage_paid_by_caller": true,
       "usage_allowance_per_unit": 0.003,
-      "usage_note": "Measured: about $0.0028 per results page across 8 runs."
+      "usage_note": "Measured: about $0.0028 per results page across 8 runs.",
+      "scheduled_update": {
+        "from": "2026-11-29",
+        "rates": {"per_unit": 0.003, "usage_paid_by_caller": false, "usage_allowance_per_unit": 0}
+      }
     },
     "keyword_ideas": {
       "actor": "khadinakbar/dataforseo-keyword-research",
@@ -49,6 +53,17 @@
       "usage_paid_by_caller": false,
       "effective_from": "2026-11-14",
       "effective_note": "The per-request fee is not live until this date and the Actor refuses to run before then."
+    },
+    "domain_ranked_keywords": {
+      "actor": "khadinakbar/ahrefs-alternative",
+      "unit": "ranked keyword and page",
+      "per_unit": 0.01,
+      "per_request": 0.04,
+      "unit_event": "seo-record",
+      "request_event": "seo-api-request",
+      "start_events": 1,
+      "usage_paid_by_caller": false,
+      "verified_on": "2026-11-20"
     },
     "backlinks": {
       "actor": "khadinakbar/website-backlink-checker",
@@ -383,11 +398,12 @@
     "traffic_rank": {
       "actor": "khadinakbar/similarweb-traffic-rank-scraper",
       "unit": "domain",
-      "per_unit": 0.08,
+      "per_unit": 0.025,
       "per_request": 0.0,
       "unit_event": "domain-overview",
-      "start_events": 4,
-      "usage_paid_by_caller": false
+      "start_events": 1,
+      "usage_paid_by_caller": false,
+      "verified_on": "2026-11-20"
     },
     "tech_stack": {
       "actor": "khadinakbar/website-tech-stack-detector",

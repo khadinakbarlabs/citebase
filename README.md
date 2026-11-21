@@ -76,7 +76,29 @@ Specialist agents run in parallel with restricted tools: `technical-auditor`, `b
 
 ## Dashboard
 
-A web dashboard for everything Citebase saves, built on the same tools: sign in with Apify and see each project's Recommendation Share over time, results per engine and per question, site health, the sites cited instead of you, AI bot visits, AI traffic, Search Console demand and to-dos. You can add projects, run checks (paid ones are named as paid and capped per run), import results, and create or pause re-check schedules in your own Apify account. It is static files with no server of its own; build it with `python3 scripts/build_site.py --site https://your-domain` (source in `site/`).
+A web dashboard for everything Citebase saves, built on the same tools: sign in with Apify and see each project's Recommendation Share over time, results per engine and per question, site health, the sites cited instead of you, AI bot visits, AI traffic, Search Console demand and to-dos. You can add projects, run checks (paid ones are named as paid and capped per run), import results, and create or pause re-check schedules in your own Apify account. Build the pages and their Vercel sign-in function with `python3 scripts/build_site.py --site https://your-domain` (source in `site/`). Set `CITEBASE_SESSION_KEY` in Vercel to a stable, secret 32-byte value encoded in standard base64. Rotating the key signs browsers out. A loopback static file server can use `--local-static` for tab-only development sign-in.
+
+Sign in with Apify once to open your saved projects. Citebase remembers the browser for up to 90 days. Open **Account** to see monthly usage, estimated credits remaining and room before your spending limit. Apify Billing shows your full balance, including annual and promotional credits. Citebase checks usage again before a paid start and asks for approval before enabling recurring paid checks.
+
+The enhanced dashboard sends project requests through its own `/api/actor/` endpoint to the Citebase Actor. The Actor reads and writes the signed-in account's Apify project. The `--history-only` build option keeps the dashboard compatible with earlier Actors such as 0.5.13 during a rollout.
+
+- **Fact checks.** Open AI answers to read saved wording and reviews. Your assistant can check claims against public sources and save evidence. Older rounds may have no text and some engines only provide part of an answer.
+- **Scheduled AI results.** New AI schedules run one Citebase action, which starts the capped AI checks and saves their results automatically. A drop alert appears when comparable rounds lose recommendations. Use Activity to review runs that could not be imported.
+- **Prospect audit.** Share a one-page view of a brand's aggregate AI results from a saved round. Preview the page before sharing its link.
+
+### Project work in the dashboard and assistant
+
+Start a project with a website. Review suggested competitors, choose the searches to track, or accept the recommended terms. The dashboard and assistant read the same saved choices. In **Project setup → Research**, compare keyword demand, traffic estimates, ranking pages and observed recommendations by AI engine. Each observation carries its source and date where available.
+
+In a configured dashboard, connect Search Console or Google Analytics 4 for a read-only site report. From a cited article, review the published contact, approve the exact draft and choose a Gmail handoff. Each Google service requests its own permission. A deployed dashboard requires `CITEBASE_GOOGLE_CLIENT_ID`, `CITEBASE_GOOGLE_CLIENT_SECRET`, the registered `CITEBASE_GOOGLE_REDIRECT_URI` ending in `/api/google/`, and a persistent base64-encoded 32-byte `CITEBASE_GOOGLE_TOKEN_KEY`. Keep these values in the hosting environment.
+
+Use a saved project to review an opportunity, assign a page fix, compare the current and proposed wording, and check the page after editing. The project brief, actions, outreach drafts and schedule plans use the same signed-in operations. [Project work guide](references/project-work.md)
+
+An assistant can prepare a schedule with the time, time zone, site pages, AI questions, engines, monthly allowance and last date. Open the proposal link to review the exact settings and charges in your dashboard. The schedule starts only after confirmation.
+
+API clients can use the versioned project routes in the [HTTP contract](.actor/web_server_openapi.json) or call `project_work` on the server. Send platform authentication in `X-Apify-Authorization` and project authentication in `X-Citebase-Authorization`, each with the Bearer scheme over HTTPS. Configure headers privately in the client. Citebase verifies the project credential against the signed-in account.
+
+In Apify's managed MCP, call the normal Citebase Actor using `tool: "project_work"` and put the arguments in the encrypted `private_request` field. The dashboard and the assistant read the same saved project. Read the run's `OUTPUT`, then open its `private_result.store_id` and `private_result.key` with the signed-in `get-key-value-store-record` tool. This also works for `get_history` and `save_results`. Regular Actor compute applies. [Project work guide](references/project-work.md)
 
 ## What it costs
 
@@ -86,7 +108,14 @@ Live data runs on your own Apify account at each Actor's published price. The as
 
 ## Connector tools
 
-The MCP server in `connector/` is published as the Apify Actor `khadinakbar/citebase`. All twelve tools add no fee of their own, have typed inputs and outputs, and save nothing unless you give a project name (then it goes into a store called `citebase-projects` in your own Apify account).
+Citebase reuses the original project store when Apify grants access. Under Limited permissions it can create
+its own store for new saves. If an older store is unavailable to the Actor, select the existing store in the
+Actor input to grant read and write access for that run. Existing data stays in its original store.
+
+Use the signed-in dashboard or MCP server to import answers, review private evidence and create report links.
+Keep raw answers and project details out of the regular `arguments` field. Apify saves this field before Citebase starts. For supported private operations use `private_request`. Only a locator for the restricted result is written to the run's default storage.
+
+The MCP server in `connector/` is published as the Apify Actor `khadinakbar/citebase`. All twelve tools add no fee of their own, have typed inputs and outputs, and save nothing unless you give a project name (then it goes into Citebase storage in your own Apify account).
 
 | Tool | Returns |
 |---|---|

@@ -6,6 +6,7 @@ in the user's own store; the link is whatever that store can give (a link that o
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import html
 from typing import Any
 
@@ -168,10 +169,63 @@ def render_html(project: str, data: dict, snaps: list[dict], measure: dict | Non
             "".join(parts) + "</body></html>")
 
 
-async def make_report(project: str) -> dict:
+def render_prospect(name: str, snap: dict, dates: str, answers: int) -> str:
+    title = f"How AI sees {name}"
+    engines = [[hist.cl.engine_name(engine), metrics["prompts"], pct(metrics["recommendation_share"])]
+               for engine, metrics in snap["by_engine"].items()]
+    share = pct(snap["recommendation_share"])
+    small_sample = ('<p><strong>Early snapshot.</strong> This check used a small question set.</p>'
+                    if snap["prompts"] < hist.cl.MIN_PROMPTS else '')
+    return (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<meta name="robots" content="noindex, nofollow">'
+        '<meta http-equiv="Content-Security-Policy" content="default-src &apos;none&apos;; style-src &apos;unsafe-inline&apos;">'
+        f'<title>{esc(title)}</title><style>{CSS}</style></head><body><main><h1>{esc(title)}</h1>'
+        f'<p class="sub">AI visibility audit · Checked {esc(dates)}</p>'
+        f'<div class="card"><div class="big">{share}</div>'
+        f'<p>Recommendation share across {snap["prompts"]} buying questions and {answers} AI answers.</p>'
+        f'<p>Likely range {pct(snap["rs_low"])} to {pct(snap["rs_high"])}.</p>{small_sample}</div>'
+        '<h2>Results by AI assistant</h2>' + table(["Assistant", "Questions answered", "Recommendation share"], engines)
+        + '<h2>What to do next</h2><p>Start with the buying questions where your brand rarely appears. '
+        'Make the relevant product facts easy to find on your site, then recheck the same questions.</p>'
+        '<p><small>This audit reflects the questions and assistants tested on these dates. '
+        'AI answers vary. Recommendation share averages the recommendation rates across the buying questions.</small></p>'
+        '</main></body></html>'
+    )
+
+
+async def make_prospect_report(data: dict) -> dict:
+    snaps = await asyncio.to_thread(hist.snapshot_trend, data)
+    current = next((s for s in reversed(snaps) if not s["older_metric"]), None)
+    if not current:
+        raise ValueError("Save a round with buying-question answers before creating a prospect audit.")
+    name = (data["meta"].get("brand") or {}).get("name")
+    if not name:
+        raise ValueError("Save the brand's public name before creating a prospect audit.")
+    buying = {q["prompt_id"] for q in data["panel"] if q["type"] in hist.cl.DISCOVERY_TYPES}
+    rows = [r for r in data["runs"] if r["snapshot"] == current["snapshot"] and r["prompt_id"] in buying]
+    first, last = hist.cl.round_dates(rows, current["snapshot"])
+    dates = f"{first} to {last}" if first and last and first != last else str(first or last or current["saved_on"])
+    page = render_prospect(name, current, dates, len(rows))
+    digest = hashlib.sha256((data["slug"] + "\n" + page).encode()).hexdigest()[:24]
+    key = f"prospect-{digest}.html"
+    be = await stg.get_backend()
+    store = await be.prospect_store()
+    await store.set(key, page, content_type="text/html; charset=utf-8")
+    url = await store.public_url(key)
+    note = ("Anyone with the link can open the audit. " if url else "The audit was saved without a share link. ")
+    note += f"To stop sharing, delete the '{key}' record from '{stg.PROSPECT_STORE}' in your Apify account."
+    return {"project": data["slug"], "share_url": url, "stored_key": key, "bytes": len(page.encode()),
+            "snapshots": 1, "site_checks": 0, "note": note}
+
+
+async def make_report(project: str, prospect: bool = False) -> dict:
     import tools  # local import keeps module load order simple
 
     data = await hist.load_project(project)
+    if prospect:
+        return await make_prospect_report(data)
     snaps = await asyncio.to_thread(hist.snapshot_trend, data)
     measure, skipped = None, None
     if snaps and data["runs"]:

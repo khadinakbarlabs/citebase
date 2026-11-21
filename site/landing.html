@@ -1,76 +1,258 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
-<meta name="referrer" content="no-referrer">
-<title>Citebase — get recommended by AI search</title>
-<meta name="description" content="Citebase checks whether ChatGPT, Google AI Overviews, Perplexity, Gemini and Claude recommend your brand, tells you what to fix, and tracks the change. Use it as a Claude Code plugin or as an MCP connector on Apify.">
-<link rel="canonical" href="__SITE__/">
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="landing.css">
-<meta name="theme-color" content="#fbfaf7">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#faf9ff">
+  <title>Citebase — see who AI recommends</title>
+  <meta name="description" content="See who AI recommends, inspect its sources and turn a website audit into your next fix. Walk through a sample dashboard or open a project with Apify.">
+  <link rel="canonical" href="__SITE__/">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="assets/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="appearance.css">
+  <link rel="stylesheet" href="landing.css">
+  <script src="appearance.js"></script>
+  <script src="app/session.js" defer></script>
+  <script src="landing.js" defer></script>
 </head>
 <body>
-<header class="top">
-  <a class="brand" href="./"><img src="favicon.svg" alt="" width="24" height="24"><span>Citebase</span></a>
-  <nav aria-label="Main">
-    <a href="#install">Install</a>
-    <a href="https://github.com/khadinakbarlabs/citebase" rel="noopener">GitHub</a>
-    <a class="signin" href="app/">Sign in</a>
-  </nav>
-</header>
-
-<main>
-  <section class="hero" aria-labelledby="h1">
-    <h1 id="h1">Find out if AI recommends you.</h1>
-    <p class="lede">Citebase asks ChatGPT, Google AI Overviews, Perplexity, Gemini, Claude, Grok and DeepSeek the questions your buyers ask, shows how often you are recommended, and tells you what to fix next.</p>
-    <div class="cta">
-      <a class="btn" href="app/">Sign in with Apify</a>
-      <a class="link" href="app/?demo=1">See a sample dashboard →</a>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="masthead">
+    <div class="wrap masthead-inner">
+      <a class="brand" href="./"><img src="favicon.svg" width="31" height="31" alt="">Citebase</a>
+      <nav aria-label="Main">
+        <a href="#examples">Examples</a>
+        <a class="nav-workflow" href="#workflow">How it works</a>
+        <a href="#install">Install</a>
+      </nav>
+      <div class="masthead-actions">
+        <button type="button" data-theme-toggle hidden aria-label="Dark appearance" aria-pressed="false"><svg aria-hidden="true"><use href="assets/icons.svg#moon"></use></svg></button>
+        <a class="nav-signin" data-account-link href="__AUTH_START__"><span data-account-label>Sign in</span> <span aria-hidden="true">↗</span></a>
+        <details class="mobile-navigation">
+          <summary aria-label="Page sections"><svg aria-hidden="true"><use href="assets/icons.svg#menu"></use></svg></summary>
+          <nav aria-label="Page sections">
+            <a href="#examples">Examples</a><a href="#workflow">How it works</a>
+            <a href="#install">Assistant setup</a><a href="#faq">Questions</a>
+          </nav>
+        </details>
+      </div>
     </div>
-    <p class="fine">Signing in costs nothing. Projects are saved in your own Apify account, and paid checks run only when you say yes.</p>
-  </section>
+  </header>
 
-  <section class="steps" aria-label="How it works">
-    <div><span>01</span><h2>Sign in</h2><p>With your Apify account. No new password, nothing stored on our side.</p></div>
-    <div><span>02</span><h2>Add your site</h2><p>Citebase checks it straight away. Then ask the AI engines your buyers' questions when you are ready.</p></div>
-    <div><span>03</span><h2>Fix and track</h2><p>One clear next step at a time, and a monthly re-check that shows what really moved.</p></div>
-  </section>
+  <main id="main" class="wrap" tabindex="-1">
+    <div class="hero">
+      <section class="hero-copy" aria-labelledby="hero-heading">
+        <p class="hero-kicker"><svg aria-hidden="true"><use href="assets/icons.svg#target"></use></svg>AI search visibility</p>
+        <h1 id="hero-heading">Does AI recommend <em>your business?</em></h1>
+        <p class="lede">Add your website. Citebase audits it, learns what you sell and who buys it, suggests competitors and the questions buyers ask AI, then turns the answers into one on-page, off-page and technical plan.</p>
+        <div class="hero-actions">
+          <a class="primary-button" data-account-link href="__AUTH_START__"><span data-account-label>Sign in with Apify</span> <span aria-hidden="true">↗</span></a>
+          <a class="text-button" href="app/?demo=1&amp;tour=1#/p/acme-payroll/overview">Take the dashboard tour <span aria-hidden="true">→</span></a>
+        </div>
+        <p class="hero-note" data-signin-hint>One click: Apify confirms your account and opens your dashboard. The hands-on tour uses sample data and costs no credits.</p>
+      </section>
 
-  <section id="install" class="install" aria-labelledby="install-h">
-    <h2 id="install-h">Or use it inside your assistant</h2>
-    <div class="ways">
-      <article>
-        <h3>Claude Code plugin</h3>
-        <p>Playbooks, agents and the connector in one install. Code on GitHub.</p>
-        <pre><code>claude plugin marketplace add khadinakbarlabs/citebase
+      <section id="examples" class="workbench" aria-labelledby="workbench-title" tabindex="-1">
+        <header class="bench-mast">
+          <h2 id="workbench-title"><svg aria-hidden="true"><use href="assets/icons.svg#overview"></use></svg>Explore a sample question</h2>
+          <span class="fixture-label">Fictional data</span>
+        </header>
+
+        <div class="bench-body">
+        <div class="bench-controls">
+        <fieldset class="project-picker" hidden>
+          <legend class="sr-only">Choose a sample project</legend>
+          <label><input type="radio" name="sample-project" value="cafe" aria-controls="sample-cafe" checked><span><svg aria-hidden="true"><use href="assets/icons.svg#coffee"></use></svg>Northwind Café</span></label>
+          <label><input type="radio" name="sample-project" value="payroll" aria-controls="sample-payroll"><span><svg aria-hidden="true"><use href="assets/icons.svg#briefcase"></use></svg>Acme Payroll</span></label>
+        </fieldset>
+
+        <div class="sample-tabs" role="tablist" aria-label="Explore the sample" hidden>
+          <button type="button" id="tab-question" role="tab" data-view="question">Buyer question</button>
+          <button type="button" id="tab-evidence" role="tab" data-view="evidence">Evidence</button>
+          <button type="button" id="tab-action" role="tab" data-view="action">Next action</button>
+        </div>
+        <span id="sample-status" class="sr-only" role="status"></span>
+        </div>
+        <div class="bench-results">
+        <article id="sample-cafe" class="sample-story" aria-labelledby="cafe-title">
+          <h3 id="cafe-title" class="sample-name">Northwind Café</h3>
+          <section id="cafe-question" data-stage="question" class="story-stage">
+            <p class="eyebrow">Local café <span aria-hidden="true">/</span> Suggested question</p>
+            <h4>“Best brunch near the station?”</h4>
+            <figure class="metric-panel">
+              <figcaption>Café recommendation share</figcaption>
+              <div class="metric-row">
+                <span class="metric-value">5<span>%</span></span>
+                <div class="metric-scale">
+                  <div class="tick-meter" aria-hidden="true"><meter min="0" max="100" value="5">5%</meter></div>
+                  <p>First round · 20 questions · 2 engines</p>
+                </div>
+              </div>
+            </figure>
+            <p class="stage-note">The suggested question comes from the café’s action list. The reading covers the whole first round.</p>
+            <a class="sample-link" href="app/?demo=1#/p/northwind-cafe/answers">Open the café’s AI answers <span aria-hidden="true">↗</span></a>
+          </section>
+          <section id="cafe-evidence" data-stage="evidence" class="story-stage">
+            <p class="eyebrow">Local café <span aria-hidden="true">/</span> First round</p>
+            <h4>How often each engine recommended the café.</h4>
+            <figure class="engine-readings">
+              <figcaption>Recommendation share <span>Scale 0–10%</span></figcaption>
+              <div><span>ChatGPT</span><meter min="0" max="10" value="7" aria-label="ChatGPT, 7 percent on a 0 to 10 percent scale">7%</meter><strong>7%</strong></div>
+              <div><span>Google AI Overviews</span><meter min="0" max="10" value="2" aria-label="Google AI Overviews, 2 percent on a 0 to 10 percent scale">2%</meter><strong>2%</strong></div>
+            </figure>
+            <p class="stage-note">Both engines were checked on 20 questions. This is the café’s first round of measurements.</p>
+            <a class="sample-link" href="app/?demo=1#/p/northwind-cafe/answers">Inspect the café’s engine results <span aria-hidden="true">↗</span></a>
+          </section>
+          <section id="cafe-action" data-stage="action" class="story-stage">
+            <p class="eyebrow">Local café <span aria-hidden="true">/</span> Open site action</p>
+            <h4>Make the menu and opening hours readable as text.</h4>
+            <dl class="action-detail">
+              <div><dt>Page edit</dt><dd>Put the café’s confirmed hours and menu items alongside the images.</dd></div>
+              <div><dt>Recheck</dt><dd>After the edit, open the page and confirm the details are visible.</dd></div>
+            </dl>
+            <a class="sample-link" href="app/?demo=1#/p/northwind-cafe/todo?record=sample-0">Open the café’s menu action <span aria-hidden="true">↗</span></a>
+          </section>
+        </article>
+
+        <article id="sample-payroll" class="sample-story" aria-labelledby="payroll-title">
+          <h3 id="payroll-title" class="sample-name">Acme Payroll</h3>
+          <section id="payroll-question" data-stage="question" class="story-stage">
+            <p class="eyebrow">Payroll software <span aria-hidden="true">/</span> Tracked question</p>
+            <h4>“Best payroll software for a 10 person company?”</h4>
+            <figure class="metric-panel">
+              <figcaption>Answers recommending Acme</figcaption>
+              <div class="metric-row">
+                <span class="metric-value">8<span>/10</span></span>
+                <div class="metric-scale">
+                  <div class="tick-meter ten" aria-hidden="true"><meter min="0" max="10" value="8">8 of 10</meter></div>
+                  <p>This question · 4 engines</p>
+                </div>
+              </div>
+            </figure>
+            <p class="stage-note">See how ChatGPT, Google AI Overviews, Perplexity and Gemini answered the same question.</p>
+            <a class="sample-link" href="app/?demo=1#/p/acme-payroll/questions">Open Acme’s buyer questions <span aria-hidden="true">↗</span></a>
+          </section>
+          <section id="payroll-evidence" data-stage="evidence" class="story-stage">
+            <p class="eyebrow">Payroll software <span aria-hidden="true">/</span> Cited source</p>
+            <h4>AI answers cite Capterra in payroll comparisons.</h4>
+            <dl class="source-readings">
+              <div><dt>answers cited Capterra</dt><dd>14</dd></div>
+              <div><dt>of those named a rival and left Acme out</dt><dd>7</dd></div>
+            </dl>
+            <p class="stage-note">These counts cover Acme’s latest round. Gusto and Rippling appear among the rivals named.</p>
+            <a class="sample-link" href="app/?demo=1#/p/acme-payroll/answers">Inspect Acme’s cited sources <span aria-hidden="true">↗</span></a>
+          </section>
+          <section id="payroll-action" data-stage="action" class="story-stage">
+            <p class="eyebrow">Payroll software <span aria-hidden="true">/</span> Open editorial action</p>
+            <h4>Review Capterra’s payroll comparison.</h4>
+            <dl class="action-detail">
+              <div><dt>Source</dt><dd>Read the comparison to see whether Acme meets its criteria for inclusion.</dd></div>
+              <div><dt>Follow-up</dt><dd>If it fits, prepare a pitch that explains what Acme offers small teams.</dd></div>
+            </dl>
+            <a class="sample-link" href="app/?demo=1#/p/acme-payroll/todo?record=sample-2">Open Acme’s comparison pitch <span aria-hidden="true">↗</span></a>
+          </section>
+        </article>
+        </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="editorial-section workflow" id="workflow" aria-labelledby="workflow-heading">
+      <div class="section-heading">
+        <p class="eyebrow ruled">How it works</p>
+        <h2 id="workflow-heading">From a buyer’s question to <em>a better page.</em></h2>
+      </div>
+      <div class="workflow-grid">
+        <article>
+          <svg class="step-icon" aria-hidden="true"><use href="assets/icons.svg#search"></use></svg>
+          <h3>Add your website. Citebase does the groundwork.</h3>
+          <p>It checks the site, reads what you sell, who you sell to and where, then suggests competitors and search terms. Every suggestion shows where it came from, and you decide what counts.</p>
+          <a class="inline-link" href="app/?demo=1#/p/acme-payroll/setup">Walk through Acme’s project setup <span aria-hidden="true">→</span></a>
+        </article>
+        <article>
+          <svg class="step-icon" aria-hidden="true"><use href="assets/icons.svg#sources"></use></svg>
+          <h3>Track the questions buyers ask AI.</h3>
+          <p>Questions are built from your product, buyers and market. Add or remove any. See which assistants recommend you, which competitors appear and which articles the answers cite.</p>
+          <a class="inline-link" href="app/?demo=1#/p/acme-payroll/answers">Trace Acme’s sources <span aria-hidden="true">→</span></a>
+        </article>
+        <article>
+          <svg class="step-icon" aria-hidden="true"><use href="assets/icons.svg#action"></use></svg>
+          <h3>Work through one plan.</h3>
+          <p>On-page, off-page and technical fixes, each with its evidence and guidelines. Pitch the sites AI already cites for your competitors, then recheck to see what changed.</p>
+          <a class="inline-link" href="app/?demo=1#/p/northwind-cafe/todo">Open Northwind’s actions <span aria-hidden="true">→</span></a>
+        </article>
+      </div>
+    </section>
+
+    <section id="install" class="editorial-section install" aria-labelledby="install-heading">
+      <div class="section-heading">
+        <p class="eyebrow ruled">Assistant setup</p>
+        <h2 id="install-heading">Use Citebase inside your assistant.</h2>
+        <p>Use ChatGPT, Claude, Codex, Hermes or another compatible assistant to read the same saved results. After sign-in, <a data-account-route href="__AUTH_START__">your dashboard</a> shows the steps for your assistant.</p>
+      </div>
+      <div class="install-grid">
+        <article>
+          <h3>Claude Code plugin</h3>
+          <p>Run these commands. Then enter <code>/mcp</code>, select <code>plugin:citebase:apify</code> and choose Authenticate to sign in.</p>
+          <div class="code-box">
+            <div class="code-tools"><span>Terminal</span><button type="button" data-copy="plugin-commands" hidden>Copy commands</button></div>
+            <pre><code id="plugin-commands">claude plugin marketplace add khadinakbarlabs/citebase
 claude plugin install citebase@citebase</code></pre>
-      </article>
-      <article>
-        <h3>Connector via Apify</h3>
-        <p>For Claude, ChatGPT, Cursor or any MCP app. Add as a custom connector and sign in with Apify.</p>
-        <pre><code>https://mcp.apify.com/?actors=khadinakbar/citebase&amp;tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,get-key-value-store-record,abort-actor-run</code></pre>
-      </article>
+          </div>
+          <p role="status" class="copy-result"></p>
+        </article>
+        <article>
+          <h3>Claude, ChatGPT or Cursor</h3>
+          <p>Add a custom MCP connector in your assistant’s settings, paste this address and sign in with Apify.</p>
+          <div class="code-box">
+            <div class="code-tools"><span>Connector address</span><button type="button" data-copy="connector-address" hidden>Copy address</button></div>
+            <pre><code id="connector-address">https://mcp.apify.com/?actors=khadinakbar/citebase&amp;tools=fetch-actor-details,call-actor,get-actor-run,get-dataset-items,get-key-value-store-record,abort-actor-run</code></pre>
+          </div>
+          <p role="status" class="copy-result"></p>
+        </article>
+      </div>
+      <a class="inline-link" href="https://github.com/khadinakbarlabs/citebase#set-it-up-2-minutes" rel="noopener">Setup instructions on GitHub <span aria-hidden="true">↗</span></a>
+    </section>
+
+    <section id="faq" class="editorial-section faq" aria-labelledby="faq-heading">
+      <div class="section-heading">
+        <p class="eyebrow ruled">Before you start</p>
+        <h2 id="faq-heading">Common questions.</h2>
+      </div>
+      <div class="faq-list">
+        <details>
+          <summary>Where is my data kept?</summary>
+          <p>Your project history stays in your own Apify account. Citebase saves private actions and outreach drafts in a separate, restricted store in that account.</p>
+        </details>
+        <details>
+          <summary>What does it cost?</summary>
+          <p>The guided tour uses fictional projects and spends no credits. In your own workspace, Apify meters platform usage. Before a paid AI check, you see its data charge cap. Account shows live monthly usage and your spending limit. You can also save the prepaid balance you see in Apify Billing.</p>
+        </details>
+        <details>
+          <summary>How can I verify a result?</summary>
+          <p>Each saved site audit includes its date, pages checked and findings. AI rounds show the questions and engines included. Connect your assistant to the same Apify account to read the saved result, or open a scheduled run in Apify to inspect its outcome.</p>
+        </details>
+        <details>
+          <summary>Do I need an Apify account?</summary>
+          <p>Anyone can explore the sample projects. To check your own site and save work, sign in with Apify. You can use the dashboard on its own or connect an assistant.</p>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <a class="brand" href="./"><img src="favicon.svg" width="25" height="25" alt="">Citebase</a>
+      <nav aria-label="Footer">
+        <a href="#workflow">How it works</a>
+        <a href="#install">Assistant setup</a>
+        <a href="https://github.com/khadinakbarlabs/citebase" rel="noopener">GitHub</a>
+        <a href="https://apify.com/khadinakbar/citebase" rel="noopener">Apify</a>
+      </nav>
     </div>
-  </section>
-
-  <section class="faq" aria-labelledby="faq-h">
-    <h2 id="faq-h">Questions</h2>
-    <details><summary>Where is my data kept?</summary><p>In a store called <code>citebase-projects</code> in your own Apify account. Nothing is kept on our side.</p></details>
-    <details><summary>What does it cost?</summary><p>Data checks are paid on your own Apify account, and your assistant asks you first every time. Ask it what a specific check costs and it tells you before running anything.</p></details>
-    <details><summary>Do I need an Apify account?</summary><p>Yes. Citebase runs on Apify, and the dashboard signs you in with it.</p></details>
-  </section>
-</main>
-
-<footer class="foot">
-  <span>Citebase</span>
-  <nav aria-label="Footer">
-    <a href="app/">Dashboard</a>
-    <a href="https://github.com/khadinakbarlabs/citebase" rel="noopener">GitHub</a>
-    <a href="https://apify.com/khadinakbar/citebase" rel="noopener">Apify</a>
-  </nav>
-</footer>
+  </footer>
 </body>
 </html>

@@ -88,7 +88,12 @@ def live_pricing(data: dict, today: dt.date) -> tuple[dict | None, dict[dt.date,
 
 def event_prices(entry: dict | None) -> dict[str, float]:
     events = ((entry or {}).get("pricingPerEvent") or {}).get("actorChargeEvents") or {}
-    return {name: spec.get("eventPriceUsd") for name, spec in events.items()}
+    def upper_rate(spec):
+        tiers = spec.get("eventTieredPricingUsd") or {}
+        rates = [tier.get("tieredEventPriceUsd") for tier in tiers.values() if isinstance(tier, dict)]
+        rates.append(spec.get("eventPriceUsd"))
+        return max((v for v in rates if type(v) in (int, float)), default=None)
+    return {name: upper_rate(spec) for name, spec in events.items()}
 
 
 # ---------------------------------------------------------------- comparing
@@ -124,6 +129,10 @@ def check_job(job: str, spec: dict, actor_data: dict, today: dt.date, default_st
     # Which entry do the prices come from? A job that is declared "not live until a date" is checked against the
     # entry that starts that day; everything else against what is in force today.
     entry = current
+    update = spec.get("scheduled_update") or {}
+    update_day = dt.date.fromisoformat(update["from"]) if update else None
+    if update_day and today >= update_day:
+        spec = {**spec, **update["rates"]}
     effective = spec.get("effective_from")
     if effective:
         wanted = dt.date.fromisoformat(effective)
@@ -135,7 +144,16 @@ def check_job(job: str, spec: dict, actor_data: dict, today: dt.date, default_st
                 rows.append(_row(job, spec, "effective date", effective, found, False))
     else:
         for started in sorted(future):
+            if started == update_day:
+                planned = update["rates"]
+                announced = event_prices(future[started]).get(spec["unit_event"])
+                rows.append(_row(job, spec, "scheduled unit price", planned["per_unit"], announced, _same(planned["per_unit"], announced)))
+                payer = bool(future[started].get("isPPEPlatformUsagePaidByUser"))
+                rows.append(_row(job, spec, "scheduled compute billing", planned["usage_paid_by_caller"], payer, planned["usage_paid_by_caller"] == payer))
+                continue
             rows.append(_row(job, spec, "coming change", "no change planned", f"new prices from {started}", False))
+        if update_day and today < update_day and update_day not in future:
+            rows.append(_row(job, spec, "scheduled pricing date", update["from"], None, False))
     prices = event_prices(entry)
 
     unit_price = prices.get(spec["unit_event"])
