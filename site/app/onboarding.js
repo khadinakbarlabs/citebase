@@ -7,40 +7,105 @@
   function metric(label, value) {
     return h('div', {}, h('dt', {text:label}), h('dd', {text:value}));
   }
+  // One connected Google report: totals, a top-rows chart, quick wins and a searchable table.
+  function sum(rows, key) { return rows.reduce((n, r) => n + (typeof r[key] === 'number' ? r[key] : 0), 0); }
+  function googleLogo(service) {
+    if (!CB.s) return null;
+    return CB.s('svg', {class:'g-logo', 'aria-hidden':'true', focusable:'false'},
+      CB.s('use', {href:'../assets/icons.svg#' + (service === 'ga4' ? 'logo-ga' : 'logo-gsc')}));
+  }
+  function tile(label, value, hint) {
+    return h('div', {class:'gr-kpi'}, h('span', {class:'gr-k', text:label}), h('b', {class:'gr-v', text:value}), hint ? h('span', {class:'gr-hint', text:hint}) : null);
+  }
+  // Searches seen often on page one or two but rarely clicked: a better title or answer can win clicks.
+  function quickWin(row) {
+    return typeof row.impressions === 'number' && row.impressions >= 50 && typeof row.position === 'number' &&
+      row.position > 3 && row.position <= 20 && (row.clicks || 0) / row.impressions < 0.02;
+  }
   CB.renderGoogleReports = function (container, reports, nativeOnly) {
     for (const [service, report] of Object.entries(reports || {})) {
       if (!report || (nativeOnly && report.provenance !== 'google_sync')) continue;
       const analytics = service === 'ga4';
       const title = analytics ? 'Your website traffic' : 'Your Google Search performance';
-      const card = h('section', {class:'setup-card'}, h('h3', {text:title}));
+      const heading = h('h3', {class:'gr-title', text:title});
+      const logo = googleLogo(service);
+      if (logo) heading.append(logo);
+      const card = h('section', {class:'setup-card gr-card'}, heading);
       const period = report.start_date && report.end_date ? report.start_date+' – '+report.end_date : 'Measurement period unavailable';
       const description = [report.source, report.property, report.observed_at, period,
         report.provenance === 'google_sync' ? 'Synced from Google' : 'Imported report'];
-      card.append(h('p', {text:description.filter(Boolean).join(' · ')}));
-      const records = h('div', {});
+      card.append(h('p', {class:'gr-meta', text:description.filter(Boolean).join(' · ')}));
+      const rows = report.rows || [];
+      const label = row => String(analytics ? row.source : row.term);
+      const valueKey = analytics ? 'sessions' : 'clicks';
+      // Headline numbers.
+      if (rows.length || report.clicks != null || report.all_visits != null) {
+        const kpis = h('div', {class:'gr-kpis'});
+        if (analytics) {
+          const sessions = sum(rows, 'sessions');
+          kpis.append(...[tile('Sessions', number(rows.length ? sessions : report.all_visits)),
+            tile('Traffic sources', number(rows.length)),
+            report.ai_visits != null ? tile('Visits from AI', number(report.ai_visits)) : null,
+            rows.length ? tile('Top source', label(rows.slice().sort((a, b) => (b.sessions || 0) - (a.sessions || 0))[0])) : null].filter(Boolean));
+        } else {
+          const clicks = report.clicks != null ? report.clicks : sum(rows, 'clicks');
+          const views = report.impressions != null ? report.impressions : sum(rows, 'impressions');
+          const weighted = rows.filter(r => typeof r.position === 'number' && typeof r.impressions === 'number');
+          const shown = sum(weighted, 'impressions');
+          const position = shown ? weighted.reduce((n, r) => n + r.position * r.impressions, 0) / shown : null;
+          kpis.append(tile('Total clicks', number(clicks)), tile('Total impressions', number(views), 'Times your site was shown'),
+            tile('Click rate', views ? (clicks / views * 100).toFixed(1) + '%' : 'Unmeasured'),
+            tile('Average position', position == null ? 'Unmeasured' : position.toFixed(1), '1 is the top result'));
+        }
+        card.append(kpis);
+      }
+      // Top rows as a chart.
+      const top = rows.filter(r => typeof r[valueKey] === 'number' && r[valueKey] > 0)
+        .sort((a, b) => b[valueKey] - a[valueKey]).slice(0, 8);
+      if (top.length > 1 && CB.barChart) {
+        card.append(h('div', {class:'gr-chart'}, h('h4', {text:analytics ? 'Top traffic sources' : 'Top searches by clicks'}),
+          CB.barChart({aria:analytics ? 'Sessions by traffic source' : 'Clicks by search', width:640, labelWidth:200,
+            items:top.map(r => ({label:label(r), value:r[valueKey], tip:analytics ? [number(r.sessions)+' sessions'] :
+              [number(r.clicks)+' clicks', number(r.impressions)+' impressions', 'Average position '+number(r.position)]}))})));
+      }
+      // Quick wins for Search Console.
+      const wins = analytics ? [] : rows.filter(quickWin).sort((a, b) => b.impressions - a.impressions).slice(0, 5);
+      if (wins.length) {
+        card.append(h('div', {class:'gr-wins'}, h('h4', {text:'Quick wins'}),
+          h('p', {text:'People see you for these searches but rarely click. A clearer page title or a page that answers the search can win those clicks.'}),
+          h('ul', {}, wins.map(r => h('li', {}, h('b', {text:label(r)}),
+            h('span', {text:number(r.impressions)+' views · '+number(r.clicks)+' clicks · position '+number(r.position)}))))));
+      }
+      // Searchable table.
+      const records = h('div', {class:'gr-rows'});
       const filter = h('input', {type:'search', 'aria-label':analytics ? 'Filter traffic sources' : 'Filter Google queries',
         placeholder:analytics ? 'Find a traffic source' : 'Find a search query'});
-      const rows = report.rows || [];
       function renderRows() {
         records.replaceChildren();
         const query = filter.value.trim().toLowerCase();
-        const matches = rows.filter(row => String(analytics ? row.source : row.term).toLowerCase().includes(query));
+        const matches = rows.filter(row => label(row).toLowerCase().includes(query))
+          .sort((x, y) => (Number(y[valueKey]) || 0) - (Number(x[valueKey]) || 0));
         if (matches.length > 10 || query) {
           records.append(h('small', {text:'Showing '+Math.min(10, matches.length)+' of '+matches.length+' matching rows'}));
         }
+        if (!matches.length) return;
+        const head = analytics ? ['Source', 'Sessions'] : ['Search', 'Clicks', 'Impressions', 'Click rate', 'Average position'];
+        const table = h('table', {class:'gr-table'}, h('thead', {}, h('tr', {}, head.map((t, i) => h('th', {scope:'col', class:i ? 'n' : null, text:t})))));
+        const body = h('tbody', {});
         for (const row of matches.slice(0,10)) {
-          const metrics = analytics ? [metric('Sessions',number(row.sessions))] :
-            [metric('Clicks',number(row.clicks)), metric('Impressions',number(row.impressions)), metric('Average position',number(row.position))];
-          records.append(h('article', {class:'setup-record'}, h('h4',{text:analytics ? row.source : row.term}), h('dl',{},metrics)));
+          const name = h('td', {}, h('span', {text:label(row)}), !analytics && quickWin(row) ? h('span', {class:'gr-tag', text:'Quick win'}) : null);
+          body.append(h('tr', {}, name, ...(analytics ? [h('td', {class:'n', text:number(row.sessions)})] : [
+            h('td', {class:'n', text:number(row.clicks)}), h('td', {class:'n', text:number(row.impressions)}),
+            h('td', {class:'n', text:typeof row.impressions === 'number' && row.impressions ? ((row.clicks || 0) / row.impressions * 100).toFixed(1) + '%' : 'Unmeasured'}),
+            h('td', {class:'n', text:number(row.position)})])));
         }
+        table.append(body);
+        records.append(h('div', {class:'scroll'}, table));
       }
       filter.addEventListener('input', renderRows);
       if (rows.length > 10) card.append(filter);
       card.append(records);
       renderRows();
-      if (!analytics && (report.clicks != null || report.impressions != null)) {
-        card.append(h('dl',{},metric('Total clicks',number(report.clicks)),metric('Total impressions',number(report.impressions))));
-      }
       if (!rows.length) {
         const msg = analytics && report.all_visits != null ?
           number(report.all_visits)+' reported visits · '+number(report.ai_visits)+' AI visits' : 'No individual measurements available.';

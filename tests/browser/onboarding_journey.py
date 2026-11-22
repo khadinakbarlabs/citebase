@@ -35,7 +35,7 @@ with sync_playwright() as runner:
     expect(page.get_by_text('3. Fixture Brand')).to_be_visible()
     expect(page.get_by_text('Showing 10 of 5000 matching rows')).to_be_visible()
     page.get_by_role('searchbox',name='Filter traffic sources').fill('channel-4999')
-    expect(page.get_by_text('channel-4999',exact=True)).to_be_visible()
+    expect(page.locator('.gr-table').get_by_text('channel-4999',exact=True)).to_be_visible()
     expect(page.get_by_text('Observed query',exact=True)).to_be_visible()
     assert page.evaluate('calls.at(-1).use_recommended && calls.at(-1).revision===2')
     browser.close()

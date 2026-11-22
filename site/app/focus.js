@@ -74,9 +74,21 @@
   function next(item) {
     return h('div', {class: 'focus-step'}, h('strong', {text: 'Next step'}), h('p', {text: item.next_step}));
   }
+  // The same site check can fail on several pages; name the page so the rows read differently.
+  function pagePath(item) {
+    if (!/^https?:\/\//i.test(item.evidence_url || '')) return '';
+    try {
+      const url = new URL(item.evidence_url);
+      return (url.pathname || '/') + (url.search ? '…' : '');
+    } catch (_) { return ''; }
+  }
+  function pageTag(item) {
+    const path = pagePath(item);
+    return path ? h('span', {class: 'focus-page', text: 'on ' + (path.length > 40 ? path.slice(0, 39) + '…' : path)}) : null;
+  }
   function primary(project, item) {
     const cta = item.kind === 'action' ? 'Open action' : 'Open opportunity';
-    return h('article', {class: 'focus-feature'}, status(item), h('h3', {text: item.title}),
+    return h('article', {class: 'focus-feature'}, status(item), h('h3', {}, item.title, pageTag(item)),
       why(item), next(item), metadata(item),
       h('div', {class: 'focus-choices'}, recordLink(project, item, 'focus-primary', cta, true), sourceLink(project, item.evidence_url)));
   }
@@ -85,7 +97,7 @@
     const disclosure = h('details', {class: 'focus-details'},
       h('summary', {'aria-label': 'Details for ' + item.title}, icon('down')),
       h('div', {class: 'focus-detail-body'}, why(item), next(item), metadata(item), sourceLink(project, item.evidence_url)));
-    return h('li', {class: 'focus-row'}, status(item), h('h4', {}, link), disclosure);
+    return h('li', {class: 'focus-row'}, status(item), h('h4', {}, link, pageTag(item)), disclosure);
   }
   function readResponse(result, filter) {
     if (!result || !Array.isArray(result.items) || !count(result.total) || !result.counts ||

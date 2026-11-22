@@ -5,7 +5,8 @@
   var main = document.getElementById('main'), crumbs = document.getElementById('crumbs'), who = document.getElementById('who');
   var SECTIONS = [
     { tabs: CB.hasProjectWork ? [['overview', 'Overview'], ['setup', 'Project setup']] : [['overview', 'Overview']] },
-    { label: 'Measure', tabs: [['answers', 'AI answers'], ['questions', 'Questions'], ['site', 'Site'], ['traffic', 'Traffic']] },
+    { label: 'Measure', tabs: [['answers', 'AI answers'], ['questions', 'Questions'], ['site', 'Site'], ['traffic', 'Traffic']]
+      .concat(CB.hasProjectWork ? [['competitors', 'Competitors']] : []) },
     { label: 'Act', tabs: CB.hasProjectWork ? [['evidence', 'Evidence'], ['todo', 'Actions'], ['outreach', 'Outreach']] : [['todo', 'Actions']] }
   ];
   var TABS = SECTIONS.reduce(function (tabs, group) { return tabs.concat(group.tabs); }, []);
@@ -15,7 +16,7 @@
       CB.s('use', { href: '../assets/icons.svg#' + name }));
   }
   var sectionIcons = { overview:'overview', setup:'setup', answers:'answers', questions:'questions', site:'site',
-    traffic:'traffic', evidence:'evidence', todo:'action', outreach:'outreach' };
+    traffic:'traffic', competitors:'target', evidence:'evidence', todo:'action', outreach:'outreach' };
   var metricIcons = { recommendation_share:'results', mentioned_rate:'mention', cited_rate:'sources', site_health:'health' };
   function initialView() { return { metric: 'recommendation_share', engines: null, qFilter: 'all', qTopic: '', qSearch: '' }; }
   var view = initialView(), viewProject = null;
@@ -421,7 +422,9 @@
     shell.body.setAttribute('aria-label', selected[1] + ' for ' + shell.name);
     CB.clear(shell.body); CB.untip();
     var views = { setup: CB.onboarding, overview: tabOverview, answers: tabAnswers, questions: tabQuestions, site: tabSite, traffic: tabTraffic,
-      todo: CB.hasProjectWork ? CB.workUI.actions : CB.historyUI.actions, evidence: CB.workUI.evidence, outreach: CB.workUI.outreach };
+      todo: CB.hasProjectWork ? CB.workUI.actions : CB.historyUI.actions, evidence: CB.workUI.evidence, outreach: CB.workUI.outreach,
+      competitors: function (body, d, slug) { CB.competitorsUI.render(body, d, slug, { rivalsCard: rivalsCard, gapCard: gapCard,
+        aiCheck: function () { journeyActions(slug, d).aiCheck(); } }); } };
     views[shell.tab](shell.body, shell.data, shell.slug, route);
     if (contentHadFocus && !new URLSearchParams(location.hash.split('?')[1]).has('record')) shell.body.focus({ preventScroll: true });
     watchRuns(shell.slug, shell.live);
@@ -979,11 +982,17 @@
 
   /* ---------- tab: traffic ---------- */
   function niceMax(vals) { var m = Math.max.apply(null, vals.concat([1])), p = Math.pow(10, Math.floor(Math.log10(m))); return Math.ceil(m / p) * p; }
-  function googleEntry(slug, connected) {
+  function googleEntry(slug, reports) {
     if (!CB.googleUI) return null;
-    if (connected) {
-      var manage = h('details', { class: 'google-manage' }, h('summary', { text: 'Manage Google connection' }));
+    var has = { gsc: !!(reports && reports.gsc), ga4: !!(reports && reports.ga4) };
+    if (has.gsc || has.ga4) {
+      function state(key, label, mark) {
+        return h('span', { class: 'gm-state' + (has[key] ? '' : ' is-off') }, CB.journey.icon(mark, 'g-logo sm'), ' ' + label + (has[key] ? ' connected' : ': not connected'));
+      }
+      var manage = h('details', { class: 'google-manage' }, h('summary', {}, h('span', { text: 'Google connections' }),
+        state('gsc', 'Search Console', 'logo-gsc'), state('ga4', 'Google Analytics', 'logo-ga')));
       manage.addEventListener('toggle', function () { if (manage.open && manage.children.length === 1) manage.appendChild(CB.googleUI.panel(slug)); });
+      if (!has.gsc || !has.ga4) { manage.open = true; manage.appendChild(CB.googleUI.panel(slug)); }
       return manage;
     }
     var panel = CB.googleUI.panel(slug);
@@ -1002,7 +1011,7 @@
       CB.work(slug, 'research_get', {}).then(function (research) {
         if (!googleReports.isConnected) return;
         CB.renderGoogleReports(googleReports, research.first_party, true);
-        var entry = googleEntry(slug, googleReports.childElementCount > 0);
+        var entry = googleEntry(slug, googleReports.childElementCount > 0 ? research.first_party : null);
         if (entry) googleSlot.appendChild(entry);
       }).catch(function () {
         if (googleReports.isConnected) googleReports.appendChild(h('p', {class:'note'},
@@ -1016,7 +1025,7 @@
       slot.scrollIntoView({ behavior: 'smooth', block: 'start' });
       var first = slot.querySelector('button, summary'); if (first) first.focus({ preventScroll: true });
     }
-    var googleAction = CB.hasProjectWork && !CB.demo ? [{ label: 'Connect Google', icon: 'google', run: toGoogle }] : [];
+    var googleAction = CB.hasProjectWork && !CB.demo ? [{ label: 'Connect Google', icon: 'logo-google', run: toGoogle }] : [];
     if (bots && bots.bots && bots.bots.length) {
       var chart = CB.barChart({ aria: 'AI bot requests', labelWidth: 140, items: bots.bots.slice(0, 10).map(function (b) {
         var refused = b.requests && b.blocked / b.requests >= .5;
