@@ -103,3 +103,12 @@ test('position bands, brand words and country names',()=>{
  assert.equal(D.countryName('xyz'),'XYZ');
  assert.equal(D.pathOf('https://acme.test/blog?a=1'),'/blog?a=1');
 });
+
+test('clicks Google does not list are counted so the gap can be explained',()=>{
+ const gap=plain(D.hiddenClicks(D.prepare(full(),brand)));
+ assert.deepEqual(gap,{all:280,listed:33,hidden:247,capped:false});
+ assert.equal(D.hiddenClicks(D.prepare(record({totals:{clicks:33,impressions:1430}}),brand)),null);
+ assert.equal(D.hiddenClicks(D.prepare(record({}),brand)),null);
+ const many=Array.from({length:1000},(_,i)=>({term:'q'+i,clicks:1,impressions:10,position:9}));
+ assert.equal(D.hiddenClicks(D.prepare(record({rows:many,totals:{clicks:1200,impressions:20000}}),brand)).capped,true);
+});

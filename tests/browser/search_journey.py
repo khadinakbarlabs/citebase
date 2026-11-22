@@ -56,6 +56,7 @@ with sync_playwright() as runner:
     page.get_by_role("group", name="Trend measure").get_by_role("button", name="Impressions").click()
     expect(page.get_by_role("img", name="Impressions per day")).to_be_visible()
     expect(page.get_by_text("Brand searches contain “acme”.")).to_be_visible()
+    expect(page.locator(".sr-hidden")).to_have_text("Your 280 clicks include 247 from searches Google does not list, because they are very rare or personal. So the searches here add up to 33 clicks.")
     pages = page.locator(".sr-path")
     expect(pages).to_have_count(10)
     page.get_by_role("button", name="Show 4 more").click()
@@ -83,6 +84,7 @@ with sync_playwright() as runner:
     expect(page.locator(".sr-kpis")).not_to_contain_text("previous")
     expect(page.locator(".sr-insights")).not_to_contain_text("previous")
     expect(page.get_by_role("columnheader", name="Change")).to_have_count(0)
+    expect(page.locator(".sr-hidden")).to_have_count(0)
 
     mount(page, None)
     expect(page.get_by_role("heading", name="Connect Search Console to fill this page")).to_be_visible()
