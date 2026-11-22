@@ -242,4 +242,4 @@
 .cx-vs-note.is-bad{color:var(--bad)}.cx-vs-note.is-good{color:var(--good)}
 @media (max-width:760px){.cx-steps{grid-template-columns:minmax(0,1fr)}}
 @media (prefers-reduced-motion:reduce){.cx-bar-fill{animation:none}}
-.focus-page{display:inline-block;margin-left:.45rem;padding:.05rem .45rem;border-radius:6px;background:var(--card-2);color:var(--muted);font:500 .74rem/1.5 var(--mono,ui-monospace,monospace);vertical-align:middle;white-space:nowrap}
+.focus-page{display:inline-block;margin-left:.2rem;padding:.05rem .45rem;border-radius:6px;background:var(--card-2);color:var(--muted);font:500 .74rem/1.5 var(--mono,ui-monospace,monospace);vertical-align:middle;white-space:nowrap}
