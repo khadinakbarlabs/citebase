@@ -134,6 +134,7 @@ test('a Google sign-in started on the Connections page returns there; others kee
   return done.headers.Location;
  };
  assert.equal(await back('gsc',{return_to:'connections'}),'https://citebase.test/app/#/p/site-one/connections');
+ assert.equal(await back('gsc',{return_to:'search'}),'https://citebase.test/app/#/p/site-one/search');
  assert.equal(await back('ga4',{}),'https://citebase.test/app/#/p/site-one/setup');
  assert.equal(await back('gsc',{return_to:'https://evil.test/'}),'https://citebase.test/app/#/p/site-one/setup');
  assert.equal(await back('gmail',{return_to:'connections'}),'https://citebase.test/app/#/p/site-one/connections');

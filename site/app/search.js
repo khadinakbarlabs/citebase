@@ -216,7 +216,7 @@
   function connection(slug) {
     if (CB.demo || !CB.googleUI) return null;
     var box = h('details', { class: 'google-manage sr-connection' }, h('summary', {}, h('span', { text: 'Search Console connection and sync' })));
-    box.addEventListener('toggle', function () { if (box.open && box.children.length === 1) box.append(CB.googleUI.panel(slug)); });
+    box.addEventListener('toggle', function () { if (box.open && box.children.length === 1) box.append(CB.googleUI.panel(slug, { only: 'gsc', returnTo: 'search' })); });
     return box;
   }
   function overviewCard(model) {
@@ -249,7 +249,7 @@
       h('p', { class: 'sub', text: 'Clicks, positions, pages and searches from your own Search Console.' }))));
     body.append(CB.journey.emptyState({ icon: 'search', title: 'Connect Search Console to fill this page',
       text: 'Read-only. Citebase imports the last 28 days and the 28 days before, so you can see what changed. You can disconnect any time.' }));
-    if (CB.googleUI && !CB.demo) body.append(CB.googleUI.panel(slug));
+    if (CB.googleUI && !CB.demo) body.append(h('section', { class: 'card sr-card' }, CB.googleUI.panel(slug, { only: 'gsc', returnTo: 'search' })));
   }
   function hasData(report) { return !!report && ((report.rows || []).length > 0 || (report.daily || []).length > 0 || report.clicks != null); }
   CB.searchUI = {

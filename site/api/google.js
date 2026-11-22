@@ -72,12 +72,12 @@ module.exports=async function(req,res){
    const reply=await grant({grant_type:'authorization_code',code:new URL(req.url,redirect.origin).searchParams.get('code'),redirect_uri,code_verifier:flow.verifier});
    if(!reply.refresh_token||!reply.scope?.split(' ').includes(scopes[service]))throw Error('Missing grant');
    await save({refresh:reply.refresh_token,property:null});
-   const back=flow.back==='connections'?'/connections':service==='gmail'?'/outreach':'/setup';
+   const back=['connections','search'].includes(flow.back)?'/'+flow.back:service==='gmail'?'/outreach':'/setup';
    res.statusCode=303;res.setHeader('Location',redirect.origin+'/app/#/p/'+project+back);return res.end();
   }
   if(body.action==='connect'){
    const state=nonce(),verifier=nonce();
-   const back=body.return_to==='connections'?'connections':null;
+   const back=['connections','search'].includes(body.return_to)?body.return_to:null;
    setFlow(crypt(key,'oauth-flow',{binding,service,project,state,verifier,back,expires:Date.now()+600000}),600);
    const params=new URLSearchParams({client_id,redirect_uri,response_type:'code',scope:scopes[service],state,code_challenge:crypto.createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'S256',access_type:'offline',prompt:'consent'});
    return json(200,{url:'https://accounts.google.com/o/oauth2/v2/auth?'+params});
