@@ -28,6 +28,7 @@ from starlette.testclient import TestClient
 
 from public_ui_journey import check_public_journey, fits_viewport
 from portfolio_journey import check_portfolio
+from connections_journey import check_connections
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT / "connector"), str(ROOT / "scripts")]
@@ -509,9 +510,10 @@ def main():
             page = browser_page(browser, base, errors, signed_in=True, interrupted_requests=interrupted_requests)
             check_portfolio(page, base, call, ops)
             check_project_focus(page, base, call, ops)
+            check_connections(page, base, "clinic", errors)
             assert not errors, errors
             print("PASS signed-in empty project, exact action/finding links, queue retry, cached filters, "
-                  "evidence subviews, project switch and isolation")
+                  "evidence subviews, project switch and isolation, connections page")
 
             def go(tab):
                 page.goto(base + "/app/#/p/clinic/" + tab)

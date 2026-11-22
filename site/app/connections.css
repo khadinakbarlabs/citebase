@@ -1,0 +1,58 @@
+/* Project Connections page (connections.js). Colors come from appearance.css tokens, so dark mode follows. */
+.cn-page{display:grid;gap:1.6rem}
+.cn-intro{display:grid;gap:.35rem}
+.cn-title{font:700 1.45rem/1.2 var(--display);margin:0}
+.cn-lede{margin:0;color:var(--ink-2);max-width:62ch;line-height:1.5}
+.cn-summary{justify-self:start;margin:.3rem 0 0;padding:.3rem .8rem;border-radius:999px;background:var(--brand-soft);color:var(--brand);
+  font-size:.85rem;font-weight:600;font-variant-numeric:tabular-nums}
+
+.cn-group{display:grid;gap:.8rem}
+.cn-group-head{display:grid;gap:.2rem}
+.cn-group-head h2{font:650 1.02rem/1.3 var(--display);margin:0;letter-spacing:.01em}
+.cn-group-head p{margin:0;color:var(--muted);font-size:.86rem;line-height:1.45}
+.cn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr));gap:.9rem}
+
+.cn-card{--tone:var(--line);--tone-soft:var(--card-2);position:relative;display:grid;align-content:start;gap:.55rem;min-width:0;
+  padding:1.05rem 1.1rem 1.1rem 1.3rem;background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.cn-card::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--tone)}
+.cn-card[data-tone="good"]{--tone:var(--good);--tone-soft:var(--good-soft)}
+.cn-card[data-tone="action"]{--tone:var(--warn);--tone-soft:var(--warn-soft);border-color:color-mix(in srgb,var(--warn) 45%,var(--line))}
+.cn-card[data-tone="checking"]{--tone:var(--grid)}
+
+.cn-head{display:flex;align-items:center;gap:.6rem;min-width:0}
+.cn-head h3{flex:1;min-width:0;margin:0;font:650 1rem/1.3 var(--display);overflow-wrap:anywhere;text-wrap:balance}
+.cn-mark{flex:none;display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:var(--card-2);color:var(--brand);border:1px solid var(--grid)}
+.cn-mark .jr-icon{width:20px;height:20px}
+.cn-badge{flex:none;padding:.18rem .6rem;border-radius:999px;font-size:.76rem;font-weight:650;white-space:nowrap;
+  background:var(--tone-soft);color:var(--ink-2);border:1px solid var(--line)}
+.cn-card[data-tone="good"] .cn-badge{color:var(--good);border-color:color-mix(in srgb,var(--good) 35%,transparent)}
+.cn-card[data-tone="action"] .cn-badge{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+
+.cn-what{margin:0;color:var(--ink-2);font-size:.9rem;line-height:1.45}
+.cn-status{display:grid;gap:.2rem}
+.cn-status p{margin:0;line-height:1.45;overflow-wrap:anywhere}
+.cn-fact{font-size:.86rem;color:var(--ink);font-variant-numeric:tabular-nums}
+.cn-detail{font-size:.86rem;color:var(--muted)}
+.cn-card[data-tone="action"] .cn-detail{color:var(--ink)}
+
+/* Embedded Google panel: the card header already names the service and its status. */
+.cn-manage{border-top:1px solid var(--grid);padding-top:.7rem}
+.cn-manage .google-service{padding:0;border:0;gap:.5rem}
+.cn-manage .google-service > h4{display:none}
+.cn-manage .google-service > p{margin:0;font-size:.84rem;color:var(--muted)}
+/* The card shows status and errors; the panel line returns only while choosing a property. */
+.cn-manage .google-service > p:first-of-type{display:none}
+.cn-manage .google-service:has(select, .google-help > p) > p:first-of-type{display:block;color:var(--ink)}
+.cn-manage .google-help p{font-size:.84rem;line-height:1.45}
+.cn-manage .actions{display:flex;flex-wrap:wrap;gap:.45rem}
+.cn-manage .actions select{max-width:100%}
+
+.cn-card.is-soon{background:transparent;box-shadow:none;border-style:dashed}
+.cn-card.is-soon .cn-mark{color:var(--muted);background:transparent}
+.cn-card.is-soon h3,.cn-card.is-soon .cn-what{color:var(--muted)}
+.cn-card.is-soon .cn-detail{display:none}
+
+@media (max-width:600px){
+  .cn-card{padding:.95rem .95rem 1rem 1.15rem}
+  .cn-manage .actions .btn{flex:1 1 100%;justify-content:center}
+}

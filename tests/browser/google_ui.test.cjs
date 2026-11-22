@@ -68,3 +68,26 @@ test('a matching property can be selected and then imported',async()=>{
  await click('Import 28 days');
  assert.ok(texts(section).includes('Up to 1,000 Google Search queries by clicks · 2026-10-21 to 2026-11-17 · 12 rows imported.'));
 });
+
+test('one service can be shown alone and reports each status change',async()=>{
+ const seen=[],calls=[];
+ const replies={status:{configured:true,connected:true,property:null}};
+ const fetch=async(_,opts)=>{const body=JSON.parse(opts.body);calls.push(body);
+  if(body.action==='sync')return {ok:true,json:async()=>({measure:'m',startDate:'2026-10-21',endDate:'2026-11-17',count:3,saved:true})};
+  if(body.action==='properties')return {ok:false,json:async()=>({error:'Could not confirm this Google operation.'})};
+  return {ok:true,json:async()=>replies[body.action]};};
+ const CB={h:element,token:'t',refresh(){},demo:false};
+ runInNewContext(readFileSync(join(__dirname,'../../site/app/google.js'),'utf8'),{window:{CB},fetch,location:{assign(url){CB.went=url;}}});
+ const box=CB.googleUI.panel('featured-forge',{only:'ga4',returnTo:'connections',onState:s=>seen.push(s)});
+ await settle();
+ assert.equal(box.class,'google-embed');
+ assert.ok(calls.every(c=>c.service==='ga4'));
+ assert.equal(nodes(box).filter(n=>n.class==='google-service').length,1);
+ assert.deepEqual(seen[0],replies.status);
+ const click=async text=>{await nodes(box).find(n=>n.tag==='button'&&n.text===text).onclick();await settle();};
+ replies.connect={url:'https://accounts.google.com/x'};
+ await click('Reconnect');
+ assert.equal(calls.at(-1).return_to,'connections');
+ await click('Choose property');
+ assert.equal(seen.at(-1).error,'Could not confirm this Google operation.');
+});
