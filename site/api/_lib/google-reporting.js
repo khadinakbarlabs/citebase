@@ -64,16 +64,45 @@ async function scan(service,api,site){
  return {website:website(site),checked:inspected,choices:list,unverified:[],others:[...others]};
 }
 async function properties(service,api,site){return (await scan(service,api,site)).choices;}
+// Search Console: one 28-day window plus the equal window before it, each split by
+// query, day, page, country and device. Every list is bounded so a record stays small.
+const LIMITS={query:1000,date:40,page:100,country:30,device:5};
+const PREVIOUS_LIMITS={query:1000,date:40,page:100};
+const round=(value,places)=>typeof value==='number'&&Number.isFinite(value)?Number(value.toFixed(places)):null;
+function measure(row,name){
+ return {[name]:row.keys[0],clicks:row.clicks,impressions:row.impressions,position:round(row.position,2)};
+}
+function totalsOf(days){
+ const clicks=days.reduce((n,d)=>n+(d.clicks||0),0),impressions=days.reduce((n,d)=>n+(d.impressions||0),0);
+ const weighted=days.reduce((n,d)=>n+(typeof d.position==='number'?d.position*(d.impressions||0):0),0);
+ return {clicks,impressions,ctr:impressions?round(clicks/impressions,4):null,position:impressions?round(weighted/impressions,2):null};
+}
+async function searchWindow(id,api,filter,startDate,endDate,limits){
+ const names=Object.keys(limits);
+ const replies=await Promise.all(names.map(dimension=>api('https://www.googleapis.com/webmasters/v3/sites/'+encodeURIComponent(id)+'/searchAnalytics/query',
+  {startDate,endDate,dimensions:[dimension],dimensionFilterGroups:[filter],rowLimit:limits[dimension],dataState:'final'})));
+ const out={};
+ names.forEach((dimension,i)=>{
+  out[dimension]=(replies[i].rows||[]).slice(0,limits[dimension]).map(r=>measure(r,dimension==='query'?'term':dimension));
+ });
+ out.date.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+ return out;
+}
+async function searchReport(id,api,url,path,day){
+ const filter={filters:[{dimension:'page',operator:'includingRegex',expression:'^'+escapeRegex(url.origin)+path+'(/|[?]|$)'}]};
+ const startDate=day(30),endDate=day(3),previousStart=day(58),previousEnd=day(31);
+ const [now,before]=await Promise.all([searchWindow(id,api,filter,startDate,endDate,LIMITS),
+  searchWindow(id,api,filter,previousStart,previousEnd,PREVIOUS_LIMITS)]);
+ const extra={totals:totalsOf(now.date),daily:now.date,pages:now.page,countries:now.country,devices:now.device,
+  previous:{start_date:previousStart,end_date:previousEnd,totals:totalsOf(before.date),daily:before.date,rows:before.query,pages:before.page}};
+ return {startDate,endDate,count:now.query.length,observations:now.query,extra,
+  measure:'Up to 1,000 Google Search queries by clicks, with daily totals, pages, countries, devices and the previous 28 days'};
+}
 async function report(service,id,api,site,streams){
  const url=siteUrl(site),path=escapeRegex(pathOf(url));
  const day=offset=>new Date(Date.now()-offset*86400000).toISOString().slice(0,10);
  const startDate=day(30),endDate=day(3);
- if(service==='gsc'){
-  const data=await api('https://www.googleapis.com/webmasters/v3/sites/'+encodeURIComponent(id)+'/searchAnalytics/query',{startDate,endDate,dimensions:['query'],dimensionFilterGroups:[{filters:[{dimension:'page',operator:'includingRegex',expression:'^'+escapeRegex(url.origin)+path+'(/|[?]|$)'}]}],rowLimit:1000,dataState:'final'});
-  const rows=data.rows||[];
-  const observations=rows.map(r=>({term:r.keys[0],clicks:r.clicks,impressions:r.impressions,position:r.position}));
-  return {startDate,endDate,count:rows.length,observations,measure:'Up to 1,000 Google Search queries by clicks'};
- }
+ if(service==='gsc')return searchReport(id,api,url,path,day);
  const host=url.hostname;
  if(!streams?.length||url.port)throw Error('Cannot establish exact Analytics stream');
  const filters=[{fieldName:'hostName',stringFilter:{matchType:'EXACT',value:host,caseSensitive:false}},

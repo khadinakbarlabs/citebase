@@ -129,7 +129,7 @@ module.exports=async function(req,res){
   if(!selected)return json(409,{error:'Select an accessible property for this project.'});
   if(body.action==='select'){await api(selectionRecord,{method:'PUT',body:{property}});await requireActive();return json(200,{property});}
   if(body.action!=='sync')return json(400,{error:'Unknown action.'});
-  const {observations,...summary}=await report(service,property,google,site,selected.streams);
+  const {observations,extra,...summary}=await report(service,property,google,site,selected.streams);
   await requireActive();
   if(await selectedProperty()!==property)return json(409,{error:'Selected property changed. Review the connection.'});
   const source=service==='gsc'?'Google Search Console':'Google Analytics 4';
@@ -137,7 +137,7 @@ module.exports=async function(req,res){
    observed_at:new Date().toISOString().slice(0,10),count:summary.count};
   const snapshotKey=base+'p.'+project+'.google.'+service+'.'+summary.endDate;
   // A self-contained dated record also records a legitimate empty report for this exact site.
-  await api(snapshotKey,{method:'PUT',body:{...evidence,rows:observations}});
+  await api(snapshotKey,{method:'PUT',body:{...evidence,...(extra||{}),rows:observations}});
   await api(lastImportKey,{method:'PUT',body:evidence});
   return json(200,{...summary,property,saved:summary.count>0});
  }catch(error){if(error?.code==='GRANT_CHANGED')return json(409,{error:error.message});return json(400,{error:'Could not confirm this Google operation. Check project history before retrying an import, or reconnect Google.'});}

@@ -360,6 +360,48 @@ def traffic_summary(report):
     return {**report, **totals}
 
 
+# Search Console sync lists beyond the query rows. Older records have none of them,
+# and each list is copied with known fields only and capped at its sync size.
+SEARCH_LISTS = {"daily": ("date", 40), "pages": ("page", 100), "countries": ("country", 30), "devices": ("device", 5)}
+SEARCH_METRICS = ("clicks", "impressions", "position")
+
+
+def _measure(value):
+    return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def _search_rows(rows, name, limit):
+    if not isinstance(rows, list):
+        return None
+    return [{name: row[name], **{k: _measure(row.get(k)) for k in SEARCH_METRICS}}
+            for row in rows[:limit] if isinstance(row, dict) and isinstance(row.get(name), str)]
+
+
+def _search_totals(totals):
+    if not isinstance(totals, dict):
+        return None
+    return {k: _measure(totals.get(k)) for k in ("clicks", "impressions", "ctr", "position")}
+
+
+def search_depth(record):
+    """Daily trend, pages, countries, devices and the previous equal period from a newer sync."""
+    out = {}
+    if (totals := _search_totals(record.get("totals"))) is not None:
+        out["totals"] = totals
+    for key, (name, limit) in SEARCH_LISTS.items():
+        if (rows := _search_rows(record.get(key), name, limit)) is not None:
+            out[key] = rows
+    previous = record.get("previous")
+    if isinstance(previous, dict) and isinstance(previous.get("start_date"), str) and isinstance(previous.get("end_date"), str):
+        before = {"start_date": previous["start_date"], "end_date": previous["end_date"],
+                  "totals": _search_totals(previous.get("totals")),
+                  "daily": _search_rows(previous.get("daily"), "date", 40) or [],
+                  "rows": _search_rows(previous.get("rows"), "term", 1000) or [],
+                  "pages": _search_rows(previous.get("pages"), "page", 100) or []}
+        out["previous"] = before
+    return out
+
+
 async def first_party_signal(be, slug, site, service):
     """Read the latest matching site snapshot among 32 recent periods, or a manual-only export."""
     name = "Google Search Console" if service == "gsc" else "Google Analytics 4"
@@ -377,7 +419,7 @@ async def first_party_signal(be, slug, site, service):
         metrics = ("term", "clicks", "impressions", "position") if service == "gsc" else ("source", "sessions")
         result = {**{field: record.get(field) for field in fields}, "provenance": "google_sync",
                   "rows": [{k: row.get(k) for k in metrics} for row in record["rows"] if isinstance(row, dict)]}
-        return traffic_summary(result) if service == "ga4" else result
+        return traffic_summary(result) if service == "ga4" else {**result, **search_depth(record)}
     if keys:
         # Native sync also writes a legacy mirror without the site. Its origin cannot
         # be distinguished from a manual upload after the project changes websites.
