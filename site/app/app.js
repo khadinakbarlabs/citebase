@@ -4,7 +4,7 @@
   var CB = window.CB, h = CB.h, pct = CB.pct, num = CB.num, day = CB.day, short = CB.short;
   var main = document.getElementById('main'), crumbs = document.getElementById('crumbs'), who = document.getElementById('who');
   var SECTIONS = [
-    { tabs: CB.hasProjectWork ? [['overview', 'Overview'], ['setup', 'Project setup']] : [['overview', 'Overview']] },
+    { tabs: (CB.hasProjectWork ? [['overview', 'Overview'], ['setup', 'Project setup']] : [['overview', 'Overview']]).concat([['connections', 'Connections']]) },
     { label: 'Measure', tabs: [['answers', 'AI answers'], ['questions', 'Questions'], ['site', 'Site'], ['traffic', 'Traffic']]
       .concat(CB.hasProjectWork ? [['competitors', 'Competitors']] : []) },
     { label: 'Act', tabs: CB.hasProjectWork ? [['evidence', 'Evidence'], ['todo', 'Actions'], ['outreach', 'Outreach']] : [['todo', 'Actions']] }
@@ -16,7 +16,7 @@
       CB.s('use', { href: '../assets/icons.svg#' + name }));
   }
   var sectionIcons = { overview:'overview', setup:'setup', answers:'answers', questions:'questions', site:'site',
-    traffic:'traffic', competitors:'target', evidence:'evidence', todo:'action', outreach:'outreach' };
+    traffic:'traffic', competitors:'target', evidence:'evidence', todo:'action', outreach:'outreach', connections:'plug' };
   var metricIcons = { recommendation_share:'results', mentioned_rate:'mention', cited_rate:'sources', site_health:'health' };
   function initialView() { return { metric: 'recommendation_share', engines: null, qFilter: 'all', qTopic: '', qSearch: '' }; }
   var view = initialView(), viewProject = null;
@@ -422,7 +422,7 @@
     shell.body.setAttribute('aria-label', selected[1] + ' for ' + shell.name);
     CB.clear(shell.body); CB.untip();
     var views = { setup: CB.onboarding, overview: tabOverview, answers: tabAnswers, questions: tabQuestions, site: tabSite, traffic: tabTraffic,
-      todo: CB.hasProjectWork ? CB.workUI.actions : CB.historyUI.actions, evidence: CB.workUI.evidence, outreach: CB.workUI.outreach,
+      todo: CB.hasProjectWork ? CB.workUI.actions : CB.historyUI.actions, evidence: CB.workUI.evidence, outreach: CB.workUI.outreach, connections: CB.connectionsUI.render,
       competitors: function (body, d, slug) { CB.competitorsUI.render(body, d, slug, { rivalsCard: rivalsCard, gapCard: gapCard,
         aiCheck: function () { journeyActions(slug, d).aiCheck(); } }); } };
     views[shell.tab](shell.body, shell.data, shell.slug, route);
@@ -1014,6 +1014,7 @@
         fromGoogle(research.first_party);
         var entry = googleEntry(slug, googleReports.childElementCount > 0 ? research.first_party : null);
         if (entry) googleSlot.appendChild(entry);
+        googleSlot.appendChild(h('p', { class: 'note' }, h('a', { href: projectUrl(slug, 'connections'), text: 'See every connection for this project' })));
       }).catch(function () {
         if (googleReports.isConnected) googleReports.appendChild(h('p', {class:'note'},
           'Connected Google reports could not be loaded. ', h('a', {href:projectUrl(slug, 'setup'),text:'Review project research'})));
@@ -1055,7 +1056,7 @@
     }
     function toGoogle() {
       var slot = document.getElementById('google-connect');
-      if (!slot) { location.hash = projectUrl(slug, 'setup'); return; }
+      if (!slot || !slot.firstChild) { location.hash = projectUrl(slug, 'connections'); return; }
       slot.scrollIntoView({ behavior: 'smooth', block: 'start' });
       var first = slot.querySelector('button, summary'); if (first) first.focus({ preventScroll: true });
     }

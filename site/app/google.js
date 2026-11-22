@@ -25,10 +25,13 @@
   lines.push('Signed in with a different Google account? Choose Reconnect.');
   return lines;
  }
- function panel(project){
-  const box=h('section',{class:'card'},withLogo(h('h3',{class:'g-title',text:'Google reporting'}),'logo-google'));
+ // opts.only shows one service without the card frame; opts.onState(state) hears every status change; opts.returnTo picks the tab after Google sign-in.
+ function panel(project,opts){
+  opts=opts||{};
+  const box=opts.only?h('div',{class:'google-embed'}):h('section',{class:'card'},withLogo(h('h3',{class:'g-title',text:'Google reporting'}),'logo-google'));
   if(CB.demo){box.append(h('p',{text:'Sign in to connect your own Google properties.'}));return box;}
-  for(const [service,label] of [['gsc','Search Console'],['ga4','Google Analytics 4']]){
+  for(const [service,label] of [['gsc','Search Console'],['ga4','Google Analytics 4']].filter(([key])=>!opts.only||key===opts.only)){
+   const report=state=>{if(opts.onState)opts.onState(state);};
    const section=h('div',{class:'google-service'}),status=h('p',{'aria-live':'polite'}),help=h('div',{class:'google-help'}),actions=h('div',{class:'actions'});
    section.append(withLogo(h('h4',{text:label}),LOGOS[service]),status,help,actions);box.append(section);
    async function call(action,extra){
@@ -40,22 +43,22 @@
    function button(text,fn,mark){
     const b=h('button',{type:'button',class:mark==='primary'?'btn':'btn ghost',text});
     if(mark)withLogo(b,mark==='primary'?LOGOS[service]:mark,'g-logo sm');
-    b.onclick=async()=>{actions.inert=true;try{await fn();}catch(e){status.textContent=e.message;}finally{actions.inert=false;}};
+    b.onclick=async()=>{actions.inert=true;try{await fn();}catch(e){status.textContent=e.message;report({error:e.message});}finally{actions.inert=false;}};
     actions.append(b);
    }
    async function load(){
-    const state=await call('status');actions.replaceChildren();help.replaceChildren();
+    const state=await call('status');actions.replaceChildren();help.replaceChildren();report(state);
     status.textContent=state.configured?(state.property|| (state.connected?'Choose a property.':'Connect to import a read-only report.')):state.error;
     if(state.last_import)status.textContent+=' · Last import covered '+state.last_import.start_date+' to '+state.last_import.end_date+' ('+state.last_import.count+' rows).';
     if(!state.configured)return;
-    button(state.connected?'Reconnect':'Connect '+label,async()=>{location.assign((await call('connect')).url);},state.connected?'logo-google':'primary');
+    button(state.connected?'Reconnect':'Connect '+label,async()=>{location.assign((await call('connect',opts.returnTo?{return_to:opts.returnTo}:{})).url);},state.connected?'logo-google':'primary');
     if(!state.connected)return;
     async function choose(){
      const found=await call('properties'),{choices}=found;actions.replaceChildren();help.replaceChildren();
      if(!choices.length){
       status.textContent='No '+label+' property matches '+(found.website||'this project’s website')+' yet.';
       help.append(...emptyHelp(service,found).map(text=>h('p',{text})));
-      button('Check again',choose);button('Reconnect',async()=>{location.assign((await call('connect')).url);});button('Back',load);
+      button('Check again',choose);button('Reconnect',async()=>{location.assign((await call('connect',opts.returnTo?{return_to:opts.returnTo}:{})).url);});button('Back',load);
       return;
      }
      status.textContent=(choices.length===1?'One property covers ':choices.length+' properties cover ')+found.website+'. Choose the one to import from.';
@@ -65,20 +68,20 @@
     }
     button('Choose property',choose);
     if(state.property)button('Import 28 days',async()=>{
-     const r=await call('sync');CB.refresh();
+     const r=await call('sync');CB.refresh();if(opts.onState)report(await call('status'));
      status.textContent=r.measure+' · '+r.startDate+' to '+r.endDate+' · '+r.count+' rows'+(r.saved?' imported.':'. No data to import.');
     });
     button('Disconnect from project',async()=>{await call('disconnect');await load();status.textContent='Disconnected from this project. You can revoke Google’s permission in your Google Account.';});
    }
-   load().catch(e=>{status.textContent=e.message;});
+   load().catch(e=>{status.textContent=e.message;report({error:e.message});});
   }
   return box;
  }
- async function mail(project,action,draft){
-  const response=await fetch('/api/google/',{method:'POST',credentials:'same-origin',headers:{'X-Citebase-Session':'1',Authorization:'Bearer '+CB.token,'Content-Type':'application/json'},body:JSON.stringify({project,service:'gmail',action,draft})});
+ async function mail(project,action,draft,returnTo){
+  const response=await fetch('/api/google/',{method:'POST',credentials:'same-origin',headers:{'X-Citebase-Session':'1',Authorization:'Bearer '+CB.token,'Content-Type':'application/json'},body:JSON.stringify({project,service:'gmail',action,draft,return_to:returnTo})});
   const data=await response.json();
   if(!response.ok)throw Error(data.error||'Gmail is unavailable.');
   return data;
  }
- CB.googleUI={panel,emptyHelp,gmail:{status:project=>mail(project,'status'),disconnect:project=>mail(project,'disconnect'),connect:async (project,active)=>{const account=CB.sessionId(),result=await mail(project,'connect');if(account===CB.sessionId()&&(!active||active()))location.assign(result.url);},send:(project,draft)=>mail(project,'send',draft)}};
+ CB.googleUI={panel,emptyHelp,gmail:{status:project=>mail(project,'status'),disconnect:project=>mail(project,'disconnect'),connect:async (project,active,returnTo)=>{const account=CB.sessionId(),result=await mail(project,'connect',undefined,returnTo);if(account===CB.sessionId()&&(!active||active()))location.assign(result.url);},send:(project,draft)=>mail(project,'send',draft)}};
 })();

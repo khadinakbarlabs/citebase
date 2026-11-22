@@ -121,3 +121,21 @@ for(const reconnect of [false,true])test('delayed selection cannot restore a leg
  const result=await post('status');
  assert.equal(result.data.connected,reconnect);assert.equal(result.data.property,null);
 });
+
+test('a Google sign-in started on the Connections page returns there; others keep their old page',async t=>{
+ Object.assign(process.env,{CITEBASE_GOOGLE_CLIENT_ID:'test',CITEBASE_GOOGLE_CLIENT_SECRET:'secret',CITEBASE_GOOGLE_TOKEN_KEY:crypto.randomBytes(32).toString('base64'),CITEBASE_GOOGLE_REDIRECT_URI:'https://citebase.test/api/google/'});
+ store='store1';
+ t.mock.method(global,'fetch',async()=>Response.json({refresh_token:'r',access_token:'a',scope:'https://www.googleapis.com/auth/webmasters.readonly https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/gmail.send'}));
+ const back=async(service,extra)=>{
+  const flow=await run('POST','/api/google/',{project:'site-one',service,action:'connect',...extra});
+  const state=new URL(flow.data.url).searchParams.get('state');
+  const done=await run('GET','/api/google/?code=x&state='+state,null,{cookie:flow.headers['Set-Cookie'].split(';')[0]});
+  assert.equal(done.statusCode,303);
+  return done.headers.Location;
+ };
+ assert.equal(await back('gsc',{return_to:'connections'}),'https://citebase.test/app/#/p/site-one/connections');
+ assert.equal(await back('ga4',{}),'https://citebase.test/app/#/p/site-one/setup');
+ assert.equal(await back('gsc',{return_to:'https://evil.test/'}),'https://citebase.test/app/#/p/site-one/setup');
+ assert.equal(await back('gmail',{return_to:'connections'}),'https://citebase.test/app/#/p/site-one/connections');
+ assert.equal(await back('gmail',{}),'https://citebase.test/app/#/p/site-one/outreach');
+});
