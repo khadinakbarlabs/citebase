@@ -87,13 +87,19 @@
     var usage = h('a', {class:'usage-shortcut',href:'#/account',text:'Apify usage',title:'View account credits and spending limit'});
     var whoName = h('span', {class:'me'});
     who.append(usage, whoName, signOut);
+    function current() { return account === CB.sessionId() && who.contains(signOut); }
+    function showName(name) {
+      if (!current() || !name) return;
+      whoName.textContent = name;
+      whoName.title = 'Signed in to Apify as ' + name;
+    }
     CB.usage.onUpdate = function (snapshot) {
-      if (account !== CB.sessionId() || !who.contains(signOut)) return;
+      if (!current()) return;
       usage.textContent = CB.usage.compact(snapshot);
-      whoName.textContent = snapshot.username || '';
-      whoName.title = whoName.textContent;
+      showName(snapshot.username);
     };
-    CB.usage.read().catch(function () {});
+    // Usage can be unavailable while the account itself is fine. Still show who is signed in.
+    CB.usage.read().catch(function () { return CB.whoami().then(showName); });
   }
 
   /* ---------- signed out ---------- */
@@ -111,22 +117,19 @@
     if (leaving) history.replaceState(null, '', location.pathname);
     page(); CB.clear(crumbs); CB.clear(who); document.title = 'Sign in · Citebase';
     document.getElementById('workspace-guide').hidden = true;
-    var signIn = h('button', { class: 'btn big apify', type: 'button', onclick: function () { CB.markSignedOut(false); CB.signIn(); } },
+    var signIn = h('button', { class: 'btn big apify', type: 'button', onclick: function () { CB.signIn(); } },
       h('span', { class: 'apify-mark', 'aria-hidden': 'true' }), 'Sign in with Apify');
-    main.appendChild(h('div', { class: 'signin' },
+    // Never send a visitor to Apify on their own: explain first, then let them choose.
+    main.appendChild(h('section', { class: 'signin', 'aria-labelledby': 'signin-title' },
       h('div', { class: 'signin-symbol', 'aria-hidden': 'true' }, interfaceIcon('target')),
-      h('span', { class: 'eyebrow', text: 'Your dashboard' }),
-      h('h1', { text: 'See how AI search treats your brand' }),
-      h('p', { class: 'lead', text: msg || 'Open your saved projects to see which AI answers recommend your business, what evidence they cite, and which page to improve next.' }),
+      h('span', { class: 'eyebrow', text: 'Citebase dashboard' }),
+      h('h1', { id: 'signin-title', text: 'Sign in to Citebase' }),
+      msg ? h('p', { class: 'signin-notice', role: 'status', text: msg }) : null,
+      h('p', { class: 'lead', text: 'Citebase uses your Apify account to keep your projects private.' }),
       h('div', { class: 'row' }, signIn),
-      h('p', { class: 'small-note' }, 'Apify verifies your account and returns you here. ', h('a',{href:CB.guide.tourUrl,text:'Take the dashboard tour first.'})),
-      h('ol', { class: 'journey' },
-        h('li', {}, h('b', { text: 'Sign in' }), h('span', { text: 'Apify asks you to allow this page.' })),
-        h('li', {}, h('b', { text: 'Add a project' }), h('span', { text: 'Your site, brand and competitors.' })),
-        h('li', {}, h('b', { text: 'See where you stand' }), h('span', { text: 'Site score, AI answers, next steps.' }))),
-      h('ul', { class: 'trust' }, h('li', { text: 'Projects stay in your Apify account' }), h('li', { text: 'Sign out any time' })),
+      h('p', { class: 'signin-sample' }, 'Just looking? ', h('a', { href: './?demo=1', text: 'See sample' })),
       h('details', { class: 'more' }, h('summary', { text: 'What does signing in allow?' }),
-        h('p', { text: 'Apify lets Citebase read your projects and save the changes you choose. ' +
+        h('p', { text: 'Apify checks it is you, then sends you back here. Citebase can then read your projects and save the changes you choose. ' +
           (CB.cfg.oauth && CB.cfg.oauth.session === false ? 'This local development session lasts until you close the tab.' : 'This browser remembers your sign-in for up to 90 days. You can sign out any time.') }),
         h('p', { text: 'Opening a project starts Citebase in your Apify account for a few seconds, which uses a little of your Apify platform usage. Paid AI checks require your confirmation.' }))));
     if (leaving) { window.scrollTo(0, 0); signIn.focus({ preventScroll: true }); }
@@ -1147,11 +1150,9 @@
   CB.startAuth().then(function (state) {
     if (state === 'redirecting') return;
     if (state === 'unavailable') { failed(new Error('Could not check your sign-in. Check your connection and try again.'), function () { location.reload(); }); return; }
-    if (state === 'in') CB.markSignedOut(false);
     if (state === 'demo' || state === 'in') { access = state; accountBar(); route(); return; }
-    // One click: a signed-out visitor goes straight to Apify. The Citebase sign-in screen
-    // only appears after a cancel, a failure or a deliberate sign-out, so it cannot loop.
-    if (state === 'out' && !CB.wasSignedOut()) { loading('Opening Apify sign-in…'); CB.signIn(); return; }
-    signedOut(state === 'failed' ? 'Sign-in could not be finished. Please try again.' : state === 'cancelled' ? 'Sign-in was cancelled.' : '');
+    // A signed-out visitor always sees the Citebase sign-in screen first, never a surprise Apify page.
+    signedOut(state === 'failed' ? 'Sign-in could not be finished. Please try again.' : state === 'cancelled' ? 'Sign-in was cancelled.'
+      : state === 'ended' ? CB.endedMessage : '');
   });
 })();

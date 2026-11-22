@@ -212,6 +212,7 @@
   function resetSession() { session++; renewal = null; verification = null; projectReads.clear(); }
   function requireSession(id) { if (id !== session) throw new Error('signed out'); }
   CB.sessionId = function () { return session; };
+  CB.endedMessage = 'Your sign-in ended. Sign in again to continue.';
   CB.onSignedOut = function () {};
   function q(o) { return Object.keys(o).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(o[k]); }).join('&'); }
   function b64u(buf) { var t = '', a = new Uint8Array(buf); for (var i = 0; i < a.length; i++) t += String.fromCharCode(a[i]); return btoa(t).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
@@ -267,7 +268,7 @@
       if (await renewal) return;
     }
     requireSession(id);
-    CB.onSignedOut('Please sign in again.');
+    CB.onSignedOut(CB.endedMessage);
     throw new Error('signed out');
   }
   CB.forget = function () {
@@ -275,12 +276,8 @@
     CB.token = ''; remoteId = ''; tokenVersion = 0; renewAfter = 0; canRefresh = false;
     ['cb.t', 'cb.r', 'cb.v', 'cb.s', 'cb.sid', 'cb.after', 'cb.pending'].forEach(function (k) { store(k, null); });
   };
-  // A deliberate sign-out keeps this tab on the Citebase sign-in screen instead of
-  // sending the visitor straight back to Apify.
-  CB.markSignedOut = function (on) { store('cb.out', on ? '1' : null); };
-  CB.wasSignedOut = function () { return stored('cb.out') === '1'; };
   CB.signOut = async function () {
-    CB.markSignedOut(true);
+    store('cb.out', null); // Retired marker from the old automatic Apify redirect.
     var id = session;
     var result = hosted ? await broker.request('logout', {sessionId:remoteId}) : {};
     if (id === session) {
@@ -303,7 +300,7 @@
     var current = broker.request('verify', {sessionId:remoteId}).then(function (result) {
       requireSession(id);
       if (!result.signedIn || result.sessionId !== remoteId) {
-        CB.onSignedOut(result.changed ? 'The account in this browser changed.' : 'Please sign in again.');
+        CB.onSignedOut(result.changed ? 'The account in this browser changed.' : CB.endedMessage);
         if (result.changed) location.replace(location.pathname);
         throw new Error('signed out');
       }
@@ -336,8 +333,9 @@
       if (code && target.startsWith('#/') && target.length <= 2048) history.replaceState(null, '', location.pathname + target);
       return 'in';
     }
+    // `?signin=1` only comes from a Sign in click, so going on to Apify is what the visitor asked for.
     if (fromSignIn) { CB.signIn(); return 'redirecting'; }
-    return 'out';
+    return result.ended ? 'ended' : 'out';
   }
   if (hosted && broker) {
     var wakeTimer;

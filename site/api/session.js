@@ -130,8 +130,10 @@ function issue(res, tokens, previous, replaced) {
   res.setHeader('Set-Cookie', cookies);
   return session;
 }
-function sessionReply(res, session, action, migrated = false) {
-  if (!session) return json(res, 200, {signedIn:false});
+function sessionReply(res, session, action, migrated = false, ended = false) {
+  // `ended` tells the page this browser had a sign-in that can no longer be used (expired grant,
+  // rotated deployment key). The page then explains it instead of sending the visitor to Apify.
+  if (!session) return json(res, 200, ended ? {signedIn:false, ended:true} : {signedIn:false});
   const info = action === 'status' ? {signedIn:true} :
     {signedIn:true, accessToken:session.access, sessionId:session.id, version:session.version,
       expiresAt:session.expires, sessionUntil:session.until, canRefresh:Boolean(session.refresh)};
@@ -213,11 +215,12 @@ module.exports = async function sessionHandler(req, res) {
         if (tokens) return sessionReply(res, issue(res, tokens), action, true);
         clearSession(res, id);
       }
-      return sessionReply(res, null);
+      // An explicit sign-out clears the login cookie, so only a lost sign-in reports `ended`.
+      return sessionReply(res, null, action, false, Boolean(id));
     }
     if (needsRefresh(session) || (action === 'refresh' && body.version === session.version)) {
       const tokens = session.refresh ? await grant({grant_type:'refresh_token', refresh_token:session.refresh}) : null;
-      if (!tokens) { rejectGeneration(res, session); return sessionReply(res, null); }
+      if (!tokens) { rejectGeneration(res, session); return sessionReply(res, null, action, false, true); }
       session = issue(res, tokens, session);
     }
     return sessionReply(res, session, action);

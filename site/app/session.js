@@ -18,8 +18,13 @@
     // A one-bit wakeup for browsers without BroadcastChannel. No identity or credential is written.
     try { localStorage.setItem('cb.session-event', '1'); localStorage.removeItem('cb.session-event'); } catch {}
   }
+  // A reload or closed tab must not throw away a renewal Apify already completed: a rotating refresh
+  // grant stops working once its replacement is issued, so a lost reply could end the sign-in.
+  // `keepalive` lets the browser finish the request and store its cookie after the page is gone.
+  const lateReplyMs = 1500;
+  const pause = ms => new Promise(resolve => typeof setTimeout === 'function' ? setTimeout(resolve, ms) : resolve());
   async function post(body) {
-    const response = await fetch(endpoint, {method:'POST', credentials:'same-origin', cache:'no-store', redirect:'error',
+    const response = await fetch(endpoint, {method:'POST', credentials:'same-origin', cache:'no-store', redirect:'error', keepalive:true,
       headers:{'Content-Type':'application/json', 'X-Citebase-Session':'1'}, body:JSON.stringify(body)});
     const result = await response.json();
     if (response.status === 409) return {result:{signedIn:false, changed:true}};
@@ -36,8 +41,10 @@
       }
       let reply = await post(body);
       if (reply.recheck) {
-        // The browser might have accepted a newer refresh response while this request was in flight.
-        // Read back once. A genuinely revoked generation is marked server-side and cannot rotate again.
+        // The browser might have accepted a newer refresh response while this request was in flight,
+        // possibly one a previous page left running. Give it a moment, then read back once.
+        // A genuinely revoked generation is marked server-side and cannot rotate again.
+        await pause(lateReplyMs);
         reply = await post(action === 'refresh' ? {action:'verify', sessionId:fields.sessionId} : {action, ...fields});
       }
       const result = reply.result;
