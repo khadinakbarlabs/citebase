@@ -84,7 +84,8 @@
   }
   function pageTag(item) {
     const path = pagePath(item);
-    return path ? h('span', {class: 'focus-page', text: 'on ' + (path.length > 40 ? path.slice(0, 39) + '…' : path)}) : null;
+    // Leading space keeps screen readers from joining the title and the page name.
+    return path ? [' ', h('span', {class: 'focus-page', text: 'on ' + (path.length > 40 ? path.slice(0, 39) + '…' : path)})] : null;
   }
   function primary(project, item) {
     const cta = item.kind === 'action' ? 'Open action' : 'Open opportunity';
