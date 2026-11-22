@@ -141,17 +141,33 @@ def main():
                 expect(page.get_by_role("button", name="Sign in with Apify")).to_be_visible()
                 ctx.close()
 
-                # One click: a signed-out visit to the dashboard goes straight to Apify, with no second
-                # Citebase sign-in screen. A deliberate sign-out above kept that tab on the sign-in screen.
+                # A signed-out visit never jumps to Apify on its own: Citebase explains first and offers the sample.
                 ctx, page = open_browser()
                 page.goto(base + "/app/")
+                expect(page.get_by_role("heading", name="Sign in to Citebase")).to_be_visible()
+                expect(page.get_by_text("Citebase uses your Apify account to keep your projects private.")).to_be_visible()
+                expect(page.get_by_role("link", name="See sample")).to_have_attribute("href", "./?demo=1")
+                expect(page.get_by_role("status")).to_have_count(0)
+                page.wait_for_timeout(500)
+                expect(page).to_have_url(base + "/app/")
+                page.get_by_role("button", name="Sign in with Apify").click()
                 expect(page).to_have_url(re.compile(r"^https://console\.apify\.com/authorize/oauth\?"))
+                page.get_by_role("link", name="Allow fixture").click()
+                expect(page.get_by_text("fixture-owner-3", exact=True)).to_be_visible()
+                # A sign-in that can no longer be used (here: its saved session removed) says so plainly
+                # on reload and stays on Citebase, instead of opening Apify's account picker.
+                ctx.clear_cookies(name=re.compile(r"_session_"))
+                page.reload()
+                expect(page.get_by_role("status")).to_have_text("Your sign-in ended. Sign in again to continue.")
+                expect(page.get_by_role("button", name="Sign in with Apify")).to_be_visible()
+                page.wait_for_timeout(500)
+                expect(page).to_have_url(base + "/app/")
                 ctx.close()
                 with urlopen(base + "/fixture-count", timeout=5) as count:
-                    # Three deliberate Apify visits (first sign-in, re-sign-in, one-click restart); signing out
-                    # in one tab never bounces the others to Apify. Only the fresh owner's write starts a run.
+                    # Three deliberate Apify visits (first sign-in, re-sign-in, sign-in after restart); signing out
+                    # or losing a sign-in never bounces a tab to Apify. Only the fresh owner's write starts a run.
                     assert json.load(count) == {"consents": 3, "starts": 1}
-                print("PASS one-click OAuth, dashboard CTA, browser restart, cross-tab sign-out without BroadcastChannel, stale paid request blocked and signed-out restart")
+                print("PASS OAuth sign-in, dashboard CTA, browser restart, cross-tab sign-out without BroadcastChannel, stale paid request blocked, sign-in screen on restart and plain notice when a sign-in ended")
         finally:
             server.terminate()
             server.wait(timeout=5)

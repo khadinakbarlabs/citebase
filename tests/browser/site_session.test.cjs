@@ -10,6 +10,8 @@ const {execFileSync} = require('node:child_process');
 
 const origin = 'https://citebase.example';
 const tokenUrl = 'https://console-backend.apify.com/oauth/apps/token';
+// A browser that had a sign-in which can no longer be used. The page explains it instead of jumping to Apify.
+const ended = {signedIn:false, ended:true};
 const dir = mkdtempSync(path.join(os.tmpdir(), 'citebase-session-test-'));
 const root = path.resolve(__dirname, '../..');
 execFileSync(process.env.PYTHON || 'python3', ['scripts/build_site.py', '--site', origin, '--out', dir], {cwd: root});
@@ -211,8 +213,8 @@ test('interrupted renewal keeps the session and an expired grant clears it', asy
   assert.equal(failure.status, 503); assert.deepEqual(failure.cookies, []);
   assert.equal((await tab.request('restore')).json.accessToken, 'access-one');
   provider(() => [400, {error:'invalid_grant'}]);
-  assert.deepEqual((await tab.request('refresh', fields)).json, {signedIn:false});
-  assert.deepEqual((await tab.request('status')).json, {signedIn:false});
+  assert.deepEqual((await tab.request('refresh', fields)).json, ended);
+  assert.deepEqual((await tab.request('status')).json, ended);
 });
 
 test('only trusted same-origin requests can read tokens, migrate previous tabs or end sessions', async () => {
@@ -228,7 +230,7 @@ test('only trusted same-origin requests can read tokens, migrate previous tabs o
   const name = [...tab.cookies.keys()].find(key => key.includes('session'));
   const original = tab.cookies.get(name);
   tab.cookies.set(name, (original[0] === 'A' ? 'B' : 'A') + original.slice(1));
-  assert.deepEqual((await tab.request('restore')).json, {signedIn:false});
+  assert.deepEqual((await tab.request('restore')).json, ended);
 });
 
 test('migration validates previous credentials with Apify and never combines unrelated tokens', async () => {
@@ -255,7 +257,7 @@ test('migration validates previous credentials with Apify and never combines unr
   assert.equal((await expiredRefresh.request('restore', {legacyAccess:'still-active', legacyRefresh:'expired'})).json.accessToken, 'still-active');
   const active = (await expiredRefresh.request('restore')).json;
   provider(() => { throw Error('An independently verified access token must not acquire an unrelated refresh grant'); });
-  assert.deepEqual((await expiredRefresh.request('refresh', {sessionId:active.sessionId, version:active.version})).json, {signedIn:false});
+  assert.deepEqual((await expiredRefresh.request('refresh', {sessionId:active.sessionId, version:active.version})).json, ended);
 });
 
 test('restore refreshes an expiring token, and the 90-day session lifetime is absolute', async () => {
@@ -268,10 +270,10 @@ test('restore refreshes an expiring token, and the 90-day session lifetime is ab
     provider(() => [200,{access_token:'access-two',refresh_token:'refresh-two',expires_in:3600}]);
     assert.deepEqual((await tab.request('status')).json, {signedIn:true});
     assert.equal((await tab.request('restore')).json.accessToken, 'access-two');
-    assert.deepEqual((await noRefresh.request('status')).json, {signedIn:false});
+    assert.deepEqual((await noRefresh.request('status')).json, ended);
     Date.now = () => start + 91 * 86400_000;
     provider(() => { throw Error('An expired browser session cannot restore or rotate'); });
-    assert.deepEqual((await tab.request('restore')).json, {signedIn:false});
+    assert.deepEqual((await tab.request('restore')).json, ended);
   } finally { Date.now = current; }
 });
 
@@ -296,7 +298,7 @@ test('a missing deployment key is retryable and rotating it makes old cookies un
     delete process.env.CITEBASE_SESSION_KEY;
     assert.equal((await tab.request('restore')).status, 503);
     process.env.CITEBASE_SESSION_KEY = randomBytes(32).toString('base64');
-    assert.deepEqual((await tab.request('restore')).json, {signedIn:false});
+    assert.deepEqual((await tab.request('restore')).json, ended);
   } finally { process.env.CITEBASE_SESSION_KEY = saved; }
 });
 
@@ -346,7 +348,68 @@ test('without Web Locks, a late rejected rotation adopts the newer successful br
   let rejected = 0;
   provider(() => { rejected++; return [400,{error:'invalid_grant'}]; });
   assert.equal((await client().request('refresh', {sessionId:good.sessionId, version:good.version})).signedIn, false);
-  assert.deepEqual((await tab.request('restore')).json, {signedIn:false});
+  assert.deepEqual((await tab.request('restore')).json, ended);
   assert.match((await tab.request('start')).location, /^https:\/\/console\.apify\.com\/authorize\/oauth\?/);
   assert.equal(rejected, 1);
+});
+
+// Loads the real page broker (site/app/session.js) against one shared cookie jar, like two documents
+// of the same browser. A new document after a reload does not share the old document's Web Lock.
+function pageBroker(tab, seen = []) {
+  const window = {addEventListener() {}};
+  vm.runInNewContext(readFileSync(path.join(root,'site/app/session.js'),'utf8'), {
+    window, navigator:{}, setTimeout, sessionStorage:{getItem(){return ''},removeItem(){}},
+    localStorage:{setItem(){},removeItem(){}},
+    fetch:async (url, init) => {
+      seen.push(init);
+      const {action,...input} = JSON.parse(init.body);
+      const r = await tab.request(action, input);
+      return {ok:r.status === 200, status:r.status, json:async () => r.json,
+        headers:{get:name => r.headers[name.toLowerCase()]}};
+    }
+  });
+  return window.CitebaseSession;
+}
+
+test('a lost sign-in says it ended, while a new browser or a deliberate sign-out does not', async () => {
+  assert.deepEqual((await browser().request('restore')).json, {signedIn:false});
+  const quitter = browser(), mine = await login(quitter);
+  await quitter.request('logout', {sessionId:mine.sessionId});
+  assert.deepEqual((await quitter.request('restore')).json, {signedIn:false});
+  const current = Date.now, start = current();
+  try {
+    const tab = browser();
+    await login(tab, {access_token:'access-one', refresh_token:'refresh-one', expires_in:60});
+    Date.now = () => start + 65_000;
+    provider(() => [400, {error:'invalid_grant'}]);
+    assert.deepEqual((await tab.request('restore')).json, ended);
+    // Starting again from the ended screen is a deliberate click, and it does reach Apify.
+    assert.match((await tab.request('start')).location, /^https:\/\/console\.apify\.com\/authorize\/oauth\?/);
+  } finally { Date.now = current; }
+});
+
+test('reloading while Apify renews the sign-in keeps the visitor signed in (2026-11-22 bounce)', async () => {
+  // Apify retires a refresh grant as soon as it issues the next one. The page that asked for the
+  // renewal was reloaded, so the new page tried the retired grant and was sent to Apify's account picker.
+  const current = Date.now, start = current();
+  try {
+    const tab = browser(), seen = [];
+    await login(tab, {access_token:'access-one', refresh_token:'refresh-one', expires_in:60});
+    Date.now = () => start + 65_000;
+    let calls = 0, finishFirst;
+    provider((url, init) => {
+      assert.equal(new URLSearchParams(init.body).get('refresh_token'), 'refresh-one');
+      return ++calls === 1 ? new Promise(resolve => { finishFirst = resolve; }) : [400, {error:'invalid_grant'}];
+    });
+    const before = pageBroker(tab, seen).request('restore');      // the page that was reloaded
+    const after = pageBroker(tab, seen).request('restore');       // the page after the reload
+    // The first renewal reaches the browser shortly after the second page was refused.
+    setTimeout(() => finishFirst([200, {access_token:'access-two', refresh_token:'refresh-two', expires_in:3600}]), 300);
+    const result = await after;
+    assert.equal(result.signedIn, true);
+    assert.equal(result.accessToken, 'access-two');
+    assert.equal((await before).accessToken, 'access-two');
+    assert.equal(calls, 2);
+    assert.ok(seen.length && seen.every(init => init.keepalive === true), 'sign-in requests survive a reload');
+  } finally { Date.now = current; }
 });
