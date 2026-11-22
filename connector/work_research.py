@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 import history
 import insights
 import importer
+import signals
 import storage
 import tools
 import work_actions as work
@@ -337,6 +338,28 @@ async def run_rows(be, run_id, view):
     return {kind: [dict(r, provenance="verified_actor_run", run_id=run_id, actor=job["actor"], target=actual.get("target"), dataset_id=info.id, country=market["country"], language=market["language"]) for r in cleaned]}
 
 
+def traffic_summary(report):
+    """Label AI-assistant and payment/sign-in return rows, and total them, on a synced analytics report."""
+    totals = {"all_visits": 0, "ai_visits": 0, "return_visits": 0}
+    assistants = defaultdict(int)
+    for row in report["rows"]:
+        visits = row.get("sessions")
+        visits = visits if isinstance(visits, (int, float)) and not isinstance(visits, bool) and visits > 0 else 0
+        totals["all_visits"] += visits
+        if (assistant := signals.ai_source(row.get("source"))):
+            row["assistant"] = assistant
+            totals["ai_visits"] += visits
+            assistants[assistant] += visits
+        elif (via := signals.return_source(row.get("source"))):
+            row["returning_from"] = via
+            totals["return_visits"] += visits
+    totals = {key: round(value) for key, value in totals.items()}
+    totals["ai_share"] = round(totals["ai_visits"] / totals["all_visits"], 4) if totals["all_visits"] else None
+    totals["assistants"] = [{"assistant": name, "visits": round(visits)}
+                            for name, visits in sorted(assistants.items(), key=lambda item: (-item[1], item[0]))]
+    return {**report, **totals}
+
+
 async def first_party_signal(be, slug, site, service):
     """Read the latest matching site snapshot among 32 recent periods, or a manual-only export."""
     name = "Google Search Console" if service == "gsc" else "Google Analytics 4"
@@ -352,8 +375,9 @@ async def first_party_signal(be, slug, site, service):
             continue
         fields = ("service", "website", "property", "observed_at", "start_date", "end_date", "source")
         metrics = ("term", "clicks", "impressions", "position") if service == "gsc" else ("source", "sessions")
-        return {**{field: record.get(field) for field in fields}, "provenance": "google_sync",
-                "rows": [{k: row.get(k) for k in metrics} for row in record["rows"] if isinstance(row, dict)]}
+        result = {**{field: record.get(field) for field in fields}, "provenance": "google_sync",
+                  "rows": [{k: row.get(k) for k in metrics} for row in record["rows"] if isinstance(row, dict)]}
+        return traffic_summary(result) if service == "ga4" else result
     if keys:
         # Native sync also writes a legacy mirror without the site. Its origin cannot
         # be distinguished from a manual upload after the project changes websites.

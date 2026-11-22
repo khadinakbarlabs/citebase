@@ -139,6 +139,20 @@ class AiSourceTests(unittest.TestCase):
             self.assertIsNone(signals.ai_source(source), source)
 
 
+class ReturnSourceTests(unittest.TestCase):
+    def test_checkout_and_sign_in_bounce_backs(self):
+        cases = {"checkout.stripe.com": "Stripe checkout", "checkout.stripe.com / referral": "Stripe checkout",
+                 "https://accounts.google.com/": "Google sign-in", "www.paypal.com": "PayPal",
+                 "appleid.apple.com / referral": "Apple sign-in", "login.microsoftonline.com": "Microsoft sign-in"}
+        for source, name in cases.items():
+            self.assertEqual(signals.return_source(source), name, source)
+
+    def test_real_referrers_are_not_returns(self):
+        for source in ("google", "stripe.com", "notcheckout.stripe.com.evil.io", "accounts.google.com.evil.io",
+                       "chatgpt.com", "(direct)", "", None, "github.com"):
+            self.assertIsNone(signals.return_source(source), source)
+
+
 class TrafficTests(unittest.TestCase):
     ROWS = [
         {"Session source": "google", "Sessions": "1,000", "Date": "20261001"},

@@ -216,7 +216,7 @@
 .gr-table td{padding:.5rem;border-bottom:1px solid var(--grid)}
 .gr-table .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .gr-table tbody tr:hover{background:var(--card-2)}
-.gr-tag{display:inline-block;margin-left:.45rem;font-size:.68rem;font-weight:700;color:var(--good);background:var(--good-soft);border-radius:6px;padding:.08rem .38rem;vertical-align:1px}
+.gr-tag{display:inline-block;margin-left:.2rem;font-size:.68rem;font-weight:700;color:var(--good);background:var(--good-soft);border-radius:6px;padding:.08rem .38rem;vertical-align:1px}
 
 /* Competitors: setup checklist and them-vs-you bars */
 .cx-steps{list-style:none;margin:0 0 1rem;padding:.35rem;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.35rem;border:1px solid var(--line);border-radius:16px;background:var(--card)}
@@ -243,3 +243,12 @@
 @media (max-width:760px){.cx-steps{grid-template-columns:minmax(0,1fr)}}
 @media (prefers-reduced-motion:reduce){.cx-bar-fill{animation:none}}
 .focus-page{display:inline-block;margin-left:.2rem;padding:.05rem .45rem;border-radius:6px;background:var(--card-2);color:var(--muted);font:500 .74rem/1.5 var(--mono,ui-monospace,monospace);vertical-align:middle;white-space:nowrap}
+/* Google Analytics: AI rows and visitors back from checkout or sign-in */
+.gr-tag.is-ai{color:var(--brand);background:var(--brand-soft)}
+.gr-tag.is-return{color:var(--muted);background:var(--card-2)}
+.gr-returns{padding:.85rem 1rem;border-radius:14px;border:1px dashed var(--line);background:var(--card-2)}
+.gr-returns h4{margin:0 0 .4rem;font-size:.95rem}
+.gr-returns p{margin:0 0 .55rem;font-size:.85rem;color:var(--ink-2);line-height:1.45}
+.gr-returns ul{list-style:none;margin:0;padding:0;display:grid;gap:.35rem}
+.gr-returns li{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.2rem .8rem;padding:.4rem .6rem;border-radius:9px;background:var(--card);font-size:.86rem}
+.gr-returns li span{color:var(--muted);font-size:.8rem}
