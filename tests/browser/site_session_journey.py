@@ -99,7 +99,7 @@ def main():
                 expect(form.get_by_role("heading", name="Site audit saved")).to_be_visible()
                 form.get_by_role("button", name="Close", exact=True).last.click()
                 expect(page.get_by_role("region", name="Project directory").get_by_role(
-                    "link", name="first-relay.example", exact=True)).to_be_visible()
+                    "heading", name="first-relay.example", exact=True)).to_be_visible()
                 writes = [call for call in project_calls if call["tool"] in {"save_results", "audit_site"}]
                 assert [call["tool"] for call in writes] == ["save_results", "audit_site"]
                 assert writes[0]["arguments"]["project"] == "first-relay-example" and writes[0]["arguments"]["create_only"]
