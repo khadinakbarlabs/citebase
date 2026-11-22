@@ -5,7 +5,7 @@
   var main = document.getElementById('main'), crumbs = document.getElementById('crumbs'), who = document.getElementById('who');
   var SECTIONS = [
     { tabs: (CB.hasProjectWork ? [['overview', 'Overview'], ['setup', 'Project setup']] : [['overview', 'Overview']]).concat([['connections', 'Connections']]) },
-    { label: 'Measure', tabs: [['answers', 'AI answers'], ['questions', 'Questions'], ['site', 'Site'], ['traffic', 'Traffic']]
+    { label: 'Measure', tabs: [['answers', 'AI answers'], ['questions', 'Questions'], ['site', 'Site'], ['search', 'Search'], ['traffic', 'Traffic']]
       .concat(CB.hasProjectWork ? [['competitors', 'Competitors']] : []) },
     { label: 'Act', tabs: CB.hasProjectWork ? [['evidence', 'Evidence'], ['todo', 'Actions'], ['outreach', 'Outreach']] : [['todo', 'Actions']] }
   ];
@@ -16,7 +16,7 @@
       CB.s('use', { href: '../assets/icons.svg#' + name }));
   }
   var sectionIcons = { overview:'overview', setup:'setup', answers:'answers', questions:'questions', site:'site',
-    traffic:'traffic', competitors:'target', evidence:'evidence', todo:'action', outreach:'outreach', connections:'plug' };
+    search:'search', traffic:'traffic', competitors:'target', evidence:'evidence', todo:'action', outreach:'outreach', connections:'plug' };
   var metricIcons = { recommendation_share:'results', mentioned_rate:'mention', cited_rate:'sources', site_health:'health' };
   function initialView() { return { metric: 'recommendation_share', engines: null, qFilter: 'all', qTopic: '', qSearch: '' }; }
   var view = initialView(), viewProject = null;
@@ -424,7 +424,7 @@
     document.title = selected[1] + ' · ' + shell.name + ' · Citebase';
     shell.body.setAttribute('aria-label', selected[1] + ' for ' + shell.name);
     CB.clear(shell.body); CB.untip();
-    var views = { setup: CB.onboarding, overview: tabOverview, answers: tabAnswers, questions: tabQuestions, site: tabSite, traffic: tabTraffic,
+    var views = { setup: CB.onboarding, overview: tabOverview, answers: tabAnswers, questions: tabQuestions, site: tabSite, traffic: tabTraffic, search: function (body, d, slug) { CB.searchUI.render(body, d, slug); },
       todo: CB.hasProjectWork ? CB.workUI.actions : CB.historyUI.actions, evidence: CB.workUI.evidence, outreach: CB.workUI.outreach, connections: CB.connectionsUI.render,
       competitors: function (body, d, slug) { CB.competitorsUI.render(body, d, slug, { rivalsCard: rivalsCard, gapCard: gapCard,
         aiCheck: function () { journeyActions(slug, d).aiCheck(); } }); } };
@@ -1013,9 +1013,10 @@
       body.appendChild(googleSlot); body.appendChild(googleReports);
       CB.work(slug, 'research_get', {}).then(function (research) {
         if (!googleReports.isConnected) return;
-        CB.renderGoogleReports(googleReports, research.first_party, true);
-        fromGoogle(research.first_party);
-        var entry = googleEntry(slug, googleReports.childElementCount > 0 ? research.first_party : null);
+        var fp = research.first_party || {}, synced = function (r) { return r && r.provenance === 'google_sync' ? r : null; };
+        CB.renderGoogleReports(googleReports, { ga4: fp.ga4 }, true);
+        fromGoogle(fp);
+        var entry = googleEntry(slug, synced(fp.gsc) || synced(fp.ga4) ? { gsc: synced(fp.gsc), ga4: synced(fp.ga4) } : null);
         if (entry) googleSlot.appendChild(entry);
         googleSlot.appendChild(h('p', { class: 'note' }, h('a', { href: projectUrl(slug, 'connections'), text: 'See every connection for this project' })));
       }).catch(function () {
@@ -1032,13 +1033,9 @@
         if (gaCard) aiEmpty.replaceWith(gaCard);
       }
       if (searchEmpty && searchEmpty.isConnected && gsc && gsc.provenance === 'google_sync' && (gsc.rows || []).length) {
-        var link = h('a', { href: '#google-connect', text: 'See your Google Search report' });
-        link.addEventListener('click', function (e) {
-          e.preventDefault();
-          var report = document.querySelector('.gr-card'); if (report) report.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
+        var link = h('a', { href: projectUrl(slug, 'search'), text: 'Open the Search tab' });
         searchEmpty.replaceWith(card('What people search on Google', 'From Search Console, ' + day(gsc.start_date) + ' to ' + day(gsc.end_date) + '.',
-          h('p', { class: 'note' }, num(gsc.rows.length) + ' searches showed your site. Totals, top searches and quick wins are in your Google Search report at the top of this page. ', link)));
+          h('p', { class: 'note' }, num(gsc.rows.length) + ' searches showed your site. Trends, positions, pages and quick wins are on the Search tab. ', link)));
       }
     }
     // Visits AI assistants sent, from the Google Analytics sync (server totals, or counted here when the server has none).

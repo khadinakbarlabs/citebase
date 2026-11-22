@@ -72,12 +72,12 @@ module.exports=async function(req,res){
    const reply=await grant({grant_type:'authorization_code',code:new URL(req.url,redirect.origin).searchParams.get('code'),redirect_uri,code_verifier:flow.verifier});
    if(!reply.refresh_token||!reply.scope?.split(' ').includes(scopes[service]))throw Error('Missing grant');
    await save({refresh:reply.refresh_token,property:null});
-   const back=flow.back==='connections'?'/connections':service==='gmail'?'/outreach':'/setup';
+   const back=['connections','search'].includes(flow.back)?'/'+flow.back:service==='gmail'?'/outreach':'/setup';
    res.statusCode=303;res.setHeader('Location',redirect.origin+'/app/#/p/'+project+back);return res.end();
   }
   if(body.action==='connect'){
    const state=nonce(),verifier=nonce();
-   const back=body.return_to==='connections'?'connections':null;
+   const back=['connections','search'].includes(body.return_to)?body.return_to:null;
    setFlow(crypt(key,'oauth-flow',{binding,service,project,state,verifier,back,expires:Date.now()+600000}),600);
    const params=new URLSearchParams({client_id,redirect_uri,response_type:'code',scope:scopes[service],state,code_challenge:crypto.createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'S256',access_type:'offline',prompt:'consent'});
    return json(200,{url:'https://accounts.google.com/o/oauth2/v2/auth?'+params});
@@ -129,7 +129,7 @@ module.exports=async function(req,res){
   if(!selected)return json(409,{error:'Select an accessible property for this project.'});
   if(body.action==='select'){await api(selectionRecord,{method:'PUT',body:{property}});await requireActive();return json(200,{property});}
   if(body.action!=='sync')return json(400,{error:'Unknown action.'});
-  const {observations,...summary}=await report(service,property,google,site,selected.streams);
+  const {observations,extra,...summary}=await report(service,property,google,site,selected.streams);
   await requireActive();
   if(await selectedProperty()!==property)return json(409,{error:'Selected property changed. Review the connection.'});
   const source=service==='gsc'?'Google Search Console':'Google Analytics 4';
@@ -137,7 +137,7 @@ module.exports=async function(req,res){
    observed_at:new Date().toISOString().slice(0,10),count:summary.count};
   const snapshotKey=base+'p.'+project+'.google.'+service+'.'+summary.endDate;
   // A self-contained dated record also records a legitimate empty report for this exact site.
-  await api(snapshotKey,{method:'PUT',body:{...evidence,rows:observations}});
+  await api(snapshotKey,{method:'PUT',body:{...evidence,...(extra||{}),rows:observations}});
   await api(lastImportKey,{method:'PUT',body:evidence});
   return json(200,{...summary,property,saved:summary.count>0});
  }catch(error){if(error?.code==='GRANT_CHANGED')return json(409,{error:error.message});return json(400,{error:'Could not confirm this Google operation. Check project history before retrying an import, or reconnect Google.'});}

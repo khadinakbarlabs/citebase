@@ -214,6 +214,39 @@ class EvidenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(view["first_party"]["gsc"]["provenance"], "google_sync")
         self.assertEqual(view["keywords"], [])
 
+    async def test_search_sync_carries_trend_pages_countries_devices_and_previous_period(self):
+        await history.save_results("alpha", [], brand={"name": "Alpha", "domain": "alpha.org"})
+        base = dict(service="gsc", source="Google Search Console", website="alpha.org", property="sc-domain:alpha.org",
+                    start_date="2026-01-01", end_date="2026-01-28", observed_at="2026-01-31",
+                    rows=[{"term": "alpha crm", "clicks": 9, "impressions": 90, "position": 2.1}])
+        await self.be.set(storage.key("alpha", "google", "gsc", "2026-01-28"), base)
+        old = (await research.execute("alpha", "research_get", {}))["first_party"]["gsc"]
+        self.assertEqual(old["rows"][0]["term"], "alpha crm")
+        for key in ("totals", "daily", "pages", "countries", "devices", "previous"):
+            self.assertNotIn(key, old, "an older query-only record stays as it was")
+        record = dict(base, totals={"clicks": 9, "impressions": 90, "ctr": 0.1, "position": 2.1, "secret": "x"},
+                      daily=[{"date": "2026-01-01", "clicks": 4, "impressions": 40, "position": 2.0, "extra": 1}, "bad", {"clicks": 1}],
+                      pages=[{"page": "https://alpha.org/blog", "clicks": 9, "impressions": 90, "position": True}] * 150,
+                      countries=[{"country": "usa", "clicks": 5, "impressions": 50, "position": 3}],
+                      devices=[{"device": "MOBILE", "clicks": 6, "impressions": 60, "position": 2}],
+                      previous={"start_date": "2025-12-04", "end_date": "2025-12-31",
+                                "totals": {"clicks": 20, "impressions": 100, "ctr": 0.2, "position": 4.0},
+                                "daily": [{"date": "2025-12-04", "clicks": 20, "impressions": 100, "position": 4}],
+                                "rows": [{"term": "alpha crm", "clicks": 20, "impressions": 100, "position": 12.5}],
+                                "pages": "not a list"})
+        await self.be.set(storage.key("alpha", "google", "gsc", "2026-01-28"), record)
+        gsc = (await research.execute("alpha", "research_get", {}))["first_party"]["gsc"]
+        self.assertEqual(gsc["totals"], {"clicks": 9, "impressions": 90, "ctr": 0.1, "position": 2.1})
+        self.assertEqual(gsc["daily"], [{"date": "2026-01-01", "clicks": 4, "impressions": 40, "position": 2.0}])
+        self.assertEqual(len(gsc["pages"]), 100)
+        self.assertIsNone(gsc["pages"][0]["position"], "true is not a position")
+        self.assertEqual(gsc["countries"][0]["country"], "usa")
+        self.assertEqual(gsc["devices"][0]["device"], "MOBILE")
+        self.assertEqual(gsc["previous"]["totals"]["clicks"], 20)
+        self.assertEqual(gsc["previous"]["rows"][0]["position"], 12.5)
+        self.assertEqual(gsc["previous"]["pages"], [])
+        self.assertEqual((gsc["previous"]["start_date"], gsc["previous"]["end_date"]), ("2025-12-04", "2025-12-31"))
+
     async def test_synced_traffic_totals_ai_visits_and_flags_checkout_returns(self):
         await history.save_results("alpha", [], brand={"name": "Alpha", "domain": "alpha.org"})
         rows = [{"source": "chatgpt.com", "sessions": 524}, {"source": "(direct)", "sessions": 418},
