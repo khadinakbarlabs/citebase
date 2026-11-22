@@ -2,6 +2,9 @@
  'use strict';
  const CB=window.CB,h=CB.h;
  const list=items=>items.join(', ');
+ // Product logo placed before an element's text (CSS order), skipped where SVG helpers are unavailable.
+ const withLogo=(el,name,cls)=>{if(CB.s)el.append(CB.s('svg',{class:cls||'g-logo','aria-hidden':'true',focusable:'false'},CB.s('use',{href:'../assets/icons.svg#'+name})));return el;};
+ const LOGOS={gsc:'logo-gsc',ga4:'logo-ga'};
  // Plain-language explanation when no Google property covers the project's website.
  function emptyHelp(service,found){
   const site=found.website||'this project’s website',url='https://'+(found.website||'your-site')+'/';
@@ -23,19 +26,20 @@
   return lines;
  }
  function panel(project){
-  const box=h('section',{class:'card'},h('h3',{text:'Google reporting'}));
+  const box=h('section',{class:'card'},withLogo(h('h3',{class:'g-title',text:'Google reporting'}),'logo-google'));
   if(CB.demo){box.append(h('p',{text:'Sign in to connect your own Google properties.'}));return box;}
   for(const [service,label] of [['gsc','Search Console'],['ga4','Google Analytics 4']]){
-   const section=h('div'),status=h('p',{'aria-live':'polite'}),help=h('div',{class:'google-help'}),actions=h('div',{class:'actions'});
-   section.append(h('h4',{text:label}),status,help,actions);box.append(section);
+   const section=h('div',{class:'google-service'}),status=h('p',{'aria-live':'polite'}),help=h('div',{class:'google-help'}),actions=h('div',{class:'actions'});
+   section.append(withLogo(h('h4',{text:label}),LOGOS[service]),status,help,actions);box.append(section);
    async function call(action,extra){
     const response=await fetch('/api/google/',{method:'POST',credentials:'same-origin',headers:{'X-Citebase-Session':'1',Authorization:'Bearer '+CB.token,'Content-Type':'application/json'},body:JSON.stringify({action,project,service,...extra})});
     const result=await response.json();
     if(!response.ok)throw Error(result.error||'Google reporting is unavailable.');
     return result;
    }
-   function button(text,fn){
-    const b=h('button',{type:'button',class:'btn ghost',text});
+   function button(text,fn,mark){
+    const b=h('button',{type:'button',class:mark==='primary'?'btn':'btn ghost',text});
+    if(mark)withLogo(b,mark==='primary'?LOGOS[service]:mark,'g-logo sm');
     b.onclick=async()=>{actions.inert=true;try{await fn();}catch(e){status.textContent=e.message;}finally{actions.inert=false;}};
     actions.append(b);
    }
@@ -44,7 +48,7 @@
     status.textContent=state.configured?(state.property|| (state.connected?'Choose a property.':'Connect to import a read-only report.')):state.error;
     if(state.last_import)status.textContent+=' · Last import covered '+state.last_import.start_date+' to '+state.last_import.end_date+' ('+state.last_import.count+' rows).';
     if(!state.configured)return;
-    button(state.connected?'Reconnect':'Connect '+label,async()=>{location.assign((await call('connect')).url);});
+    button(state.connected?'Reconnect':'Connect '+label,async()=>{location.assign((await call('connect')).url);},state.connected?'logo-google':'primary');
     if(!state.connected)return;
     async function choose(){
      const found=await call('properties'),{choices}=found;actions.replaceChildren();help.replaceChildren();
