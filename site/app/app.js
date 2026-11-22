@@ -1011,6 +1011,7 @@
       CB.work(slug, 'research_get', {}).then(function (research) {
         if (!googleReports.isConnected) return;
         CB.renderGoogleReports(googleReports, research.first_party, true);
+        fromGoogle(research.first_party);
         var entry = googleEntry(slug, googleReports.childElementCount > 0 ? research.first_party : null);
         if (entry) googleSlot.appendChild(entry);
       }).catch(function () {
@@ -1018,7 +1019,40 @@
           'Connected Google reports could not be loaded. ', h('a', {href:projectUrl(slug, 'setup'),text:'Review project research'})));
       });
     }
-    var row = h('div', { class: 'grid2 even' }), bots = d.ai_bot_visits, tr = d.ai_traffic;
+    var row = h('div', { class: 'grid2 even' }), bots = d.ai_bot_visits, tr = d.ai_traffic, aiEmpty = null, searchEmpty = null;
+    // With Google connected and no uploaded export, fill these two sections from the Google sync instead of asking to connect.
+    function fromGoogle(firstParty) {
+      var ga = firstParty && firstParty.ga4, gsc = firstParty && firstParty.gsc;
+      if (aiEmpty && aiEmpty.isConnected && ga && ga.provenance === 'google_sync' && (ga.rows || []).length) {
+        var gaCard = googleAiCard(ga);
+        if (gaCard) aiEmpty.replaceWith(gaCard);
+      }
+      if (searchEmpty && searchEmpty.isConnected && gsc && gsc.provenance === 'google_sync' && (gsc.rows || []).length) {
+        var link = h('a', { href: '#google-connect', text: 'See your Google Search report' });
+        link.addEventListener('click', function (e) {
+          e.preventDefault();
+          var report = document.querySelector('.gr-card'); if (report) report.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        searchEmpty.replaceWith(card('What people search on Google', 'From Search Console, ' + day(gsc.start_date) + ' to ' + day(gsc.end_date) + '.',
+          h('p', { class: 'note' }, num(gsc.rows.length) + ' searches showed your site. Totals, top searches and quick wins are in your Google Search report at the top of this page. ', link)));
+      }
+    }
+    // Visits AI assistants sent, from the Google Analytics sync (server totals, or counted here when the server has none).
+    function googleAiCard(ga) {
+      var rows = ga.rows || [], label = CB.trafficSources ? CB.trafficSources.label : function () { return {}; };
+      var total = typeof ga.all_visits === 'number' ? ga.all_visits : rows.reduce(function (n, r) { return n + (Number(r.sessions) || 0); }, 0);
+      var byAssistant = {};
+      rows.forEach(function (r) { var a = label(r).assistant; if (a) byAssistant[a] = (byAssistant[a] || 0) + (Number(r.sessions) || 0); });
+      var assistants = Array.isArray(ga.assistants) && ga.assistants.length ? ga.assistants : Object.keys(byAssistant)
+        .map(function (a) { return { assistant: a, visits: byAssistant[a] }; }).sort(function (x, y) { return y.visits - x.visits; });
+      var visits = typeof ga.ai_visits === 'number' ? ga.ai_visits : assistants.reduce(function (n, a) { return n + a.visits; }, 0);
+      if (!total) return null;
+      return card('Visits from AI assistants', 'From Google Analytics, ' + day(ga.start_date) + ' to ' + day(ga.end_date) + '.', h('div', {},
+        h('div', { class: 'bignum' }, h('b', { text: num(visits) }), h('span', { text: ' visits, ' + (visits / total * 100).toFixed(1) + '% of all' })),
+        assistants.length > 1 ? CB.barChart({ aria: 'Visits by assistant', labelWidth: 110, items: assistants.map(function (a) { return { label: a.assistant, value: a.visits }; }) })
+          : assistants.length ? h('p', { class: 'note', text: 'All from ' + assistants[0].assistant + '.' }) : h('p', { class: 'note', text: 'No visits from AI assistants in this period.' }),
+        h('p', { class: 'note', text: 'A floor: people who read an AI answer without clicking are not counted.' })));
+    }
     function toGoogle() {
       var slot = document.getElementById('google-connect');
       if (!slot) { location.hash = projectUrl(slug, 'setup'); return; }
@@ -1047,7 +1081,7 @@
           tipTitle: function (i) { return months[i].month; }, tipExtra: function (i) { return [num(months[i].all_visits) + ' visits in all']; } }) : null,
         tr.assistants && tr.assistants.length ? CB.barChart({ aria: 'Visits by assistant', labelWidth: 110, items: tr.assistants.map(function (a) { return { label: a.assistant, value: a.visits }; }) }) : null,
         h('p', { class: 'note', text: 'A floor: people who read an AI answer without clicking are not counted.' }))));
-    } else row.appendChild(CB.journey.emptyState({ compact: true, icon: 'traffic', title: 'Visits from AI assistants',
+    } else row.appendChild(aiEmpty = CB.journey.emptyState({ compact: true, icon: 'traffic', title: 'Visits from AI assistants',
       text: 'People who click through from ChatGPT, Perplexity and others. Comes from Google Analytics.', actions: googleAction }));
     body.appendChild(row);
     var sd = d.search_demand;
@@ -1059,7 +1093,7 @@
           { key: 'position', label: 'Position', num: true }], list, { sort: 'impressions' }),
           sd.test_in_ai && sd.test_in_ai.length ? h('div', { class: 'testlist' }, h('p', { class: 'note', text: 'Worth adding to your AI test questions:' }),
             h('div', { class: 'chipline' }, sd.test_in_ai.slice(0, 12).map(function (t) { return h('span', { class: 'chip', text: t }); }))) : null)));
-    } else body.appendChild(CB.journey.emptyState({ compact: true, icon: 'search', title: 'What people search on Google',
+    } else body.appendChild(searchEmpty = CB.journey.emptyState({ compact: true, icon: 'search', title: 'What people search on Google',
       text: 'The searches that show your site, with views and clicks. Comes from Search Console.', actions: googleAction }));
     var rk = d.ranks;
     if (rk && rk.positions && rk.positions.length) {
