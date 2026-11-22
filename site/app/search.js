@@ -97,8 +97,16 @@
       var t = D.totals(g[1]);
       return h('div', { class: 'sr-split-row' }, h('span', { class: 'sr-k', text: g[0] }), h('b', { text: num(t.clicks) + ' clicks' }),
         meterBar(clicks ? t.clicks / clicks : 0), h('span', { class: 'sr-hint', text: num(g[1].length) + ' searches · ' + num(t.impressions) + ' impressions' }));
-    })), h('p', { class: 'note', text: 'Brand searches contain ' + model.terms.map(function (t) { return '“' + t + '”'; }).join(' or ') + '.' }));
+    })), h('p', { class: 'note', text: 'Brand searches contain ' + model.terms.map(function (t) { return '“' + t + '”'; }).join(' or ') + '.' }), hiddenNote(model));
     return c;
+  }
+  // Why the search list adds up to fewer clicks than the headline total.
+  function hiddenNote(model) {
+    var gap = D.hiddenClicks(model);
+    if (!gap) return null;
+    return h('p', { class: 'note sr-hidden', text: 'Your ' + num(gap.all) + ' clicks include ' + num(gap.hidden) +
+      ' from searches Google does not list' + (gap.capped ? ': ones it keeps private, and any past the first 1,000' : ', because they are very rare or personal') +
+      '. So the searches here add up to ' + num(gap.listed) + ' clicks.' });
   }
   function moreButton(left, onclick) { return h('button', { type: 'button', class: 'btn ghost small sr-more', text: 'Show ' + left + ' more', onclick: onclick }); }
   function signed(d) {

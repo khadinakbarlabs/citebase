@@ -80,6 +80,14 @@
         totals: prev.totals && isNum(prev.totals.clicks) ? prev.totals : prevDaily.length ? totals(prevDaily) : null } : null,
       prevByTerm: byKey(prev && prev.rows, 'term'), prevByPage: byKey(prev && prev.pages, 'page') };
   }
+  // Clicks in the headline total that the search list cannot show: Google keeps very rare or
+  // personal searches private and lists at most 1,000. Null when the list covers the total.
+  var LIST_LIMIT = 1000;
+  function hiddenClicks(model) {
+    var all = model && model.totals && model.totals.clicks, listed = sum((model && model.rows) || [], 'clicks');
+    if (!isNum(all) || !model.rows.length || all - listed < 1) return null;
+    return { all: all, listed: listed, hidden: all - listed, capped: model.rows.length >= LIST_LIMIT };
+  }
   // Ranges the daily series supports: 7 days (compared with the 7 before) and the full period.
   function ranges(model) {
     var n = model.daily.length, out = [];
@@ -200,6 +208,6 @@
     return c.toUpperCase();
   }
   CB.searchData = { totals: totals, fillDays: fillDays, pathOf: pathOf, brandTerms: brandTerms, isBranded: isBranded,
-    quickWin: quickWin, bands: bands, prepare: prepare, ranges: ranges, range: range, change: change, insights: insights,
+    quickWin: quickWin, bands: bands, hiddenClicks: hiddenClicks, prepare: prepare, ranges: ranges, range: range, change: change, insights: insights,
     deviceName: deviceName, countryName: countryName };
 })();
