@@ -214,6 +214,26 @@ class EvidenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(view["first_party"]["gsc"]["provenance"], "google_sync")
         self.assertEqual(view["keywords"], [])
 
+    async def test_synced_traffic_totals_ai_visits_and_flags_checkout_returns(self):
+        await history.save_results("alpha", [], brand={"name": "Alpha", "domain": "alpha.org"})
+        rows = [{"source": "chatgpt.com", "sessions": 524}, {"source": "(direct)", "sessions": 418},
+                {"source": "checkout.stripe.com", "sessions": 172}, {"source": "google", "sessions": 143},
+                {"source": "accounts.google.com", "sessions": 92}, {"source": "perplexity.ai / referral", "sessions": 6},
+                {"source": "chatgpt.com", "sessions": "bad"}]
+        await self.be.set(storage.key("alpha", "google", "ga4", "2026-01-25"),
+                          dict(service="ga4", source="Google Analytics 4", website="alpha.org", property="owned",
+                               start_date="2026-01-01", end_date="2026-01-25", observed_at="2026-01-26", rows=rows))
+        ga4 = (await research.execute("alpha", "research_get", {}))["first_party"]["ga4"]
+        self.assertEqual((ga4["all_visits"], ga4["ai_visits"], ga4["return_visits"]), (1355, 530, 264))
+        self.assertEqual(ga4["ai_share"], round(530 / 1355, 4))
+        self.assertEqual(ga4["assistants"], [{"assistant": "ChatGPT", "visits": 524}, {"assistant": "Perplexity", "visits": 6}])
+        by_source = {row["source"]: row for row in ga4["rows"]}
+        self.assertEqual(by_source["chatgpt.com"]["assistant"], "ChatGPT")
+        self.assertEqual(by_source["checkout.stripe.com"]["returning_from"], "Stripe checkout")
+        self.assertEqual(by_source["accounts.google.com"]["returning_from"], "Google sign-in")
+        self.assertNotIn("assistant", by_source["google"])
+        self.assertNotIn("returning_from", by_source["(direct)"])
+
     async def test_same_source_observation_is_counted_once_across_imports(self):
         row = dict(prompt_id="q", platform="claude", source_dataset_id="dataset01", date="2026-01-01", mentioned=True)
         project = {**self.project, "runs": [dict(row, snapshot="first"), dict(row, snapshot="copy")]}

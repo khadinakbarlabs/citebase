@@ -189,6 +189,28 @@ def ai_source(value: Any) -> str | None:
     return None
 
 
+# Hosts a visitor passes through on the way back to the site after paying or signing in. Analytics
+# reports them as referrers, but they are the site's own visitors returning, not new traffic.
+RETURN_HOSTS = {
+    "checkout.stripe.com": "Stripe checkout", "billing.stripe.com": "Stripe billing", "buy.stripe.com": "Stripe checkout",
+    "pay.stripe.com": "Stripe checkout", "invoice.stripe.com": "Stripe billing",
+    "paypal.com": "PayPal", "checkout.paypal.com": "PayPal",
+    "accounts.google.com": "Google sign-in", "appleid.apple.com": "Apple sign-in",
+    "login.microsoftonline.com": "Microsoft sign-in", "login.live.com": "Microsoft sign-in",
+    "checkout.shopify.com": "Shopify checkout", "app.lemonsqueezy.com": "Lemon Squeezy checkout",
+}
+
+
+def return_source(value: Any) -> str | None:
+    """What a payment or sign-in bounce-back source is ('checkout.stripe.com' -> 'Stripe checkout'), else None."""
+    text = re.sub(r"^www\.", "", re.sub(r"^https?://", "", str(value or "").strip().lower()))
+    host = re.split(r"[\s/?]", text, maxsplit=1)[0]
+    for known, name in RETURN_HOSTS.items():
+        if host == known or host.endswith("." + known):
+            return name
+    return None
+
+
 def _number(value: Any) -> float:
     """A count or amount from an export cell ('1,204', '3.5', '', None) as a number; 0 when it is not one."""
     if isinstance(value, bool):
