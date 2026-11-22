@@ -47,15 +47,16 @@
   const key = 'citebase.prefs';
   const root = document.documentElement;
   const accents = ['violet', 'blue', 'teal', 'rose', 'graphite'];
-  const blocks = ['snapshot', 'focus', 'charts', 'planning'];
-  function fresh() { return { accent: 'violet', density: 'comfortable', tips: false, hide: [] }; }
+  const blocks = ['journey', 'snapshot', 'focus', 'charts', 'planning'];
+  function fresh() { return { accent: 'violet', density: 'comfortable', tips: false, hide: [], projects: 'cards' }; }
   function clean(saved) {
     const s = saved && typeof saved === 'object' ? saved : {};
     return {
       accent: accents.includes(s.accent) ? s.accent : 'violet',
       density: s.density === 'compact' ? 'compact' : 'comfortable',
       tips: s.tips === true,
-      hide: Array.isArray(s.hide) ? s.hide.filter(function (k) { return blocks.includes(k); }) : []
+      hide: Array.isArray(s.hide) ? s.hide.filter(function (k) { return blocks.includes(k); }) : [],
+      projects: s.projects === 'table' ? 'table' : 'cards'
     };
   }
   function read() {

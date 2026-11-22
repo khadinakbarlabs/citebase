@@ -5,7 +5,7 @@
   'use strict';
   var ACCENTS = [['violet', 'Violet', '#6d31ed'], ['blue', 'Blue', '#2a62e8'], ['teal', 'Teal', '#0e8577'],
     ['rose', 'Rose', '#d12c6c'], ['graphite', 'Graphite', '#2f2b36']];
-  var BLOCKS = [['snapshot', 'Visibility snapshot'], ['focus', 'What to do next'], ['charts', 'Trend and engine charts'],
+  var BLOCKS = [['journey', 'Progress steps'], ['snapshot', 'Visibility snapshot'], ['focus', 'What to do next'], ['charts', 'Trend and engine charts'],
     ['planning', 'Project planning']];
   // Saved and applied before paint by ../appearance.js (window.CitebasePrefs).
   var store = window.CitebasePrefs || { get: function () { return { accent: 'violet', density: 'comfortable', tips: false, hide: [] }; },

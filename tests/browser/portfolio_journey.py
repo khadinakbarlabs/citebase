@@ -1,6 +1,7 @@
 """Project comparison, saved audits and duplicate-safe creation through the dashboard."""
 
 import json
+import re
 
 from playwright.sync_api import expect
 
@@ -23,6 +24,11 @@ def check_portfolio(page, base, call, ops):
     call("save_results", {"project": "beacon-studio", "brand": {"name": "Beacon Studio"}})
     page.goto(base + "/app/#/")
     directory = page.get_by_role("region", name="Project directory")
+    cards = directory.get_by_role("list", name="Saved projects")
+    expect(cards.get_by_role("heading", name="Harbor Studio", exact=True)).to_be_visible()
+    expect(cards.get_by_role("link", name=re.compile(r"^Open Harbor Studio\. Site health 61 of 100"))).to_be_visible()
+    expect(cards.get_by_role("button", name="Add a new project")).to_be_visible()
+    directory.get_by_role("button", name="Table", exact=True).click()
     search = directory.get_by_role("searchbox", name="Find a project")
     search.fill("Studio")
     projects = directory.get_by_role("rowheader")

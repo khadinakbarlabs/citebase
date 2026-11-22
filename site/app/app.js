@@ -14,7 +14,7 @@
     return CB.s('svg', { class: 'interface-icon', viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' },
       CB.s('use', { href: '../assets/icons.svg#' + name }));
   }
-  var sectionIcons = { overview:'overview', answers:'answers', questions:'questions', site:'site',
+  var sectionIcons = { overview:'overview', setup:'setup', answers:'answers', questions:'questions', site:'site',
     traffic:'traffic', evidence:'evidence', todo:'action', outreach:'outreach' };
   var metricIcons = { recommendation_share:'results', mentioned_rate:'mention', cited_rate:'sources', site_health:'health' };
   function initialView() { return { metric: 'recommendation_share', engines: null, qFilter: 'all', qTopic: '', qSearch: '' }; }
@@ -216,6 +216,12 @@
         interfaceIcon(filterIcons[item[0]]), h('span', {class:'filter-name', text:item[1]}),
         h('strong', {class:'filter-count', text:String(list.filter(item[2]).length)}));
     });
+    var store = window.CitebasePrefs, layout = store ? store.get().projects : 'cards', grid = h('div', { class: 'portfolio-cards' });
+    var layoutButtons = [['cards', 'Cards', 'grid'], ['table', 'Table', 'list']].map(function (item) {
+      return h('button', { type: 'button', 'aria-pressed': String(layout === item[0]), onclick: function () {
+        layout = item[0]; if (store) store.set(Object.assign(store.get(), { projects: layout })); draw();
+      } }, CB.journey.icon(item[2]), h('span', { text: item[1] }));
+    });
     var table = h('table', { class: 'portfolio-table', role: 'table', 'aria-label': 'Saved projects' },
       h('thead', {}, h('tr', {}, ['Project', 'Site health', 'Last site audit', 'AI rounds', 'Open section'].map(function (label) {
         return h('th', { scope: 'col', text: label });
@@ -226,7 +232,9 @@
         return match(p) && [p.project, p.brand, p.site].join(' ').toLowerCase().includes(term);
       }).sort(function (a, b) { return portfolioOrders[state.sort](a, b) || projectNameOrder(a, b); });
       CB.clear(body); rows.forEach(function (p) { body.appendChild(projectRow(p)); });
-      table.hidden = !rows.length; none.hidden = !!rows.length;
+      CB.clear(grid); if (rows.length) grid.appendChild(CB.journey.cards(rows, projectUrl, CB.demo ? null : openNew));
+      table.hidden = !rows.length || layout !== 'table'; grid.hidden = !rows.length || layout !== 'cards'; none.hidden = !!rows.length;
+      layoutButtons.forEach(function (button, i) { button.setAttribute('aria-pressed', String(['cards', 'table'][i] === layout)); });
       count.textContent = rows.length === list.length ? rows.length + (rows.length === 1 ? ' project' : ' projects') : rows.length + ' of ' + list.length + ' projects';
       filters.forEach(function (button, i) { button.setAttribute('aria-pressed', String(portfolioFilters[i][0] === state.filter)); });
     }
@@ -237,7 +245,8 @@
       h('div', { class: 'portfolio-filter-bar', role: 'group', 'aria-label': 'Filter projects' }, filters),
       h('div', { class: 'portfolio-toolbar' }, h('label', { class: 'portfolio-search' },
         CB.s('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }, CB.s('circle', { cx: 10, cy: 10, r: 6 }), CB.s('path', { d: 'm15 15 5 5' })), search),
-        h('label', { class: 'portfolio-sort' }, h('span', { text: 'Sort by' }), order), count), table, none);
+        h('label', { class: 'portfolio-sort' }, h('span', { text: 'Sort by' }), order), count,
+        h('div', { class: 'portfolio-view', role: 'group', 'aria-label': 'Show projects as' }, layoutButtons)), grid, table, none);
   }
   function overview() {
     var current = currentRequest();
@@ -392,7 +401,7 @@
     function reload() { CB.refresh(); route(); }
     main.classList.add('project-page');
     main.appendChild(h('header', { class: 'project-masthead' },
-      h('div', { class: 'project-identity' },
+      h('div', { class: 'project-identity has-badge' }, CB.journey.badge(name, 'lg'),
         h('h1', { text: name }),
         h('div', { class: 'project-meta' }, site ? h('a', { href: site, rel: 'noopener noreferrer', target: '_blank' }, CB.host(site), h('span', { 'aria-hidden': 'true', text: ' ↗' })) : h('span', { text: slug }), switcher)),
       h('div', { class: 'project-commands' },
@@ -541,7 +550,9 @@
     readings.forEach(function (reading) {
       var button = h('button', { type: 'button', class: 'snapshot-metric', 'aria-controls': 'metric-reading overview-trend',
         onclick: function () { select(reading); } }, interfaceIcon(metricIcons[reading.key]), h('span', { class: 'metric-label', text: reading.label }),
-        h('strong', { class: 'metric-value' }, reading.value, reading.unit ? h('small', { text: reading.unit }) : null));
+        h('strong', { class: 'metric-value' }, reading.value === '–' ? h('span', { class: 'not-yet', text: reading.key === 'site_health' ? 'Not checked yet' : 'Needs an AI check' }) : reading.value,
+          reading.unit ? h('small', { text: reading.unit }) : null));
+      if (reading.value === '–') button.classList.add('is-empty');
       buttons.push(button); metrics.appendChild(button);
     });
     select(!last && audit ? readings[3] : readings[0]);
@@ -557,6 +568,9 @@
     if (metric === 'site_health') {
       var audits = (d.audits || []).filter(function (a) { return measured(a.health_score); });
       if (!audits.length) return empty('Site health over time', 'Your first saved site check will appear here.');
+      if (audits.length === 1) return card('Site health over time', null, h('div', { class: 'single-point' },
+        h('b', { text: String(audits[0].health_score) }), h('p', { text: 'Your first site check on ' + day(audits[0].date) +
+          '. Check the site again after you fix something and this turns into a trend line.' })));
       var graph = CB.lineChart({ labels: audits.map(function (a) { return short(a.date); }), series: [{
         name: 'Site health', cls: 'cb', vals: audits.map(function (a) { return a.health_score; }) }],
         aria: 'Site health by saved check', max: 100, fmt: num, width: 460, height: 220 });
@@ -571,7 +585,14 @@
     return shareChart(snaps, null, metric, true);
   }
 
+  function journeyActions(slug, d) {
+    var brand = d.brand || {}, site = CB.safeUrl(brand.site || (brand.domain ? 'https://' + brand.domain : ''));
+    function reload() { CB.refresh(); route(); }
+    return { checkSite: function () { CB.flows.checkSite(slug, site, reload); }, aiCheck: function () { CB.flows.aiCheck(slug, d, reload); },
+      schedule: function () { CB.flows.schedule(slug, reload); } };
+  }
   function tabOverview(body, d, slug) {
+    body.appendChild(CB.journey.bar(slug, d, journeyActions(slug, d)));
     var trend = h('div', { class: 'overview-trend', id: 'overview-trend' });
     body.appendChild(visibilitySnapshot(d, slug, function (key) { CB.clear(trend).appendChild(trendChart(d, key)); }));
     if (d.scheduled_alert && d.scheduled_alert.message) {
@@ -581,7 +602,7 @@
     if (CB.hasProjectWork) CB.focusUI.mount(body, d, slug);
     else CB.historyUI.focus(body, d, slug);
     var snaps = d.snapshots || [];
-    body.appendChild(h('div', { class: 'overview-charts' }, trend, engineBoard(snaps[snaps.length - 1], slug)));
+    body.appendChild(h('div', { class: 'overview-charts' }, trend, engineBoard(snaps[snaps.length - 1], slug, d)));
     if (!CB.hasProjectWork) return;
     var planningBody = h('div', { class: 'planning-body' }), due = d.due || [];
     var planning = h('details', { class: 'project-planning' }, h('summary', {},
@@ -594,7 +615,15 @@
     body.appendChild(planning);
   }
 
-  function engineBoard(last, slug) {
+  function engineBoard(last, slug, d) {
+    if (!last && d) {
+      var start = h('button', { type: 'button', class: 'btn' }, CB.journey.icon('spark', 'jr-icon sm'), h('span', { text: 'Run AI check' }));
+      start.addEventListener('click', function () { journeyActions(slug, d).aiCheck(); });
+      return card('Recommendation by engine', 'How often each AI assistant recommends you.', h('div', {},
+        h('div', { class: 'engine-preview', 'aria-label': 'AI assistants Citebase can check' }, CB.ENGINES.map(function (e) {
+          return h('span', {}, h('i', { class: 'dot ' + CB.ecls(e[0]), 'aria-hidden': 'true' }), CB.engine(e[0]));
+        })), h('p', { class: 'note', text: 'Your first AI check fills this in. You see the price before anything runs.' }), start));
+    }
     var be = last && !last.older_metric && last.by_engine || {};
     var keys = Object.keys(be).filter(function (k) { return rate(be[k].recommendation_share) && be[k].prompts !== 0; });
     if (!keys.length) {
@@ -651,7 +680,11 @@
     var snaps = d.snapshots || [];
     if (!snaps.length) {
       if (d.fact_check_summary) body.appendChild(factChecksCard(d.project, d.fact_check_summary));
-      else body.appendChild(empty('No AI round yet', 'Ask your assistant for an AI recommendation check on this project. It will say it is a paid check and wait for your yes.'));
+      else body.appendChild(CB.journey.emptyState({ icon: 'spark', title: 'No AI check yet',
+        text: 'An AI check asks AI assistants your buying questions and records who they recommend, mention and link to.',
+        actions: [{ label: 'Run AI check', icon: 'spark', run: function () { journeyActions(d.project || mountedProject.slug, d).aiCheck(); } },
+          { label: 'Add questions first', run: function () { location.hash = projectUrl(mountedProject.slug, 'questions'); } }],
+        note: 'You see the price and approve it before anything runs.' }));
       return;
     }
     var have = {};
@@ -781,10 +814,17 @@
   function tabQuestions(body, d, slug) {
     var qs = d.questions || [];
     if (!qs.length) {
-      body.appendChild(card('Test questions', null, h('div', { class: 'empty' },
-        h('p', { text: (d.panel_prompts || 0) ? d.panel_prompts + ' questions saved. Run an AI check to see how each one does.' : 'No questions yet. Add the buying questions your customers ask an AI, then run an AI check.' }),
-        (d.panel_prompts || 0) ? h('button', { type: 'button', class: 'btn', text: 'Run AI check', onclick: function () { CB.flows.aiCheck(slug, d, function () { CB.refresh(); route(); }); } })
-          : h('button', { type: 'button', class: 'btn', text: 'Add questions', onclick: function () { CB.flows.addQuestions(slug, function () { route(); }, suggestionsFrom(d)); } }))));
+      var saved = d.panel_prompts || 0;
+      body.appendChild(CB.journey.emptyState(saved ? {
+        icon: 'questions', title: saved + (saved === 1 ? ' question saved' : ' questions saved'),
+        text: 'Run an AI check to see how AI assistants answer each one and whether they recommend you.',
+        actions: [{ label: 'Run AI check', icon: 'spark', run: function () { journeyActions(slug, d).aiCheck(); } }]
+      } : {
+        icon: 'questions', title: 'Add the questions your buyers ask AI',
+        text: 'For example “best payroll software for a small team”. Citebase asks AI assistants these questions and checks who they recommend.',
+        actions: [{ label: 'Add questions', run: function () { CB.flows.addQuestions(slug, function () { route(); }, suggestionsFrom(d)); } }],
+        note: 'Start with 5 to 10. You can change them any time.'
+      }));
       return;
     }
     var engines = CB.ENGINES.map(function (e) { return e[0]; }).filter(function (k) { return qs.some(function (q) { return q.engines && q.engines[k]; }); });
@@ -939,18 +979,44 @@
 
   /* ---------- tab: traffic ---------- */
   function niceMax(vals) { var m = Math.max.apply(null, vals.concat([1])), p = Math.pow(10, Math.floor(Math.log10(m))); return Math.ceil(m / p) * p; }
+  function googleEntry(slug, connected) {
+    if (!CB.googleUI) return null;
+    if (connected) {
+      var manage = h('details', { class: 'google-manage' }, h('summary', { text: 'Manage Google connection' }));
+      manage.addEventListener('toggle', function () { if (manage.open && manage.children.length === 1) manage.appendChild(CB.googleUI.panel(slug)); });
+      return manage;
+    }
+    var panel = CB.googleUI.panel(slug);
+    panel.classList.add('google-entry');
+    var title = panel.querySelector('h3');
+    if (title) {
+      title.textContent = 'Connect Google to see your real traffic';
+      title.insertAdjacentElement('afterend', h('p', { class: 'sub', text: 'Read-only. Citebase imports the last 28 days from Search Console and Google Analytics for this website. You can disconnect any time.' }));
+    }
+    return panel;
+  }
   function tabTraffic(body, d, slug) {
     if (CB.hasProjectWork && !CB.demo) {
-      var googleReports = h('div', {class:'setup-work'});
-      body.appendChild(googleReports);
+      var googleReports = h('div', {class:'setup-work'}), googleSlot = h('div', { class: 'google-slot', id: 'google-connect' });
+      body.appendChild(googleSlot); body.appendChild(googleReports);
       CB.work(slug, 'research_get', {}).then(function (research) {
-        if (googleReports.isConnected) CB.renderGoogleReports(googleReports, research.first_party, true);
+        if (!googleReports.isConnected) return;
+        CB.renderGoogleReports(googleReports, research.first_party, true);
+        var entry = googleEntry(slug, googleReports.childElementCount > 0);
+        if (entry) googleSlot.appendChild(entry);
       }).catch(function () {
         if (googleReports.isConnected) googleReports.appendChild(h('p', {class:'note'},
           'Connected Google reports could not be loaded. ', h('a', {href:projectUrl(slug, 'setup'),text:'Review project research'})));
       });
     }
     var row = h('div', { class: 'grid2 even' }), bots = d.ai_bot_visits, tr = d.ai_traffic;
+    function toGoogle() {
+      var slot = document.getElementById('google-connect');
+      if (!slot) { location.hash = projectUrl(slug, 'setup'); return; }
+      slot.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      var first = slot.querySelector('button, summary'); if (first) first.focus({ preventScroll: true });
+    }
+    var googleAction = CB.hasProjectWork && !CB.demo ? [{ label: 'Connect Google', icon: 'google', run: toGoogle }] : [];
     if (bots && bots.bots && bots.bots.length) {
       var chart = CB.barChart({ aria: 'AI bot requests', labelWidth: 140, items: bots.bots.slice(0, 10).map(function (b) {
         var refused = b.requests && b.blocked / b.requests >= .5;
@@ -961,7 +1027,8 @@
       row.appendChild(card('AI bot visits', 'From your server log, ' + day(bots.period && bots.period.from) + ' to ' + day(bots.period && bots.period.to) + '.',
         h('div', {}, legend([['Answers questions', 'cb'], ['Training only', 'dimk'], ['Mostly refused', 'badk']]), t.body,
           bots.findings && bots.findings.length ? h('ul', { class: 'story compact' }, bots.findings.slice(0, 4).map(function (f) { return h('li', { class: 'warn', text: f }); })) : null), t.button));
-    } else row.appendChild(empty('AI bot visits', 'Paste a few days of your website\'s access log into a chat and ask Citebase to save it to this project.'));
+    } else row.appendChild(CB.journey.emptyState({ compact: true, icon: 'activity', title: 'AI bot visits',
+      text: 'See which AI crawlers read your site. Paste a few days of your website’s access log into a chat and ask Citebase to save it here.' }));
     if (tr && ((tr.by_month && tr.by_month.length) || (tr.assistants && tr.assistants.length))) {
       var months = (tr.by_month || []).slice(-12);
       row.appendChild(card('Visits from AI assistants', 'From your analytics export.', h('div', {},
@@ -971,7 +1038,8 @@
           tipTitle: function (i) { return months[i].month; }, tipExtra: function (i) { return [num(months[i].all_visits) + ' visits in all']; } }) : null,
         tr.assistants && tr.assistants.length ? CB.barChart({ aria: 'Visits by assistant', labelWidth: 110, items: tr.assistants.map(function (a) { return { label: a.assistant, value: a.visits }; }) }) : null,
         h('p', { class: 'note', text: 'A floor: people who read an AI answer without clicking are not counted.' }))));
-    } else row.appendChild(empty('Visits from AI assistants', 'Connect Google Analytics in Project setup → Research, or import a Traffic acquisition export.'));
+    } else row.appendChild(CB.journey.emptyState({ compact: true, icon: 'traffic', title: 'Visits from AI assistants',
+      text: 'People who click through from ChatGPT, Perplexity and others. Comes from Google Analytics.', actions: googleAction }));
     body.appendChild(row);
     var sd = d.search_demand;
     if (sd && (sd.gaps || sd.top_questions)) {
@@ -982,7 +1050,8 @@
           { key: 'position', label: 'Position', num: true }], list, { sort: 'impressions' }),
           sd.test_in_ai && sd.test_in_ai.length ? h('div', { class: 'testlist' }, h('p', { class: 'note', text: 'Worth adding to your AI test questions:' }),
             h('div', { class: 'chipline' }, sd.test_in_ai.slice(0, 12).map(function (t) { return h('span', { class: 'chip', text: t }); }))) : null)));
-    } else body.appendChild(empty('What people search on Google', 'Connect Search Console in Project setup → Research, or import your Queries report to see clicks and impressions.'));
+    } else body.appendChild(CB.journey.emptyState({ compact: true, icon: 'search', title: 'What people search on Google',
+      text: 'The searches that show your site, with views and clicks. Comes from Search Console.', actions: googleAction }));
     var rk = d.ranks;
     if (rk && rk.positions && rk.positions.length) {
       body.appendChild(card('Search positions', rk.top_10 + ' of ' + rk.keywords + ' keywords in the top 10 · ' + day(rk.saved_on) + (rk.previous_date ? ' vs ' + day(rk.previous_date) : ''),
