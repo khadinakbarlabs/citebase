@@ -220,3 +220,14 @@ meter::-moz-meter-bar { background: var(--panel-signal); }
   .primary-button, .metric-panel, .engine-readings, .source-readings { border: 1px solid ButtonText; }
   .tick-meter::after { display: none; }
 }
+
+/* Privacy and terms pages */
+.legal { max-width: 46rem; padding-block: clamp(2rem, 6vw, 4.5rem); color: var(--ink-2); line-height: 1.65; }
+.legal h1 { font-size: clamp(2rem, 1.4rem + 2.4vw, 3rem); color: var(--ink); }
+.legal h2 { font-size: 1.25rem; color: var(--ink); margin-top: 2.2rem; margin-bottom: .6rem; }
+.legal p, .legal ul { margin: 0 0 1rem; }
+.legal ul { padding-left: 1.2rem; }
+.legal li { margin-bottom: .45rem; }
+.legal a { color: var(--brand); }
+.legal-date { color: var(--muted); font-size: .9rem; margin-top: .6rem !important; }
+.legal-links { margin-top: 2.6rem !important; font-weight: 550; }

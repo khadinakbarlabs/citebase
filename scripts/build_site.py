@@ -70,6 +70,9 @@ def build(site: str, out: Path, client_id: str | None = None, api: str = API, *,
 
     auth_start = "app/?signin=1" if local_static else "/api/session/?start"
     write("index.html", (SRC / "landing.html").read_text().replace("__SITE__", site).replace("__AUTH_START__", auth_start))
+    for legal in ("privacy", "terms"):
+        (out / legal).mkdir(exist_ok=True)
+        write(f"{legal}/index.html", (SRC / f"{legal}.html").read_text().replace("__SITE__", site))
     copy("landing.css")
     copy("landing.js")
     copy("favicon.svg")
