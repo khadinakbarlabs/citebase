@@ -63,8 +63,20 @@ class SiteBuildTests(unittest.TestCase):
         self.assertNotIn("functions", json.loads((self.out / "vercel.json").read_text()))
         self.assertEqual(config["oauth"]["redirectUri"], "https://citebase.example/app/")
 
+    def test_writes_privacy_and_terms_pages_for_google_review(self):
+        for rel in ("privacy/index.html", "terms/index.html"):
+            html = (self.out / rel).read_text()
+            self.assertNotIn("__SITE__", html)
+            self.assertIn("https://citebase.example/" + rel.split("/")[0] + "/", html)
+        privacy = (self.out / "privacy/index.html").read_text()
+        self.assertIn("Limited Use", privacy)
+        self.assertIn("gmail", privacy.lower())
+        landing = (self.out / "index.html").read_text()
+        self.assertIn('href="privacy/"', landing)
+        self.assertIn('href="terms/"', landing)
+
     def test_pages_carry_a_strict_policy_and_no_inline_script(self):
-        for rel in ("index.html", "app/index.html"):
+        for rel in ("index.html", "app/index.html", "privacy/index.html", "terms/index.html"):
             html = (self.out / rel).read_text()
             self.assertIn("Content-Security-Policy", html)
             self.assertNotIn("unsafe-inline", html)
